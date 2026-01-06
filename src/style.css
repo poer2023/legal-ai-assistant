@@ -1,0 +1,56 @@
+:root {
+  --bg-color: #f7f9fd;
+  /* Very light blue background */
+  --sidebar-bg: #f7f9fd;
+  /* Match main background for seamless look or slightly different */
+  --header-bg: transparent;
+  /* No more dark header banner */
+  --primary-color: #3b82f6;
+  --text-main: #1f2937;
+  --text-secondary: #64748b;
+  --text-sidebar: #4b5563;
+  --card-bg: #ffffff;
+  --border-radius: 12px;
+  --border-color: #e2e8f0;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  height: 100vh;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  height: 100%;
+  width: 100%;
+  display: flex;
+}
+
+button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+input,
+textarea {
+  border: none;
+  outline: none;
+  font-family: inherit;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+}
