@@ -20,7 +20,6 @@ const materialSource = ref('ai'); // ai | manual
 const uploadedDocuments = ref<File[]>([]);
 const selectedKnowledgeFiles = ref<string[]>([]);
 const auxiliaryInfo = ref('');
-const reportStyle = ref('professional'); // professional | concise | detailed
 const reportLanguage = ref('zh'); // zh | en
 const reportLength = ref('medium'); // short | medium
 
@@ -85,7 +84,6 @@ const handleSubmit = () => {
     uploadedDocuments: uploadedDocuments.value.map(f => f.name),
     selectedKnowledgeFiles: selectedKnowledgeFiles.value,
     auxiliaryInfo: auxiliaryInfo.value,
-    reportStyle: reportStyle.value,
     reportLanguage: reportLanguage.value,
     reportLength: reportLength.value
   });
@@ -227,48 +225,15 @@ const handleSubmit = () => {
             <textarea
               v-model="auxiliaryInfo"
               class="form-textarea"
-              placeholder="建议输入创作辅助信息，如：关键词、核心观点、检索方向等"
+              placeholder="请补充以下信息以提高检索精度（选填）：&#10;1. 案由：如民间借贷纠纷、买卖合同纠纷、劳动争议等&#10;2. 我方身份：原告/被告&#10;3. 争议焦点：如借款本金及利息认定、合同效力争议等&#10;4. 期望检索方向：如近3年判例、特定地区法院等"
               maxlength="5000"
-              rows="5"
+              rows="7"
             ></textarea>
             <button v-if="auxiliaryInfo" class="clear-btn textarea-clear" @click="clearAuxiliary">清空</button>
           </div>
           <span class="char-count">{{ auxiliaryInfo.length }} / 5000</span>
         </div>
 
-        <!-- 报告风格 -->
-        <div class="form-group">
-          <label class="form-label">
-            <span class="required">*</span> 报告风格
-            <HelpCircle :size="14" class="help-icon" />
-          </label>
-          <div class="option-cards three-cols">
-            <div
-              class="option-card with-prefix"
-              :class="{ active: reportStyle === 'professional' }"
-              @click="reportStyle = 'professional'"
-            >
-              <span class="prefix">专</span>
-              专业风格
-            </div>
-            <div
-              class="option-card with-prefix"
-              :class="{ active: reportStyle === 'concise' }"
-              @click="reportStyle = 'concise'"
-            >
-              <span class="prefix">简</span>
-              简明风格
-            </div>
-            <div
-              class="option-card with-prefix"
-              :class="{ active: reportStyle === 'detailed' }"
-              @click="reportStyle = 'detailed'"
-            >
-              <span class="prefix">详</span>
-              详细风格
-            </div>
-          </div>
-        </div>
 
         <!-- 报告语言 -->
         <div class="form-group">
@@ -802,20 +767,24 @@ const handleSubmit = () => {
 }
 
 .submit-btn {
-  width: 200px;
+  min-width: 200px;
   padding: 14px 48px;
-  background: #2563eb;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   color: white;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
 }
 
 .submit-btn:hover {
-  background: #1e40af;
+  background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
 }
 
 /* Info Sidebar */

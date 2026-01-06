@@ -16,7 +16,6 @@ const router = useRouter();
 
 const lawsuitPurpose = ref('');
 const auxiliaryInfo = ref('');
-const selectedLength = ref('4000');
 const uploadedEvidence = ref<File | null>(null);
 const uploadedTemplate = ref<File | null>(null);
 
@@ -62,7 +61,6 @@ const handleSubmit = () => {
   console.log('Submitting:', {
     purpose: lawsuitPurpose.value,
     auxiliaryInfo: auxiliaryInfo.value,
-    length: selectedLength.value,
     evidence: uploadedEvidence.value?.name,
     template: uploadedTemplate.value?.name
   });
@@ -175,38 +173,7 @@ const handleSubmit = () => {
           </div>
         </div>
 
-        <!-- Length Selector -->
-        <div class="form-group">
-          <label class="form-label">
-            <span class="required">*</span> 篇幅长度
-          </label>
-          <div class="option-selector three-col">
-            <button 
-              class="option-btn"
-              :class="{ active: selectedLength === '2000' }"
-              @click="selectedLength = '2000'"
-            >
-              <span class="option-tag">短</span>
-              短（2000字）
-            </button>
-            <button 
-              class="option-btn"
-              :class="{ active: selectedLength === '4000' }"
-              @click="selectedLength = '4000'"
-            >
-              <span class="option-tag">中</span>
-              中（4000字）
-            </button>
-            <button 
-              class="option-btn"
-              :class="{ active: selectedLength === '8000' }"
-              @click="selectedLength = '8000'"
-            >
-              <span class="option-tag">长</span>
-              长（8000字）
-            </button>
-          </div>
-        </div>
+
 
         <!-- Template Upload -->
         <div class="form-group">

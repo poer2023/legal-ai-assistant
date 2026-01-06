@@ -19,7 +19,6 @@ const router = useRouter();
 const theme = ref('');
 const auxiliaryInfo = ref('');
 const selectedLanguage = ref('zh');
-const selectedLength = ref('4000');
 const myIdentity = ref('甲方'); // Default self identity
 const contractParties = ref([
   { role: '甲方', name: '' },
@@ -75,7 +74,6 @@ const handleSubmit = () => {
     theme: theme.value,
     auxiliaryInfo: auxiliaryInfo.value,
     language: selectedLanguage.value,
-    length: selectedLength.value,
     myIdentity: myIdentity.value,
     parties: contractParties.value,
     position: selectedPosition.value,
@@ -264,38 +262,7 @@ const handleSubmit = () => {
           </div>
         </div>
 
-        <!-- Length Selector -->
-        <div class="form-group">
-          <label class="form-label">
-            <span class="required">*</span> 篇幅长度
-          </label>
-          <div class="option-selector three-col">
-            <button 
-              class="option-btn"
-              :class="{ active: selectedLength === '2000' }"
-              @click="selectedLength = '2000'"
-            >
-              <span class="option-tag">短</span>
-              短（2000字）
-            </button>
-            <button 
-              class="option-btn"
-              :class="{ active: selectedLength === '4000' }"
-              @click="selectedLength = '4000'"
-            >
-              <span class="option-tag">中</span>
-              中（4000字）
-            </button>
-            <button 
-              class="option-btn"
-              :class="{ active: selectedLength === '8000' }"
-              @click="selectedLength = '8000'"
-            >
-              <span class="option-tag">长</span>
-              长（8000字）
-            </button>
-          </div>
-        </div>
+
 
         <!-- Template Upload -->
         <div class="form-group">
