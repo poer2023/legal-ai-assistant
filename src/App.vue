@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { SpeedInsights } from '@vercel/speed-insights/vue'
 import Sidebar from './components/Sidebar.vue'
 
 const route = useRoute()
@@ -13,6 +14,7 @@ const isFullScreen = computed(() => route.meta.fullScreen === true)
     <main class="main-content" :class="{ 'full-screen': isFullScreen }">
       <router-view />
     </main>
+    <SpeedInsights />
   </div>
 </template>
 
