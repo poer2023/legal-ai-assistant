@@ -14,11 +14,8 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 
-const selectedDocumentType = ref('判决书');
 const reviewRequirements = ref('');
 const uploadedDocument = ref<File | null>(null);
-
-const documentTypes = ['判决书', '裁定书', '调解书', '决定书', '通知书', '令', '其他'];
 
 const templateTypes = [
   { icon: FileCheck, label: '文书审查', active: true },
@@ -47,7 +44,6 @@ const handleDocumentUpload = (event: Event) => {
 
 const handleSubmit = () => {
   console.log('Submitting:', {
-    documentType: selectedDocumentType.value,
     reviewRequirements: reviewRequirements.value,
     document: uploadedDocument.value?.name
   });
@@ -57,7 +53,7 @@ const handleSubmit = () => {
     query: {
       type: '文书审查',
       next: 'document-review-result',
-      file: uploadedDocument.value?.name || selectedDocumentType.value
+      file: uploadedDocument.value?.name || '文书审查'
     }
   });
 };
@@ -126,23 +122,7 @@ const handleSubmit = () => {
           </div>
         </div>
 
-        <!-- Document Type Selector -->
-        <div class="form-group">
-          <label class="form-label">
-            <span class="required">*</span> 文书类型
-          </label>
-          <div class="option-selector">
-            <button
-              v-for="docType in documentTypes"
-              :key="docType"
-              class="option-btn"
-              :class="{ active: selectedDocumentType === docType }"
-              @click="selectedDocumentType = docType"
-            >
-              {{ docType }}
-            </button>
-          </div>
-        </div>
+
 
         <!-- Review Requirements -->
         <div class="form-group">
