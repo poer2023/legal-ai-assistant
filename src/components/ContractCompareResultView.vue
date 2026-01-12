@@ -23,11 +23,33 @@ import {
   Underline,
   AlignLeft,
   Image as ImageIcon,
-  Zap
+  Zap,
+  Sparkles,
+  FileText,
+  BarChart3,
+  Table2,
+  FileImage,
+  Presentation
 } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
+
+// 右侧面板 Tab 状态
+type RightPanelTab = 'review' | 'edit';
+const rightPanelTab = ref<RightPanelTab>('review');
+
+// Toast 提示状态
+const toastMessage = ref('');
+const showToast = ref(false);
+
+const displayToast = (message: string, duration = 3000) => {
+  toastMessage.value = message;
+  showToast.value = true;
+  setTimeout(() => {
+    showToast.value = false;
+  }, duration);
+};
 
 // --- Types ---
 type ChangeStatus = 'pending' | 'accepted' | 'rejected';
@@ -358,6 +380,27 @@ const toggleExpand = (modId: string) => {
   }
 };
 
+// 处理卡片标题区域点击 - 根据状态区分行为
+const handleCardHeaderClick = (modId: string) => {
+  const mod = differences.value.find(m => m.id === modId);
+  if (!mod) return;
+  
+  // 检查锚点是否存在（容错处理：用户可能手动删除了内容）
+  const anchor = document.getElementById(`highlight-${modId}`);
+  if (!anchor) {
+    displayToast('该内容位置可能已被手动修改，无法精确定位');
+    return;
+  }
+  
+  if (mod.status === 'pending') {
+    // 待处理状态：切换展开/收起 + 跳转
+    toggleExpand(modId);
+  } else {
+    // 已处理状态：只跳转定位，不切换展开
+    scrollToHighlight(modId);
+  }
+};
+
 // 展开指定卡片，折叠其他，并滚动定位
 const expandCard = (modId: string) => {
   differences.value.forEach(m => {
@@ -590,10 +633,12 @@ const getClauseTitle = (clauseId: string) => {
                 </h3>
                 <div class="clause-content">
                   <template v-for="(mod, idx) in getClauseDifferences(clause.id)" :key="mod.id">
+                    <!-- 只有 pending 状态才显示 diff 高亮块 -->
                     <div
+                      v-if="mod.status === 'pending'"
                       :id="`highlight-${mod.id}`"
                       class="highlight-block"
-                      :class="[getRiskClass(mod.diffLevel), getStatusClass(mod.status)]"
+                      :class="[getRiskClass(mod.diffLevel)]"
                       @click="expandCard(mod.id)"
                     >
                       <div class="highlight-marker">
@@ -604,12 +649,14 @@ const getClauseTitle = (clauseId: string) => {
                         <div v-if="mod.baseText" class="diff-line del">{{ mod.baseText }}</div>
                         <div v-if="mod.compareText" class="diff-line add">{{ mod.compareText }}</div>
                       </div>
-                      <div class="highlight-status" v-if="mod.status !== 'pending'">
-                        <Check v-if="mod.status === 'accepted'" :size="14" />
-                        <X v-else :size="14" />
-                        {{ mod.status === 'accepted' ? '已采纳' : '已拒绝' }}
-                      </div>
                     </div>
+                    <!-- 非 pending 状态：保留一个定位锚点用于跳转高亮 -->
+                    <span 
+                      v-else
+                      :id="`highlight-${mod.id}`" 
+                      class="modification-anchor"
+                      :class="{ 'status-accepted': mod.status === 'accepted', 'status-rejected': mod.status === 'rejected' }"
+                    >{{ mod.status === 'accepted' ? mod.compareText : mod.baseText }}</span>
                   </template>
                   <pre class="clause-text">{{ clause.content }}</pre>
                 </div>
@@ -637,10 +684,12 @@ const getClauseTitle = (clauseId: string) => {
                 </h3>
                 <div class="clause-content">
                   <template v-for="(mod, idx) in getClauseDifferences(clause.id)" :key="mod.id">
+                    <!-- 只有 pending 状态才显示 diff 高亮块 -->
                     <div
+                      v-if="mod.status === 'pending'"
                       :id="`highlight-${mod.id}`"
                       class="highlight-block"
-                      :class="[getRiskClass(mod.diffLevel), getStatusClass(mod.status)]"
+                      :class="[getRiskClass(mod.diffLevel)]"
                       @click="expandCard(mod.id)"
                     >
                       <div class="highlight-marker">
@@ -651,12 +700,14 @@ const getClauseTitle = (clauseId: string) => {
                         <div v-if="mod.baseText" class="diff-line del">{{ mod.baseText }}</div>
                         <div v-if="mod.compareText" class="diff-line add">{{ mod.compareText }}</div>
                       </div>
-                      <div class="highlight-status" v-if="mod.status !== 'pending'">
-                        <Check v-if="mod.status === 'accepted'" :size="14" />
-                        <X v-else :size="14" />
-                        {{ mod.status === 'accepted' ? '已采纳' : '已拒绝' }}
-                      </div>
                     </div>
+                    <!-- 非 pending 状态：保留一个定位锚点用于跳转高亮 -->
+                    <span 
+                      v-else
+                      :id="`highlight-${mod.id}`" 
+                      class="modification-anchor"
+                      :class="{ 'status-accepted': mod.status === 'accepted', 'status-rejected': mod.status === 'rejected' }"
+                    >{{ mod.status === 'accepted' ? mod.compareText : mod.baseText }}</span>
                   </template>
                   <pre class="clause-text">{{ clause.content }}</pre>
                 </div>
@@ -684,10 +735,12 @@ const getClauseTitle = (clauseId: string) => {
                 </h3>
                 <div class="clause-content">
                   <template v-for="(mod, idx) in getClauseDifferences(clause.id)" :key="mod.id">
+                    <!-- 只有 pending 状态才显示 diff 高亮块 -->
                     <div
+                      v-if="mod.status === 'pending'"
                       :id="`highlight-${mod.id}`"
                       class="highlight-block"
-                      :class="[getRiskClass(mod.diffLevel), getStatusClass(mod.status)]"
+                      :class="[getRiskClass(mod.diffLevel)]"
                       @click="expandCard(mod.id)"
                     >
                       <div class="highlight-marker">
@@ -698,12 +751,14 @@ const getClauseTitle = (clauseId: string) => {
                         <div v-if="mod.baseText" class="diff-line del">{{ mod.baseText }}</div>
                         <div v-if="mod.compareText" class="diff-line add">{{ mod.compareText }}</div>
                       </div>
-                      <div class="highlight-status" v-if="mod.status !== 'pending'">
-                        <Check v-if="mod.status === 'accepted'" :size="14" />
-                        <X v-else :size="14" />
-                        {{ mod.status === 'accepted' ? '已采纳' : '已拒绝' }}
-                      </div>
                     </div>
+                    <!-- 非 pending 状态：保留一个定位锚点用于跳转高亮 -->
+                    <span 
+                      v-else
+                      :id="`highlight-${mod.id}`" 
+                      class="modification-anchor"
+                      :class="{ 'status-accepted': mod.status === 'accepted', 'status-rejected': mod.status === 'rejected' }"
+                    >{{ mod.status === 'accepted' ? mod.compareText : mod.baseText }}</span>
                   </template>
                   <pre class="clause-text">{{ clause.content }}</pre>
                 </div>
@@ -761,7 +816,7 @@ const getClauseTitle = (clauseId: string) => {
               :class="[{ expanded: mod.expanded }]"
             >
               <!-- Card Header (always visible) -->
-              <div class="card-header" @click="toggleExpand(mod.id)">
+              <div class="card-header" @click="handleCardHeaderClick(mod.id)">
                 <div class="card-left">
                   <span class="card-index" :class="getRiskClass(mod.diffLevel)">{{ idx + 1 }}</span>
                   <div class="card-info">
@@ -773,7 +828,7 @@ const getClauseTitle = (clauseId: string) => {
                   <span class="risk-tag" :class="getRiskClass(mod.diffLevel)">
                     {{ getRiskText(mod.diffLevel) }}
                   </span>
-                  <button class="expand-btn">
+                  <button class="expand-btn" @click.stop="toggleExpand(mod.id)">
                     <ChevronUp v-if="mod.expanded" :size="18" />
                     <ChevronDown v-else :size="18" />
                   </button>
@@ -828,6 +883,16 @@ const getClauseTitle = (clauseId: string) => {
       </div>
     </div>
   </div>
+
+  <!-- Toast 提示 -->
+  <Transition name="toast">
+    <div v-if="showToast" class="toast-container">
+      <div class="toast-message">
+        <AlertTriangle :size="18" />
+        <span>{{ toastMessage }}</span>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -1673,4 +1738,74 @@ const getClauseTitle = (clauseId: string) => {
 
 .status-display.status-accepted { background: #dcfce7; color: #16a34a; }
 .status-display.status-rejected { background: #f1f5f9; color: #64748b; }
+
+/* 修改锚点 - 用于已接受/拒绝的修改定位 */
+.modification-anchor {
+  display: inline;
+  position: relative;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+/* 接受状态 - 完全无标记，融入正文 */
+.modification-anchor.status-accepted {
+  /* 无样式，完全融入正文 */
+}
+
+/* 拒绝状态 - 灰色删除线 */
+.modification-anchor.status-rejected {
+  text-decoration: line-through;
+  text-decoration-color: #94a3b8;
+  color: #94a3b8;
+}
+
+/* 锚点的闪烁高亮动画 - 只影响锚点本身 */
+.modification-anchor.flash {
+  animation: anchor-flash 2s ease-out;
+}
+
+@keyframes anchor-flash {
+  0% { background-color: transparent; }
+  20%, 60% { background-color: rgba(37, 99, 235, 0.2); }
+  100% { background-color: transparent; }
+}
+
+/* ============ Toast 提示 ============ */
+.toast-container {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+}
+
+.toast-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  background: #1e293b;
+  color: white;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+}
+
+.toast-message svg {
+  color: #fbbf24;
+}
+
+/* Toast 动画 */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
+}
 </style>
