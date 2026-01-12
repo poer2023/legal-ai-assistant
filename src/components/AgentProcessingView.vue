@@ -91,9 +91,10 @@ const handleSkip = () => {
       </div>
 
       <div class="tips-card">
-        <p>完成任务大约需要10分钟左右，后续可在 <a href="#">个人中心-使用记录</a> 中查看；遇到复杂任务或排队情况可能需要等待更久，感谢理解~</p>
+        <p>任务完成大约需要 1-10 分钟，后续可在 <a href="#">个人中心-使用记录</a> 中查看；遇到复杂任务或排队情况可能需要等待更久，感谢理解~</p>
         
         <div class="manual-action">
+           <!-- Manual Skip Button as requested -->
            <button class="skip-btn" @click="handleSkip">
              进入结果页 (测试用)
            </button>
