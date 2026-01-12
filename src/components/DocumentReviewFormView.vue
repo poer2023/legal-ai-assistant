@@ -47,13 +47,20 @@ const handleSubmit = () => {
     reviewRequirements: reviewRequirements.value,
     document: uploadedDocument.value?.name
   });
-  // Navigate to confirm page
+  
+  // 构建订单信息用于确认页展示
+  const orderItems: Array<{ label: string; value: string }> = [];
+  if (reviewRequirements.value) {
+    orderItems.push({ label: '审查要求', value: reviewRequirements.value.slice(0, 50) + (reviewRequirements.value.length > 50 ? '...' : '') });
+  }
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
       type: '文书审查',
       next: 'document-review-result',
-      file: uploadedDocument.value?.name || '文书审查'
+      file: uploadedDocument.value?.name || '文书审查',
+      order: JSON.stringify(orderItems)
     }
   });
 };

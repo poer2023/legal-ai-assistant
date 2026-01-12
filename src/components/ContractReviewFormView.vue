@@ -43,19 +43,30 @@ const handleDocumentUpload = (event: Event) => {
 };
 
 const handleSubmit = () => {
-  console.log('Submitting:', {
+  const formData = {
     position: selectedPosition.value,
     strength: selectedStrength.value,
     auxiliaryInfo: auxiliaryInfo.value,
     document: uploadedDocument.value?.name
-  });
-  // 跳转到确认页
+  };
+  console.log('Submitting:', formData);
+  
+  // 构建订单信息用于确认页展示
+  const orderItems = [
+    { label: '审查立场', value: selectedPosition.value },
+    { label: '强弱地位', value: selectedStrength.value },
+  ];
+  if (auxiliaryInfo.value) {
+    orderItems.push({ label: '辅助信息', value: auxiliaryInfo.value.slice(0, 50) + (auxiliaryInfo.value.length > 50 ? '...' : '') });
+  }
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
       type: '合同审查',
       next: 'contract-review-result',
-      file: uploadedDocument.value?.name
+      file: uploadedDocument.value?.name,
+      order: JSON.stringify(orderItems)
     }
   });
 };

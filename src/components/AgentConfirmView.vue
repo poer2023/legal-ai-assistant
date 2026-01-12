@@ -32,15 +32,37 @@ const handleConfirm = () => {
   });
 };
 
-// Mock Order Info based on screenshot
-const orderInfo = ref([
-  { label: '审查立场', value: '甲方' },
-  { label: '强弱地位', value: '中立' },
-  { label: '写作大纲', value: 'AI智能' },
-]);
+// Parse order info from query params (passed by form)
+const orderInfo = computed(() => {
+  const orderParam = route.query.order as string;
+  if (orderParam) {
+    try {
+      return JSON.parse(orderParam) as Array<{ label: string; value: string }>;
+    } catch {
+      return [];
+    }
+  }
+  return [];
+});
 
-// If we want to pass real data from previous form, we would need a store or pass via route params/query.
-// Given the simplicity request, we keep it visual matching for now.
+// Dynamic button text
+const confirmButtonText = computed(() => {
+  const type = agentType.value;
+  if (type.includes('写作') || type.includes('起草')) return '确认写作';
+  if (type.includes('审查') || type.includes('纠错')) return '确认审查';
+  if (type.includes('对比')) return '确认对比';
+  if (type.includes('检索') || type.includes('研究')) return '确认生成';
+  if (type.includes('整理')) return '确认整理';
+  return '确认提交';
+});
+
+// Dynamic page description
+const pageDescription = computed(() => {
+  const type = agentType.value;
+  return `请确认订单信息并立即开始${type}任务`;
+});
+
+
 </script>
 
 <template>
@@ -51,13 +73,13 @@ const orderInfo = ref([
       </div>
       <div class="header-content">
         <h1 class="page-title">确认订单</h1>
-        <p class="page-desc">请确认订单信息并立即开始写作任务</p>
+        <p class="page-desc">{{ pageDescription }}</p>
       </div>
     </header>
 
     <main class="main-content">
       <!-- Order Info Card -->
-      <div class="info-card">
+      <div class="info-card" v-if="orderInfo.length > 0">
         <div class="card-header">
           <h2 class="card-title">订单信息</h2>
           <button class="edit-btn" @click="goBack">返回修改</button>
@@ -86,7 +108,7 @@ const orderInfo = ref([
 
     <footer class="page-footer">
       <button class="confirm-btn" @click="handleConfirm">
-        确认写作
+        {{ confirmButtonText }}
       </button>
     </footer>
   </div>

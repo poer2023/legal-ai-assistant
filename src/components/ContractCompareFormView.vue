@@ -54,7 +54,16 @@ const handleSubmit = () => {
     documentA: uploadedDocumentA.value?.name,
     documentB: uploadedDocumentB.value?.name
   });
-  // 跳转到确认页
+  
+  // 构建订单信息用于确认页展示
+  const orderItems = [
+    { label: '基准版本', value: uploadedDocumentA.value?.name || '未上传' },
+    { label: '对比版本', value: uploadedDocumentB.value?.name || '未上传' },
+  ];
+  if (auxiliaryInfo.value) {
+    orderItems.push({ label: '对比重点', value: auxiliaryInfo.value.slice(0, 50) + (auxiliaryInfo.value.length > 50 ? '...' : '') });
+  }
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
@@ -62,7 +71,8 @@ const handleSubmit = () => {
       next: 'contract-comparison-result',
       file: (uploadedDocumentA.value && uploadedDocumentB.value) 
         ? `${uploadedDocumentA.value.name} & ${uploadedDocumentB.value.name}`
-        : '合同对比任务'
+        : '合同对比任务',
+      order: JSON.stringify(orderItems)
     }
   });
 };

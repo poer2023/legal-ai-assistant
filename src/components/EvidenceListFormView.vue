@@ -98,13 +98,29 @@ const handleSubmit = () => {
     auxiliaryInfo: auxiliaryInfo.value,
     files: uploadedFiles.value.map(f => f.name)
   });
-  // 跳转到确认页
+  
+  // 构建订单信息用于确认页展示
+  const orderItems = [
+    { label: '诉讼类型', value: selectedLitigationType.value },
+    { label: '案由', value: caseReason.value || '未指定' },
+  ];
+  if (plaintiffName.value) {
+    orderItems.push({ label: '原告', value: plaintiffName.value });
+  }
+  if (defendantName.value) {
+    orderItems.push({ label: '被告', value: defendantName.value });
+  }
+  if (uploadedFiles.value.length > 0) {
+    orderItems.push({ label: '证据数量', value: `${uploadedFiles.value.length} 份` });
+  }
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
       type: '证据清单整理',
       next: 'evidence-list-result',
-      file: uploadedFiles.value.length > 0 ? `共 ${uploadedFiles.value.length} 个文件` : caseReason.value
+      file: uploadedFiles.value.length > 0 ? `共 ${uploadedFiles.value.length} 个文件` : caseReason.value,
+      order: JSON.stringify(orderItems)
     }
   });
 };

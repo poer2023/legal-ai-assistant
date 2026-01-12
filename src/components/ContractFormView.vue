@@ -80,13 +80,21 @@ const handleSubmit = () => {
     file: uploadedFile.value?.name
   });
 
-  // 跳转到确认页
+  // 构建订单信息用于确认页展示
+  const orderItems = [
+    { label: '合同主题', value: theme.value || '未指定' },
+    { label: '我方身份', value: myIdentity.value },
+    { label: '写作立场', value: selectedPosition.value },
+    { label: '语言', value: selectedLanguage.value === 'zh' ? '中文' : '英文' },
+  ];
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
       type: '合同起草',
       next: 'contract-draft-result',
-      file: uploadedFile.value?.name || theme.value
+      file: uploadedFile.value?.name || theme.value,
+      order: JSON.stringify(orderItems)
     }
   });
 };

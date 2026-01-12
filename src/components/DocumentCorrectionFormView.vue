@@ -53,13 +53,20 @@ const handleSubmit = () => {
     auxiliaryInfo: auxiliaryInfo.value,
     document: uploadedDocument.value?.name
   });
-  // Navigate to confirm page
+  
+  // 构建订单信息用于确认页展示
+  const orderItems: Array<{ label: string; value: string }> = [];
+  if (auxiliaryInfo.value) {
+    orderItems.push({ label: '纠错要求', value: auxiliaryInfo.value.slice(0, 50) + (auxiliaryInfo.value.length > 50 ? '...' : '') });
+  }
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
-      type: '文档纠错',
+      type: '文书纠错',
       next: 'document-correction-result',
-      file: uploadedDocument.value?.name
+      file: uploadedDocument.value?.name,
+      order: JSON.stringify(orderItems)
     }
   });
 };

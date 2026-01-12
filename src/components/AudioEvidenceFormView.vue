@@ -45,13 +45,20 @@ const handleSubmit = () => {
     auxiliaryInfo: auxiliaryInfo.value,
     audio: uploadedAudio.value?.name
   });
-  // Navigate to confirm page
+  
+  // 构建订单信息用于确认页展示
+  const orderItems: Array<{ label: string; value: string }> = [];
+  if (auxiliaryInfo.value) {
+    orderItems.push({ label: '整理要求', value: auxiliaryInfo.value.slice(0, 50) + (auxiliaryInfo.value.length > 50 ? '...' : '') });
+  }
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
       type: '录音证据整理',
       next: 'audio-evidence-result',
-      file: uploadedAudio.value?.name
+      file: uploadedAudio.value?.name,
+      order: JSON.stringify(orderItems)
     }
   });
 };

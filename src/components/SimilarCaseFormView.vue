@@ -87,13 +87,22 @@ const handleSubmit = () => {
     reportLanguage: reportLanguage.value,
     reportLength: reportLength.value
   });
-  // Navigate to confirm page
+  
+  // 构建订单信息用于确认页展示
+  const lengthMap: Record<string, string> = { 'short': '短（约4000字）', 'medium': '中（约8000字）' };
+  const orderItems = [
+    { label: '案件标题', value: caseTitle.value || '未指定' },
+    { label: '报告语言', value: reportLanguage.value === 'zh' ? '中文' : '英文' },
+    { label: '报告长度', value: lengthMap[reportLength.value] || reportLength.value },
+  ];
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
       type: '类案检索报告',
       next: 'similar-case-result',
-      file: `案件：${caseTitle.value}`
+      file: `案件：${caseTitle.value}`,
+      order: JSON.stringify(orderItems)
     }
   });
 };

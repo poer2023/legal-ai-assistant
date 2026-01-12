@@ -74,17 +74,24 @@ const handleSubmit = () => {
     background: uploadedBackground.value?.name
   });
 
-  // 跳转到确认页
+  // 构建订单信息用于确认页展示
+  const lengthMap: Record<string, string> = { '超短': '约700字', '短': '约2000字', '中': '约4000字', '长': '约8000字' };
+  const orderItems = [
+    { label: '主题', value: topic.value || '未指定' },
+    { label: '写作大纲', value: outlineMode.value },
+    { label: '语言', value: language.value },
+    { label: '篇幅长度', value: lengthMap[selectedLength.value] || selectedLength.value },
+  ];
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
       type: '文书写作',
       next: 'document-writing-result',
-      file: topic.value
+      file: topic.value,
+      order: JSON.stringify(orderItems)
     }
   });
-  
-  // router.push({ name: 'document-writing-result' }); // Assuming this was missing in original trace or implied
 };
 </script>
 

@@ -58,13 +58,22 @@ const handleSubmit = () => {
     length: selectedLength.value
   });
 
-  // 跳转到确认页
+  // 构建订单信息用于确认页展示
+  const lengthMap: Record<string, string> = { '4000': '约4000字', '8000': '约8000字', '15000': '约15000字' };
+  const orderItems = [
+    { label: '研究主题', value: title.value || '未指定' },
+    { label: '写作风格', value: selectedStyle.value },
+    { label: '语言', value: selectedLanguage.value === 'zh' ? '中文' : '英文' },
+    { label: '篇幅长度', value: lengthMap[selectedLength.value] || selectedLength.value },
+  ];
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
       type: '法律研究报告',
       next: 'legal-research-result',
-      file: title.value
+      file: title.value,
+      order: JSON.stringify(orderItems)
     }
   });
 };

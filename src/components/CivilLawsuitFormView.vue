@@ -65,13 +65,21 @@ const handleSubmit = () => {
     template: uploadedTemplate.value?.name
   });
 
-  // 跳转到确认页
+  // 构建订单信息用于确认页展示
+  const orderItems = [
+    { label: '诉讼目的', value: lawsuitPurpose.value || '未指定' },
+  ];
+  if (auxiliaryInfo.value) {
+    orderItems.push({ label: '案件信息', value: auxiliaryInfo.value.slice(0, 50) + (auxiliaryInfo.value.length > 50 ? '...' : '') });
+  }
+  
   router.push({ 
     name: 'agent-generic-confirm',
     query: {
       type: '民事起诉状',
       next: 'civil-lawsuit-result',
-      file: uploadedEvidence.value?.name || uploadedTemplate.value?.name || lawsuitPurpose.value
+      file: uploadedEvidence.value?.name || uploadedTemplate.value?.name || lawsuitPurpose.value,
+      order: JSON.stringify(orderItems)
     }
   });
 };
