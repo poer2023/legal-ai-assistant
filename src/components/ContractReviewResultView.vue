@@ -387,7 +387,7 @@ const handleCardHeaderClick = (modId: string) => {
   // 检查锚点是否存在（容错处理：用户可能手动删除了内容）
   const anchor = document.getElementById(`highlight-${modId}`);
   if (!anchor) {
-    reviewPanelRef.value?.displayToast('该内容位置可能已被手动修改，无法精确定位');
+    comparePanelRef.value?.displayToast('该内容位置可能已被手动修改，无法精确定位');
     return;
   }
   
