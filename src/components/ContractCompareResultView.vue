@@ -32,8 +32,13 @@ import {
   Presentation
 } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
+import ComparePanel from './ComparePanel.vue';
+import type { CompareItem } from './ComparePanel.vue';
 
 const router = useRouter();
+
+// ComparePanel ref
+const comparePanelRef = ref<InstanceType<typeof ComparePanel> | null>(null);
 
 // 右侧面板 Tab 状态
 type RightPanelTab = 'review' | 'edit';
@@ -509,6 +514,21 @@ const getStatusClass = (status: ChangeStatus) => ({
 const getClauseTitle = (clauseId: string) => {
   return contractContent.value.clauses.find(c => c.id === clauseId)?.title || '';
 };
+
+// 转换为 ComparePanel 格式
+const panelItems = computed<CompareItem[]>(() => {
+  return differences.value.map(diff => ({
+    id: diff.id,
+    clauseId: diff.clauseId,
+    clauseTitle: getClauseTitle(diff.clauseId),
+    baseText: diff.baseText,
+    compareText: diff.compareText,
+    reason: diff.diffNote,
+    riskLevel: diff.diffLevel,
+    status: diff.status,
+    expanded: diff.expanded
+  }));
+});
 </script>
 
 <template>
@@ -792,97 +812,21 @@ const getClauseTitle = (clauseId: string) => {
       </div>
 
       <!-- Right: Difference Cards Panel -->
-      <div class="cards-panel">
-        <div class="panel-header">
-          <h2>差异对比 <span class="count">{{ stats.pending }}/{{ stats.total }}</span></h2>
-          <div class="panel-actions">
-            <button class="panel-btn reject" @click="rejectAll" :disabled="stats.pending === 0">
-              <XCircle :size="14" />
-              全部拒绝
-            </button>
-            <button class="panel-btn accept" @click="acceptAll" :disabled="stats.pending === 0">
-              <CheckCheck :size="14" />
-              全部接受
-            </button>
-          </div>
-        </div>
-
-        <div class="cards-container">
-          <!-- Difference Cards -->
-            <div
-              v-for="(mod, idx) in differences"
-              :key="mod.id"
-              class="mod-card"
-              :class="[{ expanded: mod.expanded }]"
-            >
-              <!-- Card Header (always visible) -->
-              <div class="card-header" @click="handleCardHeaderClick(mod.id)">
-                <div class="card-left">
-                  <span class="card-index" :class="getRiskClass(mod.diffLevel)">{{ idx + 1 }}</span>
-                  <div class="card-info">
-                    <span class="card-clause">{{ getClauseTitle(mod.clauseId) }}</span>
-                    <!-- Preview removed -->
-                  </div>
-                </div>
-                <div class="card-right">
-                  <span class="risk-tag" :class="getRiskClass(mod.diffLevel)">
-                    {{ getRiskText(mod.diffLevel) }}
-                  </span>
-                  <button class="expand-btn" @click.stop="toggleExpand(mod.id)">
-                    <ChevronUp v-if="mod.expanded" :size="18" />
-                    <ChevronDown v-else :size="18" />
-                  </button>
-                </div>
-              </div>
-
-              <!-- Card Body (collapsible) -->
-              <div class="card-body" v-show="mod.expanded">
-                <!-- Reason -->
-                <div class="reason-block">
-                  <div class="reason-header">
-                    <AlertTriangle :size="14" />
-                    <span>差异点</span>
-                  </div>
-                  <p class="reason-text">{{ mod.diffNote }}</p>
-                </div>
-
-                <!-- Diff Content in Card -->
-                <div class="card-diff-section">
-                  <div v-if="mod.baseText" class="diff-box del">
-                    <div class="box-label">基准合同内容</div>
-                    <div class="box-content">{{ mod.baseText }}</div>
-                  </div>
-                  <div v-if="mod.compareText" class="diff-box add">
-                    <div class="box-label">对比合同内容</div>
-                    <div class="box-content">{{ mod.compareText }}</div>
-                  </div>
-                </div>
-
-                <!-- Actions -->
-                <div class="card-actions" v-if="mod.status === 'pending'">
-                  <button class="action-btn accept" @click.stop="acceptDifference(mod.id)">
-                    <Check :size="16" />
-                    接受
-                  </button>
-                  <button class="action-btn reject" @click.stop="rejectDifference(mod.id)">
-                    <X :size="16" />
-                    拒绝
-                  </button>
-                </div>
-
-                <div class="card-status" v-else>
-                  <div class="status-display" :class="getStatusClass(mod.status)">
-                    <Check v-if="mod.status === 'accepted'" :size="16" />
-                    <X v-else :size="16" />
-                    {{ mod.status === 'accepted' ? '已接受此差异对比' : '已拒绝此差异对比' }}
-                  </div>
-                </div>
-              </div>
-            </div>
-        </div>
-      </div>
+      <ComparePanel
+        ref="comparePanelRef"
+        :items="panelItems"
+        panel-title="差异对比"
+        theme="red-green"
+        @accept="acceptDifference"
+        @reject="rejectDifference"
+        @accept-all="acceptAll"
+        @reject-all="rejectAll"
+        @toggle-expand="toggleExpand"
+        @card-click="handleCardHeaderClick"
+      />
     </div>
   </div>
+
 
   <!-- Toast 提示 -->
   <Transition name="toast">
@@ -1342,15 +1286,15 @@ const getClauseTitle = (clauseId: string) => {
 }
 
 .diff-line.del {
-  background-color: #fee2e2;
-  color: #b91c1c;
+  background-color: #eff6ff;
+  color: #1e40af;
   text-decoration: line-through;
-  text-decoration-color: rgba(185, 28, 28, 0.4);
+  text-decoration-color: rgba(30, 64, 175, 0.4);
 }
 
 .diff-line.add {
-  background-color: #dcfce7;
-  color: #15803d;
+  background-color: #fff7ed;
+  color: #c2410c;
 }
 
 /* Original highlight-text removal if no longer used */
@@ -1368,8 +1312,10 @@ const getClauseTitle = (clauseId: string) => {
   border-radius: 4px;
 }
 
-.highlight-block.status-accepted .highlight-status { background: #dcfce7; color: #16a34a; }
-.highlight-block.status-rejected .highlight-status { background: #f1f5f9; color: #64748b; }
+/* 已采用对方版本 - 橙色系 */
+.highlight-block.status-accepted .highlight-status { background: #fff7ed; color: #c2410c; }
+/* 已保持我方版本 - 蓝色系 */
+.highlight-block.status-rejected .highlight-status { background: #eff6ff; color: #1e40af; }
 
 /* Signature Section */
 .signature-section {
@@ -1469,6 +1415,25 @@ const getClauseTitle = (clauseId: string) => {
 
 .panel-btn.accept:hover:not(:disabled) {
   background: #dcfce7;
+}
+
+/* 合同对比：批量操作按钮 */
+.panel-btn.keep {
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.panel-btn.keep:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.panel-btn.adopt {
+  background: #fff7ed;
+  color: #c2410c;
+}
+
+.panel-btn.adopt:hover:not(:disabled) {
+  background: #fed7aa;
 }
 
 .cards-container {
@@ -1644,6 +1609,17 @@ const getClauseTitle = (clauseId: string) => {
   border-color: #bbf7d0;
 }
 
+/* 合同对比：蓝色=我方（基准），橙色=对方（对比） */
+.diff-box.base {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.diff-box.compare {
+  background: #fff7ed;
+  border-color: #fdba74;
+}
+
 .box-label {
   font-size: 11px;
   font-weight: 600;
@@ -1672,6 +1648,10 @@ const getClauseTitle = (clauseId: string) => {
   background: #22c55e;
   border-radius: 2px;
 }
+
+/* 合同对比标签样式 */
+.diff-box.base .box-label { color: #1e40af; }
+.diff-box.compare .box-label { color: #c2410c; }
 
 .box-content {
   padding: 0 12px 10px 12px;
@@ -1720,6 +1700,27 @@ const getClauseTitle = (clauseId: string) => {
   color: #64748b;
 }
 .action-btn.reject:hover { background: #e2e8f0; color: #475569; }
+
+/* 合同对比：保持我方/采用对方按钮 */
+.action-btn.keep {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+.action-btn.keep:hover { 
+  background: #dbeafe; 
+  border-color: #3b82f6;
+}
+
+.action-btn.adopt {
+  background: #f59e0b;
+  color: white;
+  box-shadow: 0 1px 2px rgba(245, 158, 11, 0.2);
+}
+.action-btn.adopt:hover { 
+  background: #d97706; 
+  transform: translateY(-1px); 
+}
 
 .card-status {
   margin-top: 16px;
@@ -1808,4 +1809,212 @@ const getClauseTitle = (clauseId: string) => {
   opacity: 0;
   transform: translateX(-50%) translateY(20px);
 }
+
+/* ============ Tab 切换 ============ */
+.panel-tabs {
+  display: flex;
+  gap: 0;
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.panel-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.panel-tab:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.panel-tab:last-child {
+  border-radius: 0 8px 8px 0;
+  border-left: none;
+}
+
+.panel-tab:hover {
+  background: #f8fafc;
+  color: #3b82f6;
+}
+
+.panel-tab.active {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #2563eb;
+}
+
+/* ============ AI 编辑模式 ============ */
+.ai-edit-panel {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.edit-section {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-icon {
+  color: #3b82f6;
+  margin-top: 2px;
+}
+
+.section-icon.sparkle {
+  color: #d97706;
+}
+
+.section-icon.ppt {
+  color: #dc2626;
+}
+
+.section-title-group h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 4px 0;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.text-tools {
+  display: flex;
+  gap: 12px;
+}
+
+.text-tool-btn {
+  flex: 1;
+  padding: 10px 16px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.text-tool-btn:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+.multimodal-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tool-row {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.tool-row.gradient-purple {
+  background: linear-gradient(135deg, #eff6ff 0%, #f3e8ff 100%);
+}
+
+.tool-row.gradient-rainbow {
+  background: linear-gradient(135deg, #fdf2f8 0%, #eff6ff 33%, #f0fdf4 66%, #fefce8 100%);
+}
+
+.tool-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: white;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.tool-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.tool-card svg { color: #3b82f6; }
+.tool-card span { font-size: 13px; font-weight: 500; color: #475569; }
+.formula-icon { font-size: 24px; font-weight: 600; color: #d97706; }
+
+.ppt-section {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+}
+
+.ppt-features {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.ppt-feature {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.feature-icon { color: #3b82f6; }
+.feature-title { font-size: 14px; font-weight: 600; color: #1e293b; min-width: 60px; }
+.feature-desc { font-size: 13px; color: #64748b; }
+
+.ppt-generate-btn {
+  width: 100%;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+  border: none;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ppt-generate-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(139, 92, 246, 0.35);
+}
+
+.cursor-icon { font-size: 20px; }
 </style>

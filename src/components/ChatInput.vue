@@ -67,11 +67,6 @@ const closeDropdown = () => {
 
     <div class="input-actions">
       <div class="left-actions">
-        <div class="action-pill">
-          <span class="pill-text">深度思考(R1)</span>
-          <div class="pill-dot"></div>
-        </div>
-
         <!-- Search Mode Selector - All 4 icons visible -->
         <div class="search-mode-selector" @click.stop="toggleSearchDropdown">
           <div class="selected-icons">
@@ -182,26 +177,6 @@ const closeDropdown = () => {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.action-pill {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: #eff6ff;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #3b82f6;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.pill-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: #22c55e;
 }
 
 /* Search Mode Selector */

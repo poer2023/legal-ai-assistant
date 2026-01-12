@@ -46,9 +46,12 @@ const isActive = (routeName: string) => {
     <div class="sidebar-header">
       <div class="logo-area">
         <div class="logo-icon">
-          <Bot :size="22" />
+          <Scale :size="18" />
         </div>
-        <span class="logo-text">涌见AI 法律版</span>
+        <div class="logo-text">
+          <span class="logo-brand">涌见AI</span>
+          <span class="logo-highlight">法律版</span>
+        </div>
       </div>
     </div>
 
@@ -100,26 +103,39 @@ const isActive = (routeName: string) => {
 .logo-area {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-weight: 700;
-  color: #2563eb;
-  font-size: 16px;
+  gap: 8px;
 }
 
 .logo-icon {
   width: 32px;
   height: 32px;
-  background: #2563eb;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
 .logo-text {
-  font-size: 16px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.logo-brand {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
   letter-spacing: 0.3px;
+}
+
+.logo-highlight {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
 }
 
 .nav-item {

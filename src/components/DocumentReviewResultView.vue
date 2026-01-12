@@ -32,8 +32,13 @@ import {
   Presentation
 } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
+import ComparePanel from './ComparePanel.vue';
+import type { CompareItem } from './ComparePanel.vue';
 
 const router = useRouter();
+
+// ComparePanel ref
+const comparePanelRef = ref<InstanceType<typeof ComparePanel> | null>(null);
 
 // 右侧面板 Tab 状态
 type RightPanelTab = 'review' | 'edit';
@@ -462,6 +467,21 @@ const getStatusClass = (status: ChangeStatus) => ({
 const getClauseTitle = (clauseId: string) => {
   return documentContent.value.clauses.find(c => c.id === clauseId)?.title || '';
 };
+
+// 转换为 ComparePanel 所需格式
+const panelItems = computed((): CompareItem[] => {
+  return modifications.value.map(m => ({
+    id: m.id,
+    clauseId: m.clauseId,
+    clauseTitle: getClauseTitle(m.clauseId),
+    baseText: m.originalText,
+    compareText: m.suggestedText,
+    reason: m.reason,
+    riskLevel: m.riskLevel,
+    status: m.status,
+    expanded: m.expanded
+  }));
+});
 </script>
 
 <template>
@@ -738,95 +758,29 @@ const getClauseTitle = (clauseId: string) => {
       </div>
 
       <!-- Right: Modification Cards Panel -->
-      <div class="cards-panel">
-        <div class="panel-header">
-          <h2>修改建议 <span class="count">{{ stats.pending }}/{{ stats.total }}</span></h2>
-          <div class="panel-actions">
-            <button class="panel-btn reject" @click="rejectAll" :disabled="stats.pending === 0">
-              <XCircle :size="14" />
-              全部拒绝
-            </button>
-            <button class="panel-btn accept" @click="acceptAll" :disabled="stats.pending === 0">
-              <CheckCheck :size="14" />
-              全部接受
-            </button>
-          </div>
-        </div>
-
-        <div class="cards-container">
-          <!-- Modification Cards -->
-            <div
-              v-for="(mod, idx) in modifications"
-              :key="mod.id"
-              class="mod-card"
-              :class="[{ expanded: mod.expanded }]"
-            >
-              <!-- Card Header (always visible) -->
-              <div class="card-header" @click="handleCardHeaderClick(mod.id)">
-                <div class="card-left">
-                  <span class="card-index" :class="getRiskClass(mod.riskLevel)">{{ idx + 1 }}</span>
-                  <div class="card-info">
-                    <span class="card-clause">{{ getClauseTitle(mod.clauseId) }}</span>
-                    <!-- Preview removed -->
-                  </div>
-                </div>
-                <div class="card-right">
-                  <span class="risk-tag" :class="getRiskClass(mod.riskLevel)">
-                    {{ getRiskText(mod.riskLevel) }}
-                  </span>
-                  <button class="expand-btn" @click.stop="toggleExpand(mod.id)">
-                    <ChevronUp v-if="mod.expanded" :size="18" />
-                    <ChevronDown v-else :size="18" />
-                  </button>
-                </div>
-              </div>
-
-              <!-- Card Body (collapsible) -->
-              <div class="card-body" v-show="mod.expanded">
-                <!-- Reason -->
-                <div class="reason-block">
-                  <div class="reason-header">
-                    <AlertTriangle :size="14" />
-                    <span>修改理由</span>
-                  </div>
-                  <p class="reason-text">{{ mod.reason }}</p>
-                </div>
-
-                <!-- Diff Content in Card -->
-                <div class="card-diff-section">
-                  <div v-if="mod.originalText" class="diff-box del">
-                    <div class="box-label">原文内容</div>
-                    <div class="box-content">{{ mod.originalText }}</div>
-                  </div>
-                  <div v-if="mod.suggestedText" class="diff-box add">
-                    <div class="box-label">建议修改为</div>
-                    <div class="box-content">{{ mod.suggestedText }}</div>
-                  </div>
-                </div>
-
-                <!-- Actions -->
-                <div class="card-actions" v-if="mod.status === 'pending'">
-                  <button class="action-btn accept" @click.stop="acceptModification(mod.id)">
-                    <Check :size="16" />
-                    接受
-                  </button>
-                  <button class="action-btn reject" @click.stop="rejectModification(mod.id)">
-                    <X :size="16" />
-                    拒绝
-                  </button>
-                </div>
-
-                <div class="card-status" v-else>
-                  <div class="status-display" :class="getStatusClass(mod.status)">
-                    <Check v-if="mod.status === 'accepted'" :size="16" />
-                    <X v-else :size="16" />
-                    {{ mod.status === 'accepted' ? '已接受此修改建议' : '已拒绝此修改建议' }}
-                  </div>
-                </div>
-              </div>
-            </div>
-        </div>
-      </div>
+      <ComparePanel
+        ref="comparePanelRef"
+        :items="panelItems"
+        panel-title="修改建议"
+        :labels="{
+          reviewTabLabel: 'AI 审查',
+          baseLabel: '原文内容',
+          compareLabel: '建议修改为',
+          reasonTitle: '修改理由',
+          keepBtn: '拒绝',
+          adoptBtn: '接受',
+          keepAllBtn: '全部拒绝',
+          adoptAllBtn: '全部接受',
+          keptStatus: '已拒绝此修改',
+          adoptedStatus: '已接受此修改'
+        }"
+        @accept="acceptModification"
+        @reject="rejectModification"
+        @accept-all="acceptAll"
+        @reject-all="rejectAll"
+        @toggle-expand="toggleExpand"
+        @card-click="handleCardHeaderClick"
+      />
     </div>
   </div>
 
