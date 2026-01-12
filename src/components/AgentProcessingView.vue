@@ -17,10 +17,10 @@ const currentStep = ref(0);
 let timer: ReturnType<typeof setInterval>;
 
 const steps = [
-  '处理段落 自动切片',
-  'AI深度分析与生成',
-  '法律合规性自检',
-  '生成最终报告文档'
+  '正在解析文档内容',
+  'AI 智能提取要素',
+  '生成专业法律建议',
+  '整理最终报告文档'
 ];
 
 onMounted(() => {
@@ -81,8 +81,8 @@ const handleSkip = () => {
         <!-- Progress Bar -->
         <div class="progress-section">
           <div class="progress-labels">
-            <span>完成进度</span>
-            <span>{{ Math.floor(progress) }} / 100</span> // 实际上 UI 显示的是 0/1 类似这种分步，但为了动效我们用百分比
+            <span>处理进度</span>
+            <span>正在进行第 {{ currentStep + 1 }} 步 / 共 {{ steps.length }} 步</span>
           </div>
           <div class="progress-track">
             <div class="progress-fill" :style="{ width: progress + '%' }"></div>
