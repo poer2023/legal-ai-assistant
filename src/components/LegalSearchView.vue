@@ -150,10 +150,12 @@ const getPlaceholder = () => {
 .content-wrapper {
   width: 100%;
   max-width: 800px;
-  margin-top: 40px;
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding-bottom: 380px;
 }
 
 .title-section {

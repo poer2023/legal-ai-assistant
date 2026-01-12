@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Search, ChevronDown, ChevronRight } from 'lucide-vue-next';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -13,10 +13,19 @@ const totalPages = 10;
 // Active tab state
 const activeTab = ref<'cases' | 'regulations'>('cases');
 
-// Search scope options
+// Search scope options - 根据 tab 动态变化
 const searchScope = ref('全文');
-const searchScopeOptions = ['全文', '标题', '案号', '当事人', '法官'];
+const caseScopeOptions = ['全文', '标题', '案号'];
+const regulationScopeOptions = ['标题', '全文', '发文字号'];
+const searchScopeOptions = computed(() => {
+  return activeTab.value === 'cases' ? caseScopeOptions : regulationScopeOptions;
+});
 const showScopeDropdown = ref(false);
+
+// 监听 tab 切换，自动设置默认搜索范围
+watch(activeTab, (newTab) => {
+  searchScope.value = newTab === 'cases' ? '全文' : '标题';
+});
 
 // Search in results checkbox
 const searchInResults = ref(false);
@@ -49,12 +58,57 @@ const casesFilters = {
     { label: '专门人民法院', count: 140, value: 'zhuanmen' },
   ],
   region: [
-    { label: '北京', count: 1146, value: 'beijing' },
-    { label: '天津', count: 1621, value: 'tianjin' },
-    { label: '河北省', count: 11046, value: 'hebei' },
-    { label: '内蒙古自治区', count: 394, value: 'neimenggu' },
-    { label: '吉林省', count: 1325, value: 'jilin' },
-    { label: '黑龙江省', count: 528, value: 'heilongjiang' },
+    { label: '北京市', count: 1146, value: 'beijing', children: [
+      { label: '北京市高级人民法院', count: 234, value: 'beijing_gaoyuan' },
+      { label: '北京市第一中级人民法院', count: 156, value: 'beijing_yizhong' },
+      { label: '北京市第二中级人民法院', count: 178, value: 'beijing_erzhong' },
+      { label: '北京市朝阳区人民法院', count: 89, value: 'beijing_chaoyang' },
+      { label: '北京市海淀区人民法院', count: 76, value: 'beijing_haidian' },
+    ]},
+    { label: '上海市', count: 2345, value: 'shanghai', children: [
+      { label: '上海市高级人民法院', count: 312, value: 'shanghai_gaoyuan' },
+      { label: '上海市第一中级人民法院', count: 245, value: 'shanghai_yizhong' },
+      { label: '上海市第二中级人民法院', count: 198, value: 'shanghai_erzhong' },
+      { label: '上海市浦东新区人民法院', count: 156, value: 'shanghai_pudong' },
+    ]},
+    { label: '天津市', count: 1621, value: 'tianjin', children: [
+      { label: '天津市高级人民法院', count: 189, value: 'tianjin_gaoyuan' },
+      { label: '天津市第一中级人民法院', count: 134, value: 'tianjin_yizhong' },
+    ]},
+    { label: '河北省', count: 11046, value: 'hebei', children: [
+      { label: '河北省高级人民法院', count: 567, value: 'hebei_gaoyuan' },
+      { label: '石家庄市中级人民法院', count: 423, value: 'hebei_shijiazhuang' },
+      { label: '唐山市中级人民法院', count: 356, value: 'hebei_tangshan' },
+    ]},
+    { label: '广东省', count: 8934, value: 'guangdong', children: [
+      { label: '广东省高级人民法院', count: 456, value: 'guangdong_gaoyuan' },
+      { label: '广州市中级人民法院', count: 512, value: 'guangdong_guangzhou' },
+      { label: '深圳市中级人民法院', count: 478, value: 'guangdong_shenzhen' },
+      { label: '广州市天河区人民法院', count: 234, value: 'guangdong_tianhe' },
+    ]},
+    { label: '江苏省', count: 7823, value: 'jiangsu', children: [
+      { label: '江苏省高级人民法院', count: 389, value: 'jiangsu_gaoyuan' },
+      { label: '南京市中级人民法院', count: 345, value: 'jiangsu_nanjing' },
+      { label: '苏州市中级人民法院', count: 312, value: 'jiangsu_suzhou' },
+    ]},
+    { label: '浙江省', count: 6542, value: 'zhejiang', children: [
+      { label: '浙江省高级人民法院', count: 278, value: 'zhejiang_gaoyuan' },
+      { label: '杭州市中级人民法院', count: 298, value: 'zhejiang_hangzhou' },
+      { label: '宁波市中级人民法院', count: 256, value: 'zhejiang_ningbo' },
+    ]},
+    { label: '山东省', count: 5678, value: 'shandong', children: [
+      { label: '山东省高级人民法院', count: 234, value: 'shandong_gaoyuan' },
+      { label: '济南市中级人民法院', count: 213, value: 'shandong_jinan' },
+      { label: '青岛市中级人民法院', count: 198, value: 'shandong_qingdao' },
+    ]},
+    { label: '四川省', count: 4532, value: 'sichuan', children: [
+      { label: '四川省高级人民法院', count: 189, value: 'sichuan_gaoyuan' },
+      { label: '成都市中级人民法院', count: 234, value: 'sichuan_chengdu' },
+    ]},
+    { label: '湖北省', count: 3987, value: 'hubei', children: [
+      { label: '湖北省高级人民法院', count: 167, value: 'hubei_gaoyuan' },
+      { label: '武汉市中级人民法院', count: 198, value: 'hubei_wuhan' },
+    ]},
   ],
   settlementYear: [
     { label: '2025年', count: 1133, value: '2025' },
@@ -195,16 +249,34 @@ const penaltiesFilters = {
   ],
 };
 
-// Selected filter states - 储存选中的筛选项 {sectionKey: filterValue}
-const selectedFilters = ref<Record<string, string>>({});
+// Selected filter states - 储存选中的筛选项 {sectionKey: filterValue[]}
+const selectedFilters = ref<Record<string, string[]>>({});
+
+// 切换筛选项选中状态（支持多选）
+const toggleFilter = (sectionKey: string, value: string) => {
+  if (!selectedFilters.value[sectionKey]) {
+    selectedFilters.value[sectionKey] = [];
+  }
+  const index = selectedFilters.value[sectionKey].indexOf(value);
+  if (index > -1) {
+    selectedFilters.value[sectionKey].splice(index, 1);
+  } else {
+    selectedFilters.value[sectionKey].push(value);
+  }
+};
+
+// 检查筛选项是否选中
+const isFilterSelected = (sectionKey: string, value: string) => {
+  return selectedFilters.value[sectionKey]?.includes(value) ?? false;
+};
 
 // 获取已选筛选标签列表
 const activeFilterTags = computed(() => {
   const tags: Array<{sectionKey: string; sectionLabel: string; filterLabel: string; filterValue: string}> = [];
   
   for (const section of filterSections.value) {
-    const selectedValue = selectedFilters.value[section.key];
-    if (selectedValue) {
+    const selectedValues = selectedFilters.value[section.key] || [];
+    for (const selectedValue of selectedValues) {
       const filters = (currentFilters.value as any)[section.key];
       const filter = filters?.find((f: any) => f.value === selectedValue);
       if (filter) {
@@ -222,8 +294,13 @@ const activeFilterTags = computed(() => {
 });
 
 // 移除单个筛选
-const removeFilter = (sectionKey: string) => {
-  delete selectedFilters.value[sectionKey];
+const removeFilter = (sectionKey: string, filterValue: string) => {
+  if (selectedFilters.value[sectionKey]) {
+    const index = selectedFilters.value[sectionKey].indexOf(filterValue);
+    if (index > -1) {
+      selectedFilters.value[sectionKey].splice(index, 1);
+    }
+  }
 };
 
 // 清空所有筛选
@@ -298,6 +375,28 @@ const addSelectedToKnowledgeBase = () => {
   selectedResults.value = [];
 };
 
+// 结果卡片内容 tab 状态管理
+const resultContentTabs = ref<Record<number, string>>({});
+
+const getResultActiveTab = (resultId: number) => {
+  return resultContentTabs.value[resultId] || 'opinion';
+};
+
+const setResultActiveTab = (resultId: number, tab: string) => {
+  resultContentTabs.value[resultId] = tab;
+};
+
+// 地域筛选展开状态
+const expandedRegions = ref<Record<string, boolean>>({});
+
+const toggleRegionExpand = (regionValue: string) => {
+  expandedRegions.value[regionValue] = !expandedRegions.value[regionValue];
+};
+
+const isRegionExpanded = (regionValue: string) => {
+  return expandedRegions.value[regionValue] || false;
+};
+
 // Mock search results - 司法案例（食品安全主题）
 const caseResults = [
   {
@@ -312,6 +411,8 @@ const caseResults = [
     settleDate: '2024-11-15审结',
     tags: ['本院认为', '裁判结果', '量刑情节'],
     content: '本院认为，被告人张某某在生产、销售的食品中掺入有毒、有害的非食品原料，其行为已构成生产、销售有毒、有害食品罪。被告人在食品生产过程中违法添加工业明胶，严重危害人民群众身体健康，应依法惩处。',
+    judgmentResult: '一、被告人张某某犯生产、销售有毒、有害食品罪，判处有期徒刑三年，并处罚金人民币三十万元。\n二、扣押在案的违法所得人民币十五万元予以没收，上缴国库。\n三、扣押在案的作案工具予以没收。',
+    historicalDocs: [],
   },
   {
     id: 2,
@@ -325,6 +426,10 @@ const caseResults = [
     settleDate: '2024-10-22审结',
     tags: ['本院认为', '裁判结果', '历审文书'],
     content: '本院认为，原审判决认定上诉人李某某生产、销售不符合食品安全标准的食品，足以造成严重食物中毒事故或者其他严重食源性疾病的事实清楚，证据确实、充分，定罪准确，量刑适当。',
+    judgmentResult: '驳回上诉，维持原判。\n本裁定为终审裁定。',
+    historicalDocs: [
+      { title: '李某某生产、销售不符合安全标准的食品罪一审刑事判决书', caseNumber: '(2024)沪0115刑初456号', court: '上海市浦东新区人民法院', date: '2024-08-15' },
+    ],
   },
   {
     id: 3,
@@ -338,6 +443,10 @@ const caseResults = [
     settleDate: '2024-09-18审结',
     tags: ['本院认为', '裁判结果', '赔偿责任'],
     content: '本院认为，被告某某食品公司生产的预包装食品不符合食品安全国家标准，原告因食用该产品造成身体损害，被告应承担产品责任。根据《食品安全法》第一百四十八条规定，判决被告赔偿原告医疗费、精神损害抚慰金等合计人民币35000元。',
+    judgmentResult: '一、被告某某食品有限公司于本判决生效之日起十日内赔偿原告王某某医疗费、交通费、营养费共计人民币12000元。\n二、被告某某食品有限公司于本判决生效之日起十日内赔偿原告王某某精神损害抚慰金人民币23000元。\n三、驳回原告王某某的其他诉讼请求。',
+    historicalDocs: [
+      { title: '王某某与某某食品公司产品责任纠纷二审民事判决书', caseNumber: '(2024)粤0106民织892号', court: '广州市中级人民法院', date: '2024-12-05' },
+    ],
   },
   {
     id: 4,
@@ -351,6 +460,10 @@ const caseResults = [
     settleDate: '2024-08-30审结',
     tags: ['本院认为', '裁判结果', '共同犯罪'],
     content: '本院认为，被告人陈某某等人以假充真、以次充好，生产销售伪劣食品，销售金额达人民币180万元，其行为已构成生产、销售伪劣产品罪。鉴于被告人到案后如实供述犯罪事实，依法可以从轻处罚。',
+    judgmentResult: '一、被告人陈某某犯生产、销售伪劣产品罪，判处有期徒刑七年，并处罚金人民币一百万元。\n二、被告人张某某犯生产、销售伪劣产品罪，判处有期徒刑五年，并处罚金人民币六十万元。\n三、扣押在案的违法所得人民币一百八十万元予以没收。',
+    historicalDocs: [
+      { title: '陈某某等人生产、销售伪劣产品罪二审刑事裁定书', caseNumber: '(2024)浙01刑织678号', court: '浙江省高级人民法院', date: '2024-11-20' },
+    ],
   },
   {
     id: 5,
@@ -364,6 +477,10 @@ const caseResults = [
     settleDate: '2024-07-25审结',
     tags: ['本院认为', '裁判结果', '行政诉讼'],
     content: '本院认为，被告市场监督管理局对原告某某餐饮公司作出的行政处罚决定，认定事实清楚，适用法律正确，程序合法，处罚幅度适当。原告主张其不存在使用过期食品原料的行为，缺乏证据支持，本院不予采信。',
+    judgmentResult: '驳回原告某某餐饮管理有限公司的诉讼请求。\n案件受理费人民币50元，由原告某某餐饮管理有限公司负担。',
+    historicalDocs: [
+      { title: '某某餐饮公司诉市场监督管理局行政处罚案二审行政判决书', caseNumber: '(2024)粤03行绉123号', court: '深圳市中级人民法院', date: '2024-10-18' },
+    ],
   },
   {
     id: 6,
@@ -377,6 +494,10 @@ const caseResults = [
     settleDate: '2024-06-20审结',
     tags: ['本院认为', '裁判结果', '十倍赔偿'],
     content: '本院认为，上诉人某某超市销售的进口食品未标注中文标签，不符合食品安全法的规定。根据《食品安全法》第一百四十八条第二款规定，消费者除要求赔偿损失外，还可以向生产者或者经营者要求支付价款十倍的赔偿金。',
+    judgmentResult: '一、撤销成都市武侯区人民法院(2024)川0107民初1234号民事判决。\n二、上诉人某某超市于本判决生效之日起十日内向被上诉人刘某某支付价款十倍赔偿金人民币5800元。',
+    historicalDocs: [
+      { title: '刘某某与某某超市买卖合同纠纷一审民事判决书', caseNumber: '(2024)川0107民初1234号', court: '成都市武侯区人民法院', date: '2024-04-10' },
+    ],
   },
   {
     id: 7,
@@ -390,6 +511,11 @@ const caseResults = [
     settleDate: '2024-05-15审结',
     tags: ['本院认为', '裁判结果', '商标侵权'],
     content: '本院认为，被告人赵某某明知是假冒注册商标的食品仍予以销售，销售金额达人民币50万元，情节严重，其行为已构成销售假冒注册商标的商品罪。被告人销售的假冒品牌婴幼儿配方奶粉，严重威胁婴幼儿身体健康。',
+    judgmentResult: '一、被告人赵某某犯销售假冒注册商标的商品罪，判处有期徒刑三年六个月，并处罚金人民币三十万元。\n二、扣押在案的假冒注册商标商品予以没收并销毁。',
+    historicalDocs: [
+      { title: '赵某某销售假冒注册商标的商品罪二审刑事裁定书', caseNumber: '(2024)鄂刑绉456号', court: '湖北省高级人民法院', date: '2024-08-25' },
+      { title: '赵某某销售假冒注册商标的商品罪再审刑事裁定书', caseNumber: '(2024)鄂刑再12号', court: '湖北省高级人民法院', date: '2024-10-30' },
+    ],
   },
   {
     id: 8,
@@ -403,6 +529,10 @@ const caseResults = [
     settleDate: '2024-04-10审结',
     tags: ['本院认为', '裁判结果', '平台责任'],
     content: '本院认为，被告某某外卖平台未对入驻商家的食品经营资质进行有效审核，导致原告在平台上购买的食品存在安全问题，被告应承担相应的连带责任。根据《电子商务法》相关规定，判决被告赔偿原告损失。',
+    judgmentResult: '一、被告某某网络科技有限公司于本判决生效之日起十日内赔偿原告周某某医疗费、误工费等损失共计人民币8500元。\n二、驳回原告周某某的其他诉讼请求。',
+    historicalDocs: [
+      { title: '周某某与某某外卖平台网络服务合同纠纷二审民事判决书', caseNumber: '(2024)苏01民织1234号', court: '南京市中级人民法院', date: '2024-07-28' },
+    ],
   },
   {
     id: 9,
@@ -416,6 +546,10 @@ const caseResults = [
     settleDate: '2024-03-28审结',
     tags: ['本院认为', '裁判结果', '食品经营'],
     content: '本院认为，被告人孙某某未取得食品经营许可证，擅自从事食品生产经营活动，情节严重，扰乱市场秩序，其行为已构成非法经营罪。被告人经营的黑作坊生产环境恶劣，严重威胁食品安全。',
+    judgmentResult: '一、被告人孙某某犯非法经营罪，判处有期徒刑二年，缓刑三年，并处罚金人民币十万元。\n二、扣押在案的生产设备、原材料等予以没收。',
+    historicalDocs: [
+      { title: '孙某某非法经营罪二审刑事裁定书', caseNumber: '(2024)豫刑绉567号', court: '河南省高级人民法院', date: '2024-06-15' },
+    ],
   },
   {
     id: 10,
@@ -429,6 +563,10 @@ const caseResults = [
     settleDate: '2024-02-20审结',
     tags: ['调解协议', '食品安全', '学校食堂'],
     content: '经本院主持调解，双方当事人自愿达成协议：被告某某学校向原告吴某某赔偿因学校食堂食品卫生问题造成的医疗费、营养费等损失共计人民币12000元，并承诺加强食堂卫生管理，确保学生用餐安全。',
+    judgmentResult: '调解协议内容：\n一、被告某某学校于本调解书生效之日起十日内一次性支付原告吴某某医疗费、营养费、交通费等各项损失共计人民币12000元。\n二、被告某某学校承诺在三十日内对学校食堂进行全面整改，并接受卫生部门的监督检查。\n三、双方当事人就本案再无其他争议。',
+    historicalDocs: [
+      { title: '吴某某与某某学校餐饮服务合同纠纷诉前调解协议', caseNumber: '陕雁0113调字(2024)0088号', court: '西安市雁塔区人民法院', date: '2024-01-15' },
+    ],
   },
 ];
 
@@ -798,27 +936,16 @@ const goToDocumentDetail = (id: number) => {
       <span class="filter-bar-label">已选:</span>
       <div
         v-for="tag in activeFilterTags"
-        :key="tag.sectionKey"
+        :key="`${tag.sectionKey}-${tag.filterValue}`"
         class="selected-filter-tag"
       >
         {{ tag.sectionLabel }}: {{ tag.filterLabel }}
-        <button class="tag-remove" @click="removeFilter(tag.sectionKey)">×</button>
+        <button class="tag-remove" @click="removeFilter(tag.sectionKey, tag.filterValue)">×</button>
       </div>
       <button class="clear-all-btn" @click="clearAllFilters">清空</button>
     </div>
 
-    <!-- Selected Tags -->
-    <div class="selected-tags-bar" v-if="selectedTags.length > 0">
-      <span class="tag-label">全文:</span>
-      <div
-        v-for="tag in selectedTags"
-        :key="tag"
-        class="selected-tag"
-      >
-        {{ tag }}
-        <button class="tag-remove" @click="removeTag(tag)">×</button>
-      </div>
-    </div>
+
 
     <div class="main-content">
       <!-- Main White Card Container -->
@@ -839,16 +966,47 @@ const goToDocumentDetail = (id: number) => {
               <span class="section-label">{{ section.label }}</span>
             </div>
             <div v-show="!collapsedSections[section.key]" class="filter-group">
-              <div
-                v-for="filter in (currentFilters as any)[section.key]"
-                :key="filter.value"
-                class="filter-item"
-                :class="{ active: selectedFilters[section.key] === filter.value }"
-                @click="selectedFilters[section.key] = filter.value"
-              >
-                <span class="filter-arrow">▸</span>
-                <span class="filter-label">{{ filter.label }} ({{ filter.count }})</span>
-              </div>
+              <template v-for="filter in (currentFilters as any)[section.key]" :key="filter.value">
+                <label
+                  class="filter-item"
+                  :class="{ active: isFilterSelected(section.key, filter.value) }"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="isFilterSelected(section.key, filter.value)"
+                    @change="toggleFilter(section.key, filter.value)"
+                    class="filter-checkbox"
+                  />
+                  <span class="filter-label">{{ filter.label }} ({{ filter.count }})</span>
+                  <ChevronDown
+                    v-if="section.key === 'region' && filter.children"
+                    :size="14"
+                    class="region-expand-icon"
+                    :class="{ expanded: isRegionExpanded(filter.value) }"
+                    @click.prevent.stop="toggleRegionExpand(filter.value)"
+                  />
+                </label>
+                <!-- 子级法院列表 -->
+                <div
+                  v-if="section.key === 'region' && filter.children && isRegionExpanded(filter.value)"
+                  class="sub-filter-group"
+                >
+                  <label
+                    v-for="child in filter.children"
+                    :key="child.value"
+                    class="filter-item sub-item"
+                    :class="{ active: isFilterSelected(section.key, child.value) }"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="isFilterSelected(section.key, child.value)"
+                      @change="toggleFilter(section.key, child.value)"
+                      class="filter-checkbox"
+                    />
+                    <span class="filter-label">{{ child.label }} ({{ child.count }})</span>
+                  </label>
+                </div>
+              </template>
             </div>
           </div>
         </aside>
@@ -923,21 +1081,49 @@ const goToDocumentDetail = (id: number) => {
                     <span class="meta-date">{{ result.settleDate }}</span>
                   </div>
 
-                  <!-- Quick Link Tags -->
-                  <div class="quick-tags">
-                    <span
-                      v-for="(tag, idx) in result.tags"
-                      :key="idx"
-                      class="quick-tag"
-                    >{{ tag }}</span>
-                  </div>
-
-                  <!-- Judgment Reason -->
-                  <div class="judgment-section" v-if="result.content">
-                    <p class="result-excerpt">
-                      <span class="judgment-label">本院认为，</span>
-                      <span>{{ result.content }}</span>
-                    </p>
+                  <!-- Content Section with Tabs -->
+                  <div class="content-section-wrapper">
+                    <div class="content-tabs">
+                      <button 
+                        class="content-tab" 
+                        :class="{ active: getResultActiveTab(result.id) === 'opinion' }"
+                        @click="setResultActiveTab(result.id, 'opinion')"
+                      >本院认为</button>
+                      <button 
+                        class="content-tab" 
+                        :class="{ active: getResultActiveTab(result.id) === 'judgment' }"
+                        @click="setResultActiveTab(result.id, 'judgment')"
+                      >裁判结果</button>
+                      <button 
+                        class="content-tab" 
+                        :class="{ active: getResultActiveTab(result.id) === 'history' }"
+                        @click="setResultActiveTab(result.id, 'history')"
+                      >历审文书</button>
+                    </div>
+                    <!-- 本院认为 -->
+                    <div class="content-body" v-if="getResultActiveTab(result.id) === 'opinion' && result.content">
+                      <p class="content-text">
+                        <span class="content-label">本院认为，</span>
+                        <span>{{ result.content }}</span>
+                      </p>
+                    </div>
+                    <!-- 裁判结果 -->
+                    <div class="content-body" v-else-if="getResultActiveTab(result.id) === 'judgment' && result.judgmentResult">
+                      <p class="content-text" style="white-space: pre-line;">{{ result.judgmentResult }}</p>
+                    </div>
+                    <div class="content-body content-empty" v-else-if="getResultActiveTab(result.id) === 'judgment'">
+                      <p class="content-text">暂无裁判结果数据</p>
+                    </div>
+                    <!-- 历审文书 -->
+                    <div class="content-body" v-else-if="getResultActiveTab(result.id) === 'history' && result.historicalDocs?.length > 0">
+                      <div v-for="(doc, idx) in result.historicalDocs" :key="idx" class="history-doc-item">
+                        <span class="history-doc-title">{{ doc.title }}</span>
+                        <span class="history-doc-meta">{{ doc.caseNumber }} | {{ doc.court }} | {{ doc.date }}</span>
+                      </div>
+                    </div>
+                    <div class="content-body content-empty" v-else-if="getResultActiveTab(result.id) === 'history'">
+                      <p class="content-text">暂无历审文书</p>
+                    </div>
                   </div>
                 </div>
 
@@ -1453,9 +1639,39 @@ const goToDocumentDetail = (id: number) => {
   font-weight: 500;
 }
 
-.filter-arrow {
-  font-size: 10px;
+.filter-checkbox {
+  width: 14px;
+  height: 14px;
+  accent-color: #2563eb;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.region-expand-icon {
   color: #94a3b8;
+  margin-left: auto;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.region-expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.filter-item:hover .region-expand-icon {
+  color: #2563eb;
+}
+
+.sub-filter-group {
+  margin-left: 20px;
+  padding-left: 12px;
+  border-left: 2px solid #e2e8f0;
+}
+
+.filter-item.sub-item {
+  font-size: 12px;
+  color: #64748b;
 }
 
 .filter-label {
@@ -1721,36 +1937,59 @@ const goToDocumentDetail = (id: number) => {
   color: #cbd5e1;
 }
 
-/* Quick Link Tags */
-.quick-tags {
+/* Content Section Wrapper */
+.content-section-wrapper {
+  margin-top: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.content-tabs {
   display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: 0;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.quick-tag {
+.content-tab {
+  padding: 10px 20px;
+  background: transparent;
+  border: none;
   font-size: 13px;
-  color: #2563eb;
+  font-weight: 500;
+  color: #64748b;
   cursor: pointer;
-  transition: color 0.2s;
+  transition: all 0.2s;
+  position: relative;
 }
 
-.quick-tag:hover {
-  color: #1d4ed8;
-  text-decoration: underline;
+.content-tab:hover {
+  color: #2563eb;
+  background: #f1f5f9;
 }
 
-/* Judgment Section */
-.judgment-section {
-  margin-top: 8px;
-}
-
-.judgment-label {
+.content-tab.active {
+  color: #2563eb;
   font-weight: 600;
-  color: #334155;
 }
 
-.result-excerpt {
+.content-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #2563eb;
+}
+
+.content-body {
+  padding: 16px;
+}
+
+.content-text {
   font-size: 14px;
   color: #475569;
   line-height: 1.7;
@@ -1759,6 +1998,43 @@ const goToDocumentDetail = (id: number) => {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.content-label {
+  font-weight: 600;
+  color: #2563eb;
+}
+
+.content-empty {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.history-doc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.history-doc-item:last-child {
+  border-bottom: none;
+}
+
+.history-doc-title {
+  font-size: 14px;
+  color: #2563eb;
+  cursor: pointer;
+}
+
+.history-doc-title:hover {
+  text-decoration: underline;
+}
+
+.history-doc-meta {
+  font-size: 12px;
+  color: #64748b;
 }
 
 /* Penalty Details */

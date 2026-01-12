@@ -357,6 +357,20 @@ const toggleExpand = (modId: string) => {
   }
 };
 
+// 处理卡片标题区域点击 - 根据状态区分行为
+const handleCardHeaderClick = (modId: string) => {
+  const mod = modifications.value.find(m => m.id === modId);
+  if (!mod) return;
+  
+  if (mod.status === 'pending') {
+    // 待处理状态：切换展开/收起 + 跳转
+    toggleExpand(modId);
+  } else {
+    // 已处理状态：只跳转定位，不切换展开
+    scrollToHighlight(modId);
+  }
+};
+
 // 展开指定卡片，折叠其他，并滚动定位
 const expandCard = (modId: string) => {
   modifications.value.forEach(m => {
@@ -591,6 +605,12 @@ const getClauseTitle = (clauseId: string) => {
                         <div v-if="mod.suggestedText" class="diff-line add">{{ mod.suggestedText }}</div>
                       </div>
                     </div>
+                    <!-- 非 pending 状态：保留一个定位锚点用于跳转高亮 -->
+                    <span 
+                      v-else
+                      :id="`highlight-${mod.id}`" 
+                      class="modification-anchor"
+                    ></span>
                   </template>
                   <pre class="clause-text">{{ clause.content }}</pre>
                 </div>
@@ -635,6 +655,12 @@ const getClauseTitle = (clauseId: string) => {
                         <div v-if="mod.suggestedText" class="diff-line add">{{ mod.suggestedText }}</div>
                       </div>
                     </div>
+                    <!-- 非 pending 状态：保留一个定位锚点用于跳转高亮 -->
+                    <span 
+                      v-else
+                      :id="`highlight-${mod.id}`" 
+                      class="modification-anchor"
+                    ></span>
                   </template>
                   <pre class="clause-text">{{ clause.content }}</pre>
                 </div>
@@ -679,6 +705,12 @@ const getClauseTitle = (clauseId: string) => {
                         <div v-if="mod.suggestedText" class="diff-line add">{{ mod.suggestedText }}</div>
                       </div>
                     </div>
+                    <!-- 非 pending 状态：保留一个定位锚点用于跳转高亮 -->
+                    <span 
+                      v-else
+                      :id="`highlight-${mod.id}`" 
+                      class="modification-anchor"
+                    ></span>
                   </template>
                   <pre class="clause-text">{{ clause.content }}</pre>
                 </div>
@@ -736,7 +768,7 @@ const getClauseTitle = (clauseId: string) => {
               :class="[{ expanded: mod.expanded }]"
             >
               <!-- Card Header (always visible) -->
-              <div class="card-header" @click="toggleExpand(mod.id)">
+              <div class="card-header" @click="handleCardHeaderClick(mod.id)">
                 <div class="card-left">
                   <span class="card-index" :class="getRiskClass(mod.riskLevel)">{{ idx + 1 }}</span>
                   <div class="card-info">
@@ -748,7 +780,7 @@ const getClauseTitle = (clauseId: string) => {
                   <span class="risk-tag" :class="getRiskClass(mod.riskLevel)">
                     {{ getRiskText(mod.riskLevel) }}
                   </span>
-                  <button class="expand-btn">
+                  <button class="expand-btn" @click.stop="toggleExpand(mod.id)">
                     <ChevronUp v-if="mod.expanded" :size="18" />
                     <ChevronDown v-else :size="18" />
                   </button>
@@ -1212,6 +1244,34 @@ const getClauseTitle = (clauseId: string) => {
 .highlight-block.status-accepted.flash,
 .highlight-block.status-rejected.flash {
   animation: flash-highlight-soft 2.5s ease-out;
+}
+
+/* 修改锚点 - 用于已接受/拒绝的修改定位 */
+.modification-anchor {
+  display: block;
+  position: relative;
+  margin: 4px 0;
+}
+
+/* 锚点的闪烁高亮动画 */
+.modification-anchor.flash {
+  animation: anchor-flash 2s ease-out;
+}
+
+.modification-anchor.flash + pre.clause-text {
+  animation: text-highlight-flash 2s ease-out;
+}
+
+@keyframes anchor-flash {
+  0% { background-color: transparent; }
+  20% { background-color: rgba(37, 99, 235, 0.15); }
+  100% { background-color: transparent; }
+}
+
+@keyframes text-highlight-flash {
+  0% { background-color: transparent; }
+  20%, 60% { background-color: rgba(37, 99, 235, 0.08); }
+  100% { background-color: transparent; }
 }
 
 .highlight-marker {
