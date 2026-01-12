@@ -22,11 +22,34 @@ import {
   Underline,
   AlignLeft,
   Image as ImageIcon,
-  Zap
+  Zap,
+  Edit3,
+  Sparkles,
+  FileText,
+  BarChart3,
+  Table2,
+  FileImage,
+  Presentation
 } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
+
+// 右侧面板 Tab 状态
+type RightPanelTab = 'review' | 'edit';
+const rightPanelTab = ref<RightPanelTab>('review');
+
+// Toast 提示状态
+const toastMessage = ref('');
+const showToast = ref(false);
+
+const displayToast = (message: string, duration = 3000) => {
+  toastMessage.value = message;
+  showToast.value = true;
+  setTimeout(() => {
+    showToast.value = false;
+  }, duration);
+};
 
 // --- Types ---
 type ChangeStatus = 'pending' | 'accepted' | 'rejected';
@@ -362,6 +385,13 @@ const handleCardHeaderClick = (modId: string) => {
   const mod = modifications.value.find(m => m.id === modId);
   if (!mod) return;
   
+  // 检查锚点是否存在（容错处理：用户可能手动删除了内容）
+  const anchor = document.getElementById(`highlight-${modId}`);
+  if (!anchor) {
+    displayToast('该内容位置可能已被手动修改，无法精确定位');
+    return;
+  }
+  
   if (mod.status === 'pending') {
     // 待处理状态：切换展开/收起 + 跳转
     toggleExpand(modId);
@@ -610,7 +640,8 @@ const getClauseTitle = (clauseId: string) => {
                       v-else
                       :id="`highlight-${mod.id}`" 
                       class="modification-anchor"
-                    ></span>
+                      :class="{ 'status-accepted': mod.status === 'accepted', 'status-rejected': mod.status === 'rejected' }"
+                    >{{ mod.status === 'accepted' ? mod.suggestedText : mod.originalText }}</span>
                   </template>
                   <pre class="clause-text">{{ clause.content }}</pre>
                 </div>
@@ -660,7 +691,8 @@ const getClauseTitle = (clauseId: string) => {
                       v-else
                       :id="`highlight-${mod.id}`" 
                       class="modification-anchor"
-                    ></span>
+                      :class="{ 'status-accepted': mod.status === 'accepted', 'status-rejected': mod.status === 'rejected' }"
+                    >{{ mod.status === 'accepted' ? mod.suggestedText : mod.originalText }}</span>
                   </template>
                   <pre class="clause-text">{{ clause.content }}</pre>
                 </div>
@@ -710,7 +742,8 @@ const getClauseTitle = (clauseId: string) => {
                       v-else
                       :id="`highlight-${mod.id}`" 
                       class="modification-anchor"
-                    ></span>
+                      :class="{ 'status-accepted': mod.status === 'accepted', 'status-rejected': mod.status === 'rejected' }"
+                    >{{ mod.status === 'accepted' ? mod.suggestedText : mod.originalText }}</span>
                   </template>
                   <pre class="clause-text">{{ clause.content }}</pre>
                 </div>
@@ -745,96 +778,217 @@ const getClauseTitle = (clauseId: string) => {
 
       <!-- Right: Modification Cards Panel -->
       <div class="cards-panel">
-        <div class="panel-header">
-          <h2>修改建议 <span class="count">{{ stats.pending }}/{{ stats.total }}</span></h2>
-          <div class="panel-actions">
-            <button class="panel-btn reject" @click="rejectAll" :disabled="stats.pending === 0">
-              <XCircle :size="14" />
-              全部拒绝
-            </button>
-            <button class="panel-btn accept" @click="acceptAll" :disabled="stats.pending === 0">
-              <CheckCheck :size="14" />
-              全部接受
-            </button>
-          </div>
+        <!-- 顶部 Tab 切换 -->
+        <div class="panel-tabs">
+          <button 
+            class="panel-tab" 
+            :class="{ active: rightPanelTab === 'review' }"
+            @click="rightPanelTab = 'review'"
+          >
+            <Check :size="16" />
+            AI 审查
+          </button>
+          <button 
+            class="panel-tab" 
+            :class="{ active: rightPanelTab === 'edit' }"
+            @click="rightPanelTab = 'edit'"
+          >
+            <Edit3 :size="16" />
+            AI 编辑
+          </button>
         </div>
 
-        <div class="cards-container">
-          <!-- Modification Cards -->
-            <div
-              v-for="(mod, idx) in modifications"
-              :key="mod.id"
-              class="mod-card"
-              :class="[{ expanded: mod.expanded }]"
-            >
-              <!-- Card Header (always visible) -->
-              <div class="card-header" @click="handleCardHeaderClick(mod.id)">
-                <div class="card-left">
-                  <span class="card-index" :class="getRiskClass(mod.riskLevel)">{{ idx + 1 }}</span>
-                  <div class="card-info">
-                    <span class="card-clause">{{ getClauseTitle(mod.clauseId) }}</span>
-                    <!-- Preview removed for cleaner look or optional -->
+        <!-- AI 审查模式 -->
+        <template v-if="rightPanelTab === 'review'">
+          <div class="panel-header">
+            <h2>修改建议 <span class="count">{{ stats.pending }}/{{ stats.total }}</span></h2>
+            <div class="panel-actions">
+              <button class="panel-btn reject" @click="rejectAll" :disabled="stats.pending === 0">
+                <XCircle :size="14" />
+                全部拒绝
+              </button>
+              <button class="panel-btn accept" @click="acceptAll" :disabled="stats.pending === 0">
+                <CheckCheck :size="14" />
+                全部接受
+              </button>
+            </div>
+          </div>
+
+          <div class="cards-container">
+            <!-- Modification Cards -->
+              <div
+                v-for="(mod, idx) in modifications"
+                :key="mod.id"
+                class="mod-card"
+                :class="[{ expanded: mod.expanded }]"
+              >
+                <!-- Card Header (always visible) -->
+                <div class="card-header" @click="handleCardHeaderClick(mod.id)">
+                  <div class="card-left">
+                    <span class="card-index" :class="getRiskClass(mod.riskLevel)">{{ idx + 1 }}</span>
+                    <div class="card-info">
+                      <span class="card-clause">{{ getClauseTitle(mod.clauseId) }}</span>
+                      <!-- Preview removed for cleaner look or optional -->
+                    </div>
+                  </div>
+                  <div class="card-right">
+                    <span class="risk-tag" :class="getRiskClass(mod.riskLevel)">
+                      {{ getRiskText(mod.riskLevel) }}
+                    </span>
+                    <button class="expand-btn" @click.stop="toggleExpand(mod.id)">
+                      <ChevronUp v-if="mod.expanded" :size="18" />
+                      <ChevronDown v-else :size="18" />
+                    </button>
                   </div>
                 </div>
-                <div class="card-right">
-                  <span class="risk-tag" :class="getRiskClass(mod.riskLevel)">
-                    {{ getRiskText(mod.riskLevel) }}
-                  </span>
-                  <button class="expand-btn" @click.stop="toggleExpand(mod.id)">
-                    <ChevronUp v-if="mod.expanded" :size="18" />
-                    <ChevronDown v-else :size="18" />
-                  </button>
+
+                <!-- Card Body (collapsible) -->
+                <div class="card-body" v-show="mod.expanded">
+                  <!-- Reason -->
+                  <div class="reason-block">
+                    <div class="reason-header">
+                      <AlertTriangle :size="14" />
+                      <span>修改理由</span>
+                    </div>
+                    <p class="reason-text">{{ mod.reason }}</p>
+                  </div>
+
+                  <!-- Diff Content in Card -->
+                  <div class="card-diff-section">
+                    <div v-if="mod.originalText" class="diff-box del">
+                      <div class="box-label">原文内容</div>
+                      <div class="box-content">{{ mod.originalText }}</div>
+                    </div>
+                    <div v-if="mod.suggestedText" class="diff-box add">
+                      <div class="box-label">建议修改为</div>
+                      <div class="box-content">{{ mod.suggestedText }}</div>
+                    </div>
+                  </div>
+
+                  <!-- Actions -->
+                  <div class="card-actions" v-if="mod.status === 'pending'">
+                    <button class="action-btn accept" @click.stop="acceptModification(mod.id)">
+                      <Check :size="16" />
+                      接受
+                    </button>
+                    <button class="action-btn reject" @click.stop="rejectModification(mod.id)">
+                      <X :size="16" />
+                      拒绝
+                    </button>
+                  </div>
+
+                  <div class="card-status" v-else>
+                    <div class="status-display" :class="getStatusClass(mod.status)">
+                      <Check v-if="mod.status === 'accepted'" :size="16" />
+                      <X v-else :size="16" />
+                      {{ mod.status === 'accepted' ? '已接受此修改建议' : '已拒绝此修改建议' }}
+                    </div>
+                  </div>
                 </div>
               </div>
+          </div>
+        </template>
 
-              <!-- Card Body (collapsible) -->
-              <div class="card-body" v-show="mod.expanded">
-                <!-- Reason -->
-                <div class="reason-block">
-                  <div class="reason-header">
-                    <AlertTriangle :size="14" />
-                    <span>修改理由</span>
-                  </div>
-                  <p class="reason-text">{{ mod.reason }}</p>
+        <!-- AI 编辑模式 -->
+        <template v-else>
+          <div class="ai-edit-panel">
+            <!-- AI 文本编辑 -->
+            <div class="edit-section">
+              <div class="section-header">
+                <Edit3 :size="18" class="section-icon" />
+                <div class="section-title-group">
+                  <h3>AI文本编辑</h3>
+                  <p class="section-desc">选中文字后，点击对应文本编辑工具</p>
                 </div>
+              </div>
+              <div class="text-tools">
+                <button class="text-tool-btn">改写</button>
+                <button class="text-tool-btn">扩写</button>
+                <button class="text-tool-btn">缩写</button>
+                <button class="text-tool-btn">翻译</button>
+              </div>
+            </div>
 
-                <!-- Diff Content in Card -->
-                <div class="card-diff-section">
-                  <div v-if="mod.originalText" class="diff-box del">
-                    <div class="box-label">原文内容</div>
-                    <div class="box-content">{{ mod.originalText }}</div>
+            <!-- 多模态 AI 生成 -->
+            <div class="edit-section">
+              <div class="section-header">
+                <Sparkles :size="18" class="section-icon sparkle" />
+                <div class="section-title-group">
+                  <h3>多模态AI生成</h3>
+                  <p class="section-desc">选中文字后，点击对应多模态生成工具</p>
+                </div>
+              </div>
+              <div class="multimodal-tools">
+                <div class="tool-row gradient-purple">
+                  <div class="tool-card">
+                    <FileImage :size="28" />
+                    <span>示意图</span>
                   </div>
-                  <div v-if="mod.suggestedText" class="diff-box add">
-                    <div class="box-label">建议修改为</div>
-                    <div class="box-content">{{ mod.suggestedText }}</div>
+                  <div class="tool-card">
+                    <BarChart3 :size="28" />
+                    <span>图表</span>
                   </div>
                 </div>
-
-                <!-- Actions -->
-                <div class="card-actions" v-if="mod.status === 'pending'">
-                  <button class="action-btn accept" @click.stop="acceptModification(mod.id)">
-                    <Check :size="16" />
-                    接受
-                  </button>
-                  <button class="action-btn reject" @click.stop="rejectModification(mod.id)">
-                    <X :size="16" />
-                    拒绝
-                  </button>
-                </div>
-
-                <div class="card-status" v-else>
-                  <div class="status-display" :class="getStatusClass(mod.status)">
-                    <Check v-if="mod.status === 'accepted'" :size="16" />
-                    <X v-else :size="16" />
-                    {{ mod.status === 'accepted' ? '已接受此修改建议' : '已拒绝此修改建议' }}
+                <div class="tool-row gradient-rainbow">
+                  <div class="tool-card">
+                    <ImageIcon :size="24" />
+                    <span>图片</span>
+                  </div>
+                  <div class="tool-card">
+                    <Table2 :size="24" />
+                    <span>表格</span>
+                  </div>
+                  <div class="tool-card">
+                    <span class="formula-icon">∑</span>
+                    <span>公式</span>
                   </div>
                 </div>
               </div>
             </div>
-        </div>
+
+            <!-- 文档转 PPT -->
+            <div class="edit-section ppt-section">
+              <div class="section-header">
+                <Presentation :size="18" class="section-icon ppt" />
+                <h3>文档转PPT</h3>
+              </div>
+              <div class="ppt-features">
+                <div class="ppt-feature">
+                  <Edit3 :size="16" class="feature-icon" />
+                  <span class="feature-title">智能匹配</span>
+                  <span class="feature-desc">100%忠于原文内容生成</span>
+                </div>
+                <div class="ppt-feature">
+                  <FileText :size="16" class="feature-icon" />
+                  <span class="feature-title">专业排版</span>
+                  <span class="feature-desc">海量模版选择，专业图示效果</span>
+                </div>
+                <div class="ppt-feature">
+                  <Clock :size="16" class="feature-icon" />
+                  <span class="feature-title">省时省力</span>
+                  <span class="feature-desc">只需几分钟，演讲、汇报轻松搞定</span>
+                </div>
+              </div>
+              <button class="ppt-generate-btn">
+                立即生成专业PPT
+                <span class="cursor-icon">👆</span>
+              </button>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
   </div>
+
+  <!-- Toast 提示 -->
+  <Transition name="toast">
+    <div v-if="showToast" class="toast-container">
+      <div class="toast-message">
+        <AlertTriangle :size="18" />
+        <span>{{ toastMessage }}</span>
+      </div>
+    </div>
+  </Transition>
 </template>
 
 <style scoped>
@@ -1248,29 +1402,33 @@ const getClauseTitle = (clauseId: string) => {
 
 /* 修改锚点 - 用于已接受/拒绝的修改定位 */
 .modification-anchor {
-  display: block;
+  display: inline;
   position: relative;
-  margin: 4px 0;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
 }
 
-/* 锚点的闪烁高亮动画 */
+/* 接受状态 - 完全无标记，融入正文 */
+.modification-anchor.status-accepted {
+  /* 无样式，完全融入正文 */
+}
+
+/* 拒绝状态 - 灰色删除线 */
+.modification-anchor.status-rejected {
+  text-decoration: line-through;
+  text-decoration-color: #94a3b8;
+  color: #94a3b8;
+}
+
+/* 锚点的闪烁高亮动画 - 只影响锚点本身 */
 .modification-anchor.flash {
   animation: anchor-flash 2s ease-out;
 }
 
-.modification-anchor.flash + pre.clause-text {
-  animation: text-highlight-flash 2s ease-out;
-}
-
 @keyframes anchor-flash {
   0% { background-color: transparent; }
-  20% { background-color: rgba(37, 99, 235, 0.15); }
-  100% { background-color: transparent; }
-}
-
-@keyframes text-highlight-flash {
-  0% { background-color: transparent; }
-  20%, 60% { background-color: rgba(37, 99, 235, 0.08); }
+  20%, 60% { background-color: rgba(37, 99, 235, 0.2); }
   100% { background-color: transparent; }
 }
 
@@ -1759,5 +1917,284 @@ const getClauseTitle = (clauseId: string) => {
   background: #f1f5f9;
   color: #64748b;
   border: 1px solid #e2e8f0;
+}
+
+/* ============ 右侧面板 Tab 切换 ============ */
+.panel-tabs {
+  display: flex;
+  gap: 0;
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.panel-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: transparent;
+  border: 1px solid #e2e8f0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.panel-tab:first-child {
+  border-radius: 8px 0 0 8px;
+}
+
+.panel-tab:last-child {
+  border-radius: 0 8px 8px 0;
+  border-left: none;
+}
+
+.panel-tab:hover {
+  background: #f8fafc;
+  color: #3b82f6;
+}
+
+.panel-tab.active {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #2563eb;
+}
+
+.panel-tab.active + .panel-tab {
+  border-left-color: #2563eb;
+}
+
+/* ============ AI 编辑模式 ============ */
+.ai-edit-panel {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.edit-section {
+  background: white;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.section-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.section-icon {
+  color: #3b82f6;
+  margin-top: 2px;
+}
+
+.section-icon.sparkle {
+  color: #d97706;
+}
+
+.section-icon.ppt {
+  color: #dc2626;
+}
+
+.section-title-group h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 4px 0;
+}
+
+.section-desc {
+  font-size: 13px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* 文本编辑工具按钮 */
+.text-tools {
+  display: flex;
+  gap: 12px;
+}
+
+.text-tool-btn {
+  flex: 1;
+  padding: 10px 16px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.text-tool-btn:hover {
+  border-color: #3b82f6;
+  color: #3b82f6;
+  background: #eff6ff;
+}
+
+/* 多模态工具 */
+.multimodal-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tool-row {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+}
+
+.tool-row.gradient-purple {
+  background: linear-gradient(135deg, #eff6ff 0%, #f3e8ff 100%);
+}
+
+.tool-row.gradient-rainbow {
+  background: linear-gradient(135deg, #fdf2f8 0%, #eff6ff 33%, #f0fdf4 66%, #fefce8 100%);
+}
+
+.tool-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 12px;
+  background: white;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.tool-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.tool-card svg {
+  color: #3b82f6;
+}
+
+.tool-card span {
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+}
+
+.formula-icon {
+  font-size: 24px;
+  font-weight: 600;
+  color: #d97706;
+}
+
+/* PPT 功能区 */
+.ppt-section {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+}
+
+.ppt-features {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.ppt-feature {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.feature-icon {
+  color: #3b82f6;
+}
+
+.feature-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  min-width: 60px;
+}
+
+.feature-desc {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.ppt-generate-btn {
+  width: 100%;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+  border: none;
+  border-radius: 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ppt-generate-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(139, 92, 246, 0.35);
+}
+
+.cursor-icon {
+  font-size: 20px;
+}
+
+/* ============ Toast 提示 ============ */
+.toast-container {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+}
+
+.toast-message {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px;
+  background: #1e293b;
+  color: white;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+}
+
+.toast-message svg {
+  color: #fbbf24;
+}
+
+/* Toast 动画 */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(20px);
 }
 </style>
