@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Search, RefreshCw, ChevronDown } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 
@@ -8,10 +8,19 @@ const router = useRouter();
 const searchQuery = ref('');
 const activeTab = ref<'cases' | 'regulations'>('cases');
 
-// Search scope options
+// Search scope options - 根据 tab 动态变化
 const searchScope = ref('全文');
-const searchScopeOptions = ['全文', '标题', '案号', '当事人', '法官'];
+const caseScopeOptions = ['全文', '标题', '案号'];
+const regulationScopeOptions = ['标题', '全文', '发文字号'];
+const searchScopeOptions = computed(() => {
+  return activeTab.value === 'cases' ? caseScopeOptions : regulationScopeOptions;
+});
 const showScopeDropdown = ref(false);
+
+// 监听 tab 切换，自动设置默认搜索范围
+watch(activeTab, (newTab) => {
+  searchScope.value = newTab === 'cases' ? '全文' : '标题';
+});
 
 // Sample questions by tab
 const caseSampleQuestions = [
