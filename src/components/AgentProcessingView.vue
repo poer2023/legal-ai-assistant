@@ -65,7 +65,7 @@ const handleSkip = () => {
 
     <main class="main-content">
       <div class="status-card">
-        <h2 class="status-title">写作进度</h2>
+        <h2 class="status-title">任务进度</h2>
         
         <!-- Current Step Active Display -->
         <div class="active-step">
@@ -91,10 +91,9 @@ const handleSkip = () => {
       </div>
 
       <div class="tips-card">
-        <p>完成写作大约需要10分钟左右，后续可在 <a href="#">个人中心-使用记录</a> 中查看；遇到长文写作，排队等情况可能需要等待更久，感谢理解~</p>
+        <p>完成任务大约需要10分钟左右，后续可在 <a href="#">个人中心-使用记录</a> 中查看；遇到复杂任务或排队情况可能需要等待更久，感谢理解~</p>
         
         <div class="manual-action">
-           <!-- Manual Skip Button as requested -->
            <button class="skip-btn" @click="handleSkip">
              进入结果页 (测试用)
            </button>
