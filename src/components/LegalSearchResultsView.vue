@@ -11,7 +11,7 @@ const currentPage = ref(1);
 const totalPages = 10;
 
 // Active tab state
-const activeTab = ref<'cases' | 'regulations' | 'penalties'>('cases');
+const activeTab = ref<'cases' | 'regulations'>('cases');
 
 // Search scope options
 const searchScope = ref('全文');
@@ -195,8 +195,41 @@ const penaltiesFilters = {
   ],
 };
 
-// Selected filter states
+// Selected filter states - 储存选中的筛选项 {sectionKey: filterValue}
 const selectedFilters = ref<Record<string, string>>({});
+
+// 获取已选筛选标签列表
+const activeFilterTags = computed(() => {
+  const tags: Array<{sectionKey: string; sectionLabel: string; filterLabel: string; filterValue: string}> = [];
+  
+  for (const section of filterSections.value) {
+    const selectedValue = selectedFilters.value[section.key];
+    if (selectedValue) {
+      const filters = (currentFilters.value as any)[section.key];
+      const filter = filters?.find((f: any) => f.value === selectedValue);
+      if (filter) {
+        tags.push({
+          sectionKey: section.key,
+          sectionLabel: section.label,
+          filterLabel: filter.label,
+          filterValue: selectedValue
+        });
+      }
+    }
+  }
+  
+  return tags;
+});
+
+// 移除单个筛选
+const removeFilter = (sectionKey: string) => {
+  delete selectedFilters.value[sectionKey];
+};
+
+// 清空所有筛选
+const clearAllFilters = () => {
+  selectedFilters.value = {};
+};
 
 // Collapsed states for filter sections
 const collapsedSections = ref<Record<string, boolean>>({});
@@ -208,8 +241,7 @@ const toggleSection = (section: string) => {
 // 根据当前tab获取对应的筛选配置
 const currentFilters = computed(() => {
   if (activeTab.value === 'cases') return casesFilters;
-  if (activeTab.value === 'regulations') return regulationsFilters;
-  return penaltiesFilters;
+  return regulationsFilters;
 });
 
 // 当前筛选部分配置
@@ -224,30 +256,18 @@ const filterSections = computed(() => {
       { key: 'trialProcedure', label: '审判程序' },
       { key: 'documentType', label: '文书类型' },
     ];
-  } else if (activeTab.value === 'regulations') {
-    return [
-      { key: 'hierarchy', label: '效力位阶' },
-      { key: 'effectiveness', label: '时效性' },
-      { key: 'region', label: '地区' },
-      { key: 'industry', label: '申万行业' },
-      { key: 'sector', label: '产业分类' },
-    ];
-  } else {
-    return [
-      { key: 'penaltyType', label: '处罚类型' },
-      { key: 'department', label: '处罚机关' },
-      { key: 'region', label: '地区' },
-      { key: 'year', label: '处罚年份' },
-      { key: 'industry', label: '申万行业' },
-      { key: 'sector', label: '监管领域' },
-    ];
   }
+  return [
+    { key: 'hierarchy', label: '效力位阶' },
+    { key: 'effectiveness', label: '时效性' },
+    { key: 'region', label: '地区' },
+    { key: 'industry', label: '申万行业' },
+    { key: 'sector', label: '产业分类' },
+  ];
 });
 
 // 总结果数
 const totalResults = computed(() => {
-  if (activeTab.value === 'cases') return 9999;
-  if (activeTab.value === 'regulations') return 9999;
   return 9999;
 });
 
@@ -662,8 +682,7 @@ const penaltyResults = [
 
 const currentResults = computed((): any[] => {
   if (activeTab.value === 'cases') return caseResults;
-  if (activeTab.value === 'regulations') return regulationResults;
-  return penaltyResults;
+  return regulationResults;
 });
 
 const pageNumbers = computed(() => {
@@ -730,13 +749,6 @@ const goToDocumentDetail = (id: number) => {
           >
             法律法规
           </button>
-          <button
-            class="tab-item"
-            :class="{ active: activeTab === 'penalties' }"
-            @click="activeTab = 'penalties'; selectedResults = []"
-          >
-            行政处罚
-          </button>
         </nav>
 
         <!-- Search Container -->
@@ -763,14 +775,14 @@ const goToDocumentDetail = (id: number) => {
               v-model="searchQuery"
               type="text"
               class="search-input"
-              :placeholder="`请输入${activeTab === 'cases' ? '司法案例' : activeTab === 'regulations' ? '法律法规' : '行政处罚'}关键词`"
+              :placeholder="`请输入${activeTab === 'cases' ? '司法案例' : '法律法规'}关键词`"
               @keyup.enter="handleSearch"
             />
           </div>
 
           <button class="search-btn" @click="handleSearch">
             <Search :size="16" />
-            <span>检索</span>
+            <span>搜索</span>
           </button>
 
           <label class="search-in-results">
@@ -780,6 +792,20 @@ const goToDocumentDetail = (id: number) => {
         </div>
       </div>
     </header>
+
+    <!-- 已选筛选条件 -->
+    <div class="selected-filters-bar" v-if="activeFilterTags.length > 0">
+      <span class="filter-bar-label">已选:</span>
+      <div
+        v-for="tag in activeFilterTags"
+        :key="tag.sectionKey"
+        class="selected-filter-tag"
+      >
+        {{ tag.sectionLabel }}: {{ tag.filterLabel }}
+        <button class="tag-remove" @click="removeFilter(tag.sectionKey)">×</button>
+      </div>
+      <button class="clear-all-btn" @click="clearAllFilters">清空</button>
+    </div>
 
     <!-- Selected Tags -->
     <div class="selected-tags-bar" v-if="selectedTags.length > 0">
@@ -1242,6 +1268,64 @@ const goToDocumentDetail = (id: number) => {
   width: 14px;
   height: 14px;
   cursor: pointer;
+}
+
+/* Selected Filters Bar - 已选筛选条件 */
+.selected-filters-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 40px;
+  background: #f0f4fa;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.filter-bar-label {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.selected-filter-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: white;
+  border: 1px solid #2563eb;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #2563eb;
+}
+
+.selected-filter-tag .tag-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 4px;
+  font-size: 14px;
+  color: #2563eb;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.selected-filter-tag .tag-remove:hover {
+  color: #1d4ed8;
+}
+
+.clear-all-btn {
+  background: none;
+  border: none;
+  padding: 4px 8px;
+  font-size: 13px;
+  color: #64748b;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.clear-all-btn:hover {
+  color: #2563eb;
 }
 
 /* Selected Tags Bar */

@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 
 const searchQuery = ref('');
-const activeTab = ref<'cases' | 'regulations' | 'penalties'>('cases');
+const activeTab = ref<'cases' | 'regulations'>('cases');
 
 // Search scope options
 const searchScope = ref('全文');
@@ -28,24 +28,13 @@ const regulationSampleQuestions = [
   '消费者权益保护法退一赔三',
 ];
 
-const penaltySampleQuestions = [
-  '环境保护行政处罚案例',
-  '食品安全违法处罚标准',
-  '安全生产违法行为处罚',
-  '税务违法行为行政处罚',
-];
+
 
 const getSampleQuestions = () => {
-  switch (activeTab.value) {
-    case 'cases':
-      return caseSampleQuestions;
-    case 'regulations':
-      return regulationSampleQuestions;
-    case 'penalties':
-      return penaltySampleQuestions;
-    default:
-      return caseSampleQuestions;
+  if (activeTab.value === 'regulations') {
+    return regulationSampleQuestions;
   }
+  return caseSampleQuestions;
 };
 
 const handleSearch = () => {
@@ -68,16 +57,10 @@ const selectSearchScope = (scope: string) => {
 
 
 const getPlaceholder = () => {
-  switch (activeTab.value) {
-    case 'cases':
-      return '请输入司法案例关键词';
-    case 'regulations':
-      return '请输入法律法规关键词';
-    case 'penalties':
-      return '请输入行政处罚关键词';
-    default:
-      return '请输入搜索关键词';
+  if (activeTab.value === 'regulations') {
+    return '请输入法律法规关键词';
   }
+  return '请输入司法案例关键词';
 };
 </script>
 
@@ -86,10 +69,7 @@ const getPlaceholder = () => {
     <div class="content-wrapper">
       <!-- Title Section -->
       <div class="title-section">
-        <h1 class="page-title">
-          法律检索，<span class="highlight">智能化检索法规和案例</span>
-        </h1>
-        <p class="subtitle">输入搜索内容检索相关司法案例、法律法规、行政处罚信息</p>
+        <h1 class="page-title highlight">法律搜索</h1>
       </div>
 
       <!-- Tab Navigation - Matching Results Page Style -->
@@ -108,13 +88,7 @@ const getPlaceholder = () => {
         >
           法律法规
         </button>
-        <button 
-          class="tab-item" 
-          :class="{ active: activeTab === 'penalties' }"
-          @click="activeTab = 'penalties'"
-        >
-          行政处罚
-        </button>
+
       </nav>
 
       <!-- Search Container - Matching Results Page Style -->
@@ -148,54 +122,14 @@ const getPlaceholder = () => {
         
         <button class="search-btn" @click="handleSearch">
           <Search :size="16" />
-          <span>检索</span>
+          <span>搜索</span>
         </button>
       </div>
 
-      <!-- Sample Questions -->
-      <div class="suggestions-section">
-        <div class="suggestions-header">
-          <span class="suggestions-title">试试这么搜：</span>
-          <button class="refresh-btn">
-            <RefreshCw :size="14" />
-            <span>换一批</span>
-          </button>
-        </div>
-        <div class="suggestions-grid">
-          <div 
-            v-for="(question, index) in getSampleQuestions()" 
-            :key="index"
-            class="suggestion-card"
-            @click="handleQuestionClick(question)"
-          >
-            <span class="suggestion-icon">🔍</span>
-            <span class="suggestion-text">{{ question }}</span>
-          </div>
-        </div>
-      </div>
+      <!-- Database Stats -->
+      <p class="database-stats" v-if="activeTab === 'cases'">本数据库已收录司法案例159,280,920篇</p>
+      <p class="database-stats" v-else>本数据库已收录法律法规1,927,651篇</p>
 
-      <!-- Quick Stats -->
-      <div class="quick-stats">
-        <div class="stat-item">
-          <span class="stat-number">9,999+</span>
-          <span class="stat-label">司法案例</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-number">5,000+</span>
-          <span class="stat-label">法律法规</span>
-        </div>
-        <div class="stat-divider"></div>
-        <div class="stat-item">
-          <span class="stat-number">3,000+</span>
-          <span class="stat-label">行政处罚</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Footer Disclaimer -->
-    <div class="footer-disclaimer">
-      服务生成的所有内容均由人工智能模型生成，其生成内容的准确性和完整性无法保证，不能代表我们的态度和观点。
     </div>
   </div>
 </template>
@@ -392,78 +326,12 @@ const getPlaceholder = () => {
   background: #1d4ed8;
 }
 
-/* Suggestions Section */
-.suggestions-section {
-  width: 100%;
-  margin-top: 40px;
-}
-
-.suggestions-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.suggestions-title {
+/* Database Stats */
+.database-stats {
+  margin-top: 16px;
   font-size: 14px;
   color: #64748b;
-  font-weight: 500;
-}
-
-.refresh-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: transparent;
-  border: none;
-  font-size: 13px;
-  color: #94a3b8;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.refresh-btn:hover {
-  color: #2563eb;
-}
-
-.suggestions-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.suggestion-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 18px;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.suggestion-card:hover {
-  background: #f8fafc;
-  border-color: #2563eb;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.1);
-}
-
-.suggestion-icon {
-  font-size: 14px;
-  opacity: 0.6;
-}
-
-.suggestion-text {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: center;
 }
 
 /* Quick Stats */

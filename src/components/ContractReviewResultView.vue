@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue';
-import { 
+import {
   ChevronLeft,
   Check,
   X,
-  Edit3,
   CheckCheck,
   XCircle,
   AlertTriangle,
@@ -311,6 +310,11 @@ const getClauseRiskLevel = (clauseId: string): RiskLevel | null => {
   return 'low';
 };
 
+// 获取全局索引
+const getModificationIndex = (modId: string) => {
+  return modifications.value.findIndex(m => m.id === modId) + 1;
+};
+
 // --- Actions ---
 
 // 合同文档面板引用
@@ -387,21 +391,6 @@ const rejectModification = (modId: string) => {
     saveHistory();
     const next = modifications.value.find(m => m.status === 'pending');
     if (next) next.expanded = true;
-  }
-};
-
-const rewriteModification = (modId: string) => {
-  const mod = modifications.value.find(m => m.id === modId);
-  if (mod) {
-    const newText = prompt('请输入修改后的内容：', mod.suggestedText);
-    if (newText && newText !== mod.suggestedText) {
-      mod.suggestedText = newText;
-      mod.status = 'accepted';
-      mod.expanded = false;
-      saveHistory();
-      const next = modifications.value.find(m => m.status === 'pending');
-      if (next) next.expanded = true;
-    }
   }
 };
 
@@ -582,31 +571,24 @@ const getClauseTitle = (clauseId: string) => {
               >
                 <h3 class="clause-title">
                   {{ clause.title }}
-                  <span 
-                    v-if="hasPendingModifications(clause.id)" 
-                    class="clause-badge"
-                    :class="getRiskClass(getClauseRiskLevel(clause.id)!)"
-                  >
-                    {{ getClauseModifications(clause.id).length }}处修改
-                  </span>
                 </h3>
                 <div class="clause-content">
                   <template v-for="(mod, idx) in getClauseModifications(clause.id)" :key="mod.id">
-                    <div 
+                    <!-- 只有 pending 状态才显示 diff 高亮块 -->
+                    <div
+                      v-if="mod.status === 'pending'"
                       :id="`highlight-${mod.id}`"
                       class="highlight-block"
-                      :class="[getRiskClass(mod.riskLevel), getStatusClass(mod.status)]"
+                      :class="[getRiskClass(mod.riskLevel)]"
                       @click="expandCard(mod.id)"
                     >
                       <div class="highlight-marker">
                         <span class="marker-dot"></span>
-                        <span class="marker-label">修改建议 {{ idx + 1 }}</span>
+                        <span class="marker-label">修改建议 {{ getModificationIndex(mod.id) }}</span>
                       </div>
-                      <div class="highlight-text">{{ mod.originalText }}</div>
-                      <div class="highlight-status" v-if="mod.status !== 'pending'">
-                        <Check v-if="mod.status === 'accepted'" :size="14" />
-                        <X v-else :size="14" />
-                        {{ mod.status === 'accepted' ? '已采纳' : '已拒绝' }}
+                      <div class="diff-content">
+                        <div v-if="mod.originalText" class="diff-line del">{{ mod.originalText }}</div>
+                        <div v-if="mod.suggestedText" class="diff-line add">{{ mod.suggestedText }}</div>
                       </div>
                     </div>
                   </template>
@@ -633,31 +615,24 @@ const getClauseTitle = (clauseId: string) => {
               >
                 <h3 class="clause-title">
                   {{ clause.title }}
-                  <span 
-                    v-if="hasPendingModifications(clause.id)" 
-                    class="clause-badge"
-                    :class="getRiskClass(getClauseRiskLevel(clause.id)!)"
-                  >
-                    {{ getClauseModifications(clause.id).length }}处修改
-                  </span>
                 </h3>
                 <div class="clause-content">
                   <template v-for="(mod, idx) in getClauseModifications(clause.id)" :key="mod.id">
-                    <div 
+                    <!-- 只有 pending 状态才显示 diff 高亮块 -->
+                    <div
+                      v-if="mod.status === 'pending'"
                       :id="`highlight-${mod.id}`"
                       class="highlight-block"
-                      :class="[getRiskClass(mod.riskLevel), getStatusClass(mod.status)]"
+                      :class="[getRiskClass(mod.riskLevel)]"
                       @click="expandCard(mod.id)"
                     >
                       <div class="highlight-marker">
                         <span class="marker-dot"></span>
-                        <span class="marker-label">修改建议 {{ idx + 1 }}</span>
+                        <span class="marker-label">修改建议 {{ getModificationIndex(mod.id) }}</span>
                       </div>
-                      <div class="highlight-text">{{ mod.originalText }}</div>
-                      <div class="highlight-status" v-if="mod.status !== 'pending'">
-                        <Check v-if="mod.status === 'accepted'" :size="14" />
-                        <X v-else :size="14" />
-                        {{ mod.status === 'accepted' ? '已采纳' : '已拒绝' }}
+                      <div class="diff-content">
+                        <div v-if="mod.originalText" class="diff-line del">{{ mod.originalText }}</div>
+                        <div v-if="mod.suggestedText" class="diff-line add">{{ mod.suggestedText }}</div>
                       </div>
                     </div>
                   </template>
@@ -684,31 +659,24 @@ const getClauseTitle = (clauseId: string) => {
               >
                 <h3 class="clause-title">
                   {{ clause.title }}
-                  <span 
-                    v-if="hasPendingModifications(clause.id)" 
-                    class="clause-badge"
-                    :class="getRiskClass(getClauseRiskLevel(clause.id)!)"
-                  >
-                    {{ getClauseModifications(clause.id).length }}处修改
-                  </span>
                 </h3>
                 <div class="clause-content">
                   <template v-for="(mod, idx) in getClauseModifications(clause.id)" :key="mod.id">
-                    <div 
+                    <!-- 只有 pending 状态才显示 diff 高亮块 -->
+                    <div
+                      v-if="mod.status === 'pending'"
                       :id="`highlight-${mod.id}`"
                       class="highlight-block"
-                      :class="[getRiskClass(mod.riskLevel), getStatusClass(mod.status)]"
+                      :class="[getRiskClass(mod.riskLevel)]"
                       @click="expandCard(mod.id)"
                     >
                       <div class="highlight-marker">
                         <span class="marker-dot"></span>
-                        <span class="marker-label">修改建议 {{ idx + 1 }}</span>
+                        <span class="marker-label">修改建议 {{ getModificationIndex(mod.id) }}</span>
                       </div>
-                      <div class="highlight-text">{{ mod.originalText }}</div>
-                      <div class="highlight-status" v-if="mod.status !== 'pending'">
-                        <Check v-if="mod.status === 'accepted'" :size="14" />
-                        <X v-else :size="14" />
-                        {{ mod.status === 'accepted' ? '已采纳' : '已拒绝' }}
+                      <div class="diff-content">
+                        <div v-if="mod.originalText" class="diff-line del">{{ mod.originalText }}</div>
+                        <div v-if="mod.suggestedText" class="diff-line add">{{ mod.suggestedText }}</div>
                       </div>
                     </div>
                   </template>
@@ -761,93 +729,76 @@ const getClauseTitle = (clauseId: string) => {
 
         <div class="cards-container">
           <!-- Modification Cards -->
-          <div 
-            v-for="(mod, idx) in modifications" 
-            :key="mod.id"
-            class="mod-card"
-            :class="[getStatusClass(mod.status), getRiskClass(mod.riskLevel), { expanded: mod.expanded }]"
-          >
-            <!-- Card Header (always visible) -->
-            <div class="card-header" @click="toggleExpand(mod.id)">
-              <div class="card-left">
-                <span class="card-index">{{ idx + 1 }}</span>
-                <div class="card-info">
-                  <span class="card-clause">{{ getClauseTitle(mod.clauseId) }}</span>
-                  <span class="card-preview" v-if="!mod.expanded">
-                    {{ mod.originalText.slice(0, 35) }}...
+            <div
+              v-for="(mod, idx) in modifications"
+              :key="mod.id"
+              class="mod-card"
+              :class="[{ expanded: mod.expanded }]"
+            >
+              <!-- Card Header (always visible) -->
+              <div class="card-header" @click="toggleExpand(mod.id)">
+                <div class="card-left">
+                  <span class="card-index" :class="getRiskClass(mod.riskLevel)">{{ idx + 1 }}</span>
+                  <div class="card-info">
+                    <span class="card-clause">{{ getClauseTitle(mod.clauseId) }}</span>
+                    <!-- Preview removed for cleaner look or optional -->
+                  </div>
+                </div>
+                <div class="card-right">
+                  <span class="risk-tag" :class="getRiskClass(mod.riskLevel)">
+                    {{ getRiskText(mod.riskLevel) }}
                   </span>
+                  <button class="expand-btn">
+                    <ChevronUp v-if="mod.expanded" :size="18" />
+                    <ChevronDown v-else :size="18" />
+                  </button>
                 </div>
               </div>
-              <div class="card-right">
-                <span class="risk-tag" :class="getRiskClass(mod.riskLevel)">
-                  {{ getRiskText(mod.riskLevel) }}
-                </span>
-                <span class="status-tag" v-if="mod.status !== 'pending'" :class="getStatusClass(mod.status)">
-                  <Check v-if="mod.status === 'accepted'" :size="12" />
-                  <X v-else :size="12" />
-                  {{ mod.status === 'accepted' ? '已接受' : '已拒绝' }}
-                </span>
-                <button class="expand-btn">
-                  <ChevronUp v-if="mod.expanded" :size="18" />
-                  <ChevronDown v-else :size="18" />
-                </button>
-              </div>
-            </div>
 
-            <!-- Card Body (collapsible) -->
-            <div class="card-body" v-show="mod.expanded">
-              <!-- Reason -->
-              <div class="reason-block" :class="getRiskClass(mod.riskLevel)">
-                <div class="reason-header">
-                  <AlertTriangle :size="14" />
-                  <span>修改理由</span>
+              <!-- Card Body (collapsible) -->
+              <div class="card-body" v-show="mod.expanded">
+                <!-- Reason -->
+                <div class="reason-block">
+                  <div class="reason-header">
+                    <AlertTriangle :size="14" />
+                    <span>修改理由</span>
+                  </div>
+                  <p class="reason-text">{{ mod.reason }}</p>
                 </div>
-                <p class="reason-text">{{ mod.reason }}</p>
-              </div>
 
-              <!-- Original Text -->
-              <div class="text-block original">
-                <div class="text-label">
-                  <span class="label-dot del"></span>
-                  原文内容
+                <!-- Diff Content in Card -->
+                <div class="card-diff-section">
+                  <div v-if="mod.originalText" class="diff-box del">
+                    <div class="box-label">原文内容</div>
+                    <div class="box-content">{{ mod.originalText }}</div>
+                  </div>
+                  <div v-if="mod.suggestedText" class="diff-box add">
+                    <div class="box-label">建议修改为</div>
+                    <div class="box-content">{{ mod.suggestedText }}</div>
+                  </div>
                 </div>
-                <div class="text-content">{{ mod.originalText }}</div>
-              </div>
 
-              <!-- Suggested Text -->
-              <div class="text-block suggested">
-                <div class="text-label">
-                  <span class="label-dot add"></span>
-                  建议修改为
+                <!-- Actions -->
+                <div class="card-actions" v-if="mod.status === 'pending'">
+                  <button class="action-btn accept" @click.stop="acceptModification(mod.id)">
+                    <Check :size="16" />
+                    接受
+                  </button>
+                  <button class="action-btn reject" @click.stop="rejectModification(mod.id)">
+                    <X :size="16" />
+                    拒绝
+                  </button>
                 </div>
-                <div class="text-content">{{ mod.suggestedText }}</div>
-              </div>
 
-              <!-- Actions -->
-              <div class="card-actions" v-if="mod.status === 'pending'">
-                <button class="action-btn accept" @click.stop="acceptModification(mod.id)">
-                  <Check :size="16" />
-                  接受
-                </button>
-                <button class="action-btn reject" @click.stop="rejectModification(mod.id)">
-                  <X :size="16" />
-                  拒绝
-                </button>
-                <button class="action-btn rewrite" @click.stop="rewriteModification(mod.id)">
-                  <Edit3 :size="16" />
-                  重写
-                </button>
-              </div>
-
-              <div class="card-status" v-else>
-                <div class="status-display" :class="getStatusClass(mod.status)">
-                  <Check v-if="mod.status === 'accepted'" :size="16" />
-                  <X v-else :size="16" />
-                  {{ mod.status === 'accepted' ? '已接受此修改建议' : '已拒绝此修改建议' }}
+                <div class="card-status" v-else>
+                  <div class="status-display" :class="getStatusClass(mod.status)">
+                    <Check v-if="mod.status === 'accepted'" :size="16" />
+                    <X v-else :size="16" />
+                    {{ mod.status === 'accepted' ? '已接受此修改建议' : '已拒绝此修改建议' }}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>
@@ -1147,8 +1098,8 @@ const getClauseTitle = (clauseId: string) => {
 
 /* 有待处理修改 - 醒目黄色框 */
 .contract-clause.has-pending {
-  background: #fffbeb;
-  border-color: #fcd34d;
+  background: transparent;
+  border-color: transparent;
 }
 
 /* 有修改但已全部处理 - 淡化效果 */
@@ -1190,18 +1141,18 @@ const getClauseTitle = (clauseId: string) => {
 /* Highlight Block */
 .highlight-block {
   margin: 12px 0;
-  padding: 12px 14px;
-  border-radius: 6px;
-  border-left: 4px solid;
+  padding: 0; /* Removed padding */
+  border-radius: 0; /* Removed radius */
+  border-left: none; /* Removed border */
   cursor: pointer;
   transition: all 0.3s;
   position: relative;
 }
 
-/* 待处理状态 - 醒目高亮 */
-.highlight-block.risk-high { background: #fef2f2; border-color: #dc2626; }
-.highlight-block.risk-medium { background: #fffbeb; border-color: #d97706; }
-.highlight-block.risk-low { background: #f0fdf4; border-color: #16a34a; }
+/* 待处理状态 - 移除背景色和边框 */
+.highlight-block.risk-high { background: transparent; border-color: transparent; }
+.highlight-block.risk-medium { background: transparent; border-color: transparent; }
+.highlight-block.risk-low { background: transparent; border-color: transparent; }
 
 /* 已接受状态 - 融入正文，几乎透明 */
 .highlight-block.status-accepted {
@@ -1267,7 +1218,7 @@ const getClauseTitle = (clauseId: string) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .marker-dot {
@@ -1286,11 +1237,34 @@ const getClauseTitle = (clauseId: string) => {
   color: #64748b;
 }
 
-.highlight-text {
-  font-size: 14px;
-  line-height: 1.7;
-  color: #1e293b;
+.diff-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
+
+.diff-line {
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-decoration: none; /* Reset default text decoration */
+}
+
+.diff-line.del {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  text-decoration: line-through;
+  text-decoration-color: rgba(185, 28, 28, 0.4);
+}
+
+.diff-line.add {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+/* Original highlight-text removal if no longer used */
+/* .highlight-text { ... } */
 
 .highlight-status {
   position: absolute;
@@ -1345,110 +1319,114 @@ const getClauseTitle = (clauseId: string) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 16px 20px;
   background: white;
   border-bottom: 1px solid #e2e8f0;
 }
 
 .panel-header h2 {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
   color: #1e293b;
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .panel-header h2 .count {
-  font-weight: 400;
-  color: #9ca3af;
+  font-weight: 500;
+  color: #64748b;
+  font-size: 13px;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 12px;
 }
 
 .panel-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .panel-btn {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 10px;
-  border: none;
-  border-radius: 5px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
 }
 
 .panel-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.5;
   cursor: not-allowed;
+  background: #f1f5f9 !important;
+  color: #94a3b8 !important;
+  border-color: transparent !important;
 }
 
 .panel-btn.reject {
-  background: #fef2f2;
+  background: white;
+  border-color: #fecaca;
   color: #dc2626;
 }
 
 .panel-btn.reject:hover:not(:disabled) {
-  background: #fee2e2;
+  background: #fef2f2;
 }
 
 .panel-btn.accept {
-  background: #f0fdf4;
+  background: white;
+  border-color: #bbf7d0;
   color: #16a34a;
 }
 
 .panel-btn.accept:hover:not(:disabled) {
-  background: #dcfce7;
+  background: #f0fdf4;
 }
 
 .cards-container {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 20px;
 }
 
 /* Modification Card */
 .mod-card {
   background: white;
-  border-radius: 10px;
-  margin-bottom: 12px;
-  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  border: 1px solid #e2e8f0; /* No colored left border */
   overflow: hidden;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.mod-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
 }
 
 .mod-card.expanded {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+  border-color: #94a3b8;
 }
-
-.mod-card.status-accepted {
-  border-left: 4px solid #16a34a;
-  opacity: 0.85;
-}
-
-.mod-card.status-rejected {
-  border-left: 4px solid #94a3b8;
-  opacity: 0.7;
-}
-
-.mod-card.status-pending.risk-high { border-left: 4px solid #dc2626; }
-.mod-card.status-pending.risk-medium { border-left: 4px solid #d97706; }
-.mod-card.status-pending.risk-low { border-left: 4px solid #16a34a; }
 
 /* Card Header */
 .card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* Align to top for multi-line titles */
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 16px;
   cursor: pointer;
-  transition: background 0.15s;
+  background: white;
+  transition: background 0.2s;
 }
 
 .card-header:hover {
@@ -1466,16 +1444,23 @@ const getClauseTitle = (clauseId: string) => {
 .card-index {
   width: 24px;
   height: 24px;
-  background: #3b82f6;
-  color: white;
   border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
   font-size: 12px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: all 0.2s;
+  margin-top: 2px; /* Align with text */
 }
+
+/* Use risk colors for index badge background with low opacity */
+.card-index.risk-high { background: #fee2e2; color: #dc2626; }
+.card-index.risk-medium { background: #fef3c7; color: #d97706; }
+.card-index.risk-low { background: #dcfce7; color: #16a34a; }
 
 .card-info {
   flex: 1;
@@ -1483,20 +1468,12 @@ const getClauseTitle = (clauseId: string) => {
 }
 
 .card-clause {
-  font-size: 13px;
-  font-weight: 500;
-  color: #1e293b;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
   display: block;
-}
-
-.card-preview {
-  font-size: 12px;
-  color: #64748b;
-  display: block;
-  margin-top: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.5;
+  margin-bottom: 2px;
 }
 
 .card-right {
@@ -1504,42 +1481,35 @@ const getClauseTitle = (clauseId: string) => {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: 8px;
+  margin-top: 2px;
 }
 
 .risk-tag {
   font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
   font-weight: 500;
+  background: #f1f5f9;
+  color: #64748b;
 }
 
-.risk-tag.risk-high { background: #fee2e2; color: #dc2626; }
-.risk-tag.risk-medium { background: #fef3c7; color: #d97706; }
-.risk-tag.risk-low { background: #dcfce7; color: #16a34a; }
-
-.status-tag {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.status-tag.status-accepted { background: #dcfce7; color: #16a34a; }
-.status-tag.status-rejected { background: #f1f5f9; color: #64748b; }
+.risk-tag.risk-high { background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
+.risk-tag.risk-medium { background: #fffbeb; color: #f59e0b; border: 1px solid #fef3c7; }
+.risk-tag.risk-low { background: #f0fdf4; color: #10b981; border: 1px solid #dcfce7; }
 
 .expand-btn {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   color: #94a3b8;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
 .expand-btn:hover {
@@ -1549,26 +1519,22 @@ const getClauseTitle = (clauseId: string) => {
 
 /* Card Body */
 .card-body {
-  padding: 0 16px 16px 16px;
+  padding: 0 16px 20px 16px;
   border-top: 1px solid #f1f5f9;
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .reason-block {
-  margin-top: 12px;
-  padding: 12px;
+  margin-top: 16px;
+  padding: 12px 16px;
   border-radius: 8px;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
-}
-
-.reason-block.risk-high {
-  background: #fef2f2;
-  border-color: #fecaca;
-}
-
-.reason-block.risk-low {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: #fff1f2;
+  border: 1px solid #ffe4e6;
 }
 
 .reason-header {
@@ -1577,117 +1543,161 @@ const getClauseTitle = (clauseId: string) => {
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #d97706;
-  margin-bottom: 6px;
+  color: #e11d48;
+  margin-bottom: 8px;
 }
-
-.reason-block.risk-high .reason-header { color: #dc2626; }
-.reason-block.risk-low .reason-header { color: #16a34a; }
 
 .reason-text {
   font-size: 13px;
-  line-height: 1.7;
-  color: #78716c;
+  line-height: 1.6;
+  color: #475569;
   margin: 0;
+  text-align: justify;
 }
 
-.text-block {
-  margin-top: 12px;
+/* Diff Section in Card */
+.card-diff-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
 }
 
-.text-label {
+.diff-box {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid transparent;
+}
+
+.diff-box.del {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.diff-box.add {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.box-label {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #64748b;
-  margin-bottom: 6px;
+  background: rgba(255,255,255,0.5);
+  border-bottom: 1px solid rgba(0,0,0,0.05);
 }
 
-.label-dot {
-  width: 8px;
-  height: 8px;
+.diff-box.del .box-label { color: #991b1b; }
+.diff-box.del .box-label::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #ef4444;
   border-radius: 2px;
 }
 
-.label-dot.del { background: #dc2626; }
-.label-dot.add { background: #16a34a; }
+.diff-box.add .box-label { color: #166534; }
+.diff-box.add .box-label::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #22c55e;
+  border-radius: 2px;
+}
 
-.text-content {
+.box-content {
   padding: 10px 12px;
-  border-radius: 6px;
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.6;
+  color: #334155;
+  white-space: pre-wrap;
 }
 
-.text-block.original .text-content {
-  background: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+.diff-box.del .box-content {
+  text-decoration: line-through;
+  color: #7f1d1d;
+  opacity: 0.8;
+  background: rgba(254, 226, 226, 0.3);
 }
 
-.text-block.suggested .text-content {
-  background: #f0fdf4;
-  color: #166534;
-  border: 1px solid #bbf7d0;
+.diff-box.add .box-content {
+  background: rgba(220, 252, 231, 0.3);
 }
 
 /* Card Actions */
 .card-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
 }
 
 .action-btn {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
 }
 
 .action-btn.accept {
   background: #16a34a;
   color: white;
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);
 }
-.action-btn.accept:hover { background: #15803d; }
-
-.action-btn.rewrite {
-  background: #dbeafe;
-  color: #2563eb;
+.action-btn.accept:hover {
+  background: #15803d;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(22, 163, 74, 0.3);
 }
-.action-btn.rewrite:hover { background: #bfdbfe; }
+.action-btn.accept:active { transform: translateY(0); }
 
 .action-btn.reject {
   background: #f1f5f9;
   color: #64748b;
+  border: 1px solid #e2e8f0;
 }
-.action-btn.reject:hover { background: #e2e8f0; }
+.action-btn.reject:hover {
+  background: #e2e8f0;
+  color: #475569;
+  border-color: #cbd5e1;
+}
+.action-btn.reject:active { transform: translateY(0); }
 
 .card-status {
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
 .status-display {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px;
-  border-radius: 6px;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 8px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
-.status-display.status-accepted { background: #dcfce7; color: #16a34a; }
-.status-display.status-rejected { background: #f1f5f9; color: #64748b; }
+.status-display.status-accepted {
+  background: #dcfce7;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+.status-display.status-rejected {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
 </style>

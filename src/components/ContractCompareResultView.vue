@@ -311,6 +311,11 @@ const getClauseDiffLevel = (clauseId: string): DiffLevel | null => {
   return 'low';
 };
 
+// 获取全局索引
+const getModificationIndex = (modId: string) => {
+  return differences.value.findIndex(m => m.id === modId) + 1;
+};
+
 // --- Actions ---
 
 // 合同文档面板引用
@@ -582,17 +587,10 @@ const getClauseTitle = (clauseId: string) => {
               >
                 <h3 class="clause-title">
                   {{ clause.title }}
-                  <span 
-                    v-if="hasPendingDifferences(clause.id)" 
-                    class="clause-badge"
-                    :class="getRiskClass(getClauseDiffLevel(clause.id)!)"
-                  >
-                    {{ getClauseDifferences(clause.id).length }}处差异
-                  </span>
                 </h3>
                 <div class="clause-content">
                   <template v-for="(mod, idx) in getClauseDifferences(clause.id)" :key="mod.id">
-                    <div 
+                    <div
                       :id="`highlight-${mod.id}`"
                       class="highlight-block"
                       :class="[getRiskClass(mod.diffLevel), getStatusClass(mod.status)]"
@@ -602,7 +600,10 @@ const getClauseTitle = (clauseId: string) => {
                         <span class="marker-dot"></span>
                         <span class="marker-label">差异对比 {{ idx + 1 }}</span>
                       </div>
-                      <div class="highlight-text">{{ mod.baseText }}</div>
+                      <div class="diff-content">
+                        <div v-if="mod.baseText" class="diff-line del">{{ mod.baseText }}</div>
+                        <div v-if="mod.compareText" class="diff-line add">{{ mod.compareText }}</div>
+                      </div>
                       <div class="highlight-status" v-if="mod.status !== 'pending'">
                         <Check v-if="mod.status === 'accepted'" :size="14" />
                         <X v-else :size="14" />
@@ -633,17 +634,10 @@ const getClauseTitle = (clauseId: string) => {
               >
                 <h3 class="clause-title">
                   {{ clause.title }}
-                  <span 
-                    v-if="hasPendingDifferences(clause.id)" 
-                    class="clause-badge"
-                    :class="getRiskClass(getClauseDiffLevel(clause.id)!)"
-                  >
-                    {{ getClauseDifferences(clause.id).length }}处差异
-                  </span>
                 </h3>
                 <div class="clause-content">
                   <template v-for="(mod, idx) in getClauseDifferences(clause.id)" :key="mod.id">
-                    <div 
+                    <div
                       :id="`highlight-${mod.id}`"
                       class="highlight-block"
                       :class="[getRiskClass(mod.diffLevel), getStatusClass(mod.status)]"
@@ -653,7 +647,10 @@ const getClauseTitle = (clauseId: string) => {
                         <span class="marker-dot"></span>
                         <span class="marker-label">差异对比 {{ idx + 1 }}</span>
                       </div>
-                      <div class="highlight-text">{{ mod.baseText }}</div>
+                      <div class="diff-content">
+                        <div v-if="mod.baseText" class="diff-line del">{{ mod.baseText }}</div>
+                        <div v-if="mod.compareText" class="diff-line add">{{ mod.compareText }}</div>
+                      </div>
                       <div class="highlight-status" v-if="mod.status !== 'pending'">
                         <Check v-if="mod.status === 'accepted'" :size="14" />
                         <X v-else :size="14" />
@@ -684,17 +681,10 @@ const getClauseTitle = (clauseId: string) => {
               >
                 <h3 class="clause-title">
                   {{ clause.title }}
-                  <span 
-                    v-if="hasPendingDifferences(clause.id)" 
-                    class="clause-badge"
-                    :class="getRiskClass(getClauseDiffLevel(clause.id)!)"
-                  >
-                    {{ getClauseDifferences(clause.id).length }}处差异
-                  </span>
                 </h3>
                 <div class="clause-content">
                   <template v-for="(mod, idx) in getClauseDifferences(clause.id)" :key="mod.id">
-                    <div 
+                    <div
                       :id="`highlight-${mod.id}`"
                       class="highlight-block"
                       :class="[getRiskClass(mod.diffLevel), getStatusClass(mod.status)]"
@@ -704,7 +694,10 @@ const getClauseTitle = (clauseId: string) => {
                         <span class="marker-dot"></span>
                         <span class="marker-label">差异对比 {{ idx + 1 }}</span>
                       </div>
-                      <div class="highlight-text">{{ mod.baseText }}</div>
+                      <div class="diff-content">
+                        <div v-if="mod.baseText" class="diff-line del">{{ mod.baseText }}</div>
+                        <div v-if="mod.compareText" class="diff-line add">{{ mod.compareText }}</div>
+                      </div>
                       <div class="highlight-status" v-if="mod.status !== 'pending'">
                         <Check v-if="mod.status === 'accepted'" :size="14" />
                         <X v-else :size="14" />
@@ -761,93 +754,76 @@ const getClauseTitle = (clauseId: string) => {
 
         <div class="cards-container">
           <!-- Difference Cards -->
-          <div 
-            v-for="(mod, idx) in differences" 
-            :key="mod.id"
-            class="mod-card"
-            :class="[getStatusClass(mod.status), getRiskClass(mod.diffLevel), { expanded: mod.expanded }]"
-          >
-            <!-- Card Header (always visible) -->
-            <div class="card-header" @click="toggleExpand(mod.id)">
-              <div class="card-left">
-                <span class="card-index">{{ idx + 1 }}</span>
-                <div class="card-info">
-                  <span class="card-clause">{{ getClauseTitle(mod.clauseId) }}</span>
-                  <span class="card-preview" v-if="!mod.expanded">
-                    {{ mod.baseText.slice(0, 35) }}...
+            <div
+              v-for="(mod, idx) in differences"
+              :key="mod.id"
+              class="mod-card"
+              :class="[{ expanded: mod.expanded }]"
+            >
+              <!-- Card Header (always visible) -->
+              <div class="card-header" @click="toggleExpand(mod.id)">
+                <div class="card-left">
+                  <span class="card-index" :class="getRiskClass(mod.diffLevel)">{{ idx + 1 }}</span>
+                  <div class="card-info">
+                    <span class="card-clause">{{ getClauseTitle(mod.clauseId) }}</span>
+                    <!-- Preview removed -->
+                  </div>
+                </div>
+                <div class="card-right">
+                  <span class="risk-tag" :class="getRiskClass(mod.diffLevel)">
+                    {{ getRiskText(mod.diffLevel) }}
                   </span>
+                  <button class="expand-btn">
+                    <ChevronUp v-if="mod.expanded" :size="18" />
+                    <ChevronDown v-else :size="18" />
+                  </button>
                 </div>
               </div>
-              <div class="card-right">
-                <span class="risk-tag" :class="getRiskClass(mod.diffLevel)">
-                  {{ getRiskText(mod.diffLevel) }}
-                </span>
-                <span class="status-tag" v-if="mod.status !== 'pending'" :class="getStatusClass(mod.status)">
-                  <Check v-if="mod.status === 'accepted'" :size="12" />
-                  <X v-else :size="12" />
-                  {{ mod.status === 'accepted' ? '已接受' : '已拒绝' }}
-                </span>
-                <button class="expand-btn">
-                  <ChevronUp v-if="mod.expanded" :size="18" />
-                  <ChevronDown v-else :size="18" />
-                </button>
-              </div>
-            </div>
 
-            <!-- Card Body (collapsible) -->
-            <div class="card-body" v-show="mod.expanded">
-              <!-- Reason -->
-              <div class="reason-block" :class="getRiskClass(mod.diffLevel)">
-                <div class="reason-header">
-                  <AlertTriangle :size="14" />
-                  <span>差异点</span>
+              <!-- Card Body (collapsible) -->
+              <div class="card-body" v-show="mod.expanded">
+                <!-- Reason -->
+                <div class="reason-block">
+                  <div class="reason-header">
+                    <AlertTriangle :size="14" />
+                    <span>差异点</span>
+                  </div>
+                  <p class="reason-text">{{ mod.diffNote }}</p>
                 </div>
-                <p class="reason-text">{{ mod.diffNote }}</p>
-              </div>
 
-              <!-- Original Text -->
-              <div class="text-block original">
-                <div class="text-label">
-                  <span class="label-dot del"></span>
-                  基准合同内容
+                <!-- Diff Content in Card -->
+                <div class="card-diff-section">
+                  <div v-if="mod.baseText" class="diff-box del">
+                    <div class="box-label">基准合同内容</div>
+                    <div class="box-content">{{ mod.baseText }}</div>
+                  </div>
+                  <div v-if="mod.compareText" class="diff-box add">
+                    <div class="box-label">对比合同内容</div>
+                    <div class="box-content">{{ mod.compareText }}</div>
+                  </div>
                 </div>
-                <div class="text-content">{{ mod.baseText }}</div>
-              </div>
 
-              <!-- Suggested Text -->
-              <div class="text-block suggested">
-                <div class="text-label">
-                  <span class="label-dot add"></span>
-                  对比合同内容
+                <!-- Actions -->
+                <div class="card-actions" v-if="mod.status === 'pending'">
+                  <button class="action-btn accept" @click.stop="acceptDifference(mod.id)">
+                    <Check :size="16" />
+                    接受
+                  </button>
+                  <button class="action-btn reject" @click.stop="rejectDifference(mod.id)">
+                    <X :size="16" />
+                    拒绝
+                  </button>
                 </div>
-                <div class="text-content">{{ mod.compareText }}</div>
-              </div>
 
-              <!-- Actions -->
-              <div class="card-actions" v-if="mod.status === 'pending'">
-                <button class="action-btn accept" @click.stop="acceptDifference(mod.id)">
-                  <Check :size="16" />
-                  接受
-                </button>
-                <button class="action-btn reject" @click.stop="rejectDifference(mod.id)">
-                  <X :size="16" />
-                  拒绝
-                </button>
-                <button class="action-btn rewrite" @click.stop="rewriteDifference(mod.id)">
-                  <Edit3 :size="16" />
-                  重写
-                </button>
-              </div>
-
-              <div class="card-status" v-else>
-                <div class="status-display" :class="getStatusClass(mod.status)">
-                  <Check v-if="mod.status === 'accepted'" :size="16" />
-                  <X v-else :size="16" />
-                  {{ mod.status === 'accepted' ? '已接受此差异对比' : '已拒绝此差异对比' }}
+                <div class="card-status" v-else>
+                  <div class="status-display" :class="getStatusClass(mod.status)">
+                    <Check v-if="mod.status === 'accepted'" :size="16" />
+                    <X v-else :size="16" />
+                    {{ mod.status === 'accepted' ? '已接受此差异对比' : '已拒绝此差异对比' }}
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>
@@ -1147,8 +1123,8 @@ const getClauseTitle = (clauseId: string) => {
 
 /* 有待处理修改 - 醒目黄色框 */
 .contract-clause.has-pending {
-  background: #fffbeb;
-  border-color: #fcd34d;
+  background: transparent;
+  border-color: transparent;
 }
 
 /* 有修改但已全部处理 - 淡化效果 */
@@ -1190,18 +1166,18 @@ const getClauseTitle = (clauseId: string) => {
 /* Highlight Block */
 .highlight-block {
   margin: 12px 0;
-  padding: 12px 14px;
-  border-radius: 6px;
-  border-left: 4px solid;
+  padding: 0;
+  border-radius: 0;
+  border-left: none;
   cursor: pointer;
   transition: all 0.3s;
   position: relative;
 }
 
-/* 待处理状态 - 醒目高亮 */
-.highlight-block.risk-high { background: #fef2f2; border-color: #dc2626; }
-.highlight-block.risk-medium { background: #fffbeb; border-color: #d97706; }
-.highlight-block.risk-low { background: #f0fdf4; border-color: #16a34a; }
+/* 待处理状态 - 移除背景和边框 */
+.highlight-block.risk-high { background: transparent; border-color: transparent; }
+.highlight-block.risk-medium { background: transparent; border-color: transparent; }
+.highlight-block.risk-low { background: transparent; border-color: transparent; }
 
 /* 已接受状态 - 融入正文，几乎透明 */
 .highlight-block.status-accepted {
@@ -1267,7 +1243,7 @@ const getClauseTitle = (clauseId: string) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .marker-dot {
@@ -1286,11 +1262,34 @@ const getClauseTitle = (clauseId: string) => {
   color: #64748b;
 }
 
-.highlight-text {
-  font-size: 14px;
-  line-height: 1.7;
-  color: #1e293b;
+.diff-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
+
+.diff-line {
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-decoration: none; /* Reset default text decoration */
+}
+
+.diff-line.del {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  text-decoration: line-through;
+  text-decoration-color: rgba(185, 28, 28, 0.4);
+}
+
+.diff-line.add {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+/* Original highlight-text removal if no longer used */
+/* .highlight-text { ... } */
 
 .highlight-status {
   position: absolute;
@@ -1416,66 +1415,61 @@ const getClauseTitle = (clauseId: string) => {
 /* Difference Card */
 .mod-card {
   background: white;
-  border-radius: 10px;
-  margin-bottom: 12px;
+  border-radius: 12px;
+  margin-bottom: 16px;
   border: 1px solid #e2e8f0;
   overflow: hidden;
   transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+}
+
+.mod-card:hover {
+  box-shadow: 0 4px 6px rgba(0,0,0,0.04);
+  transform: translateY(-1px);
 }
 
 .mod-card.expanded {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.06);
+  border-color: #cbd5e1;
 }
-
-.mod-card.status-accepted {
-  border-left: 4px solid #16a34a;
-  opacity: 0.85;
-}
-
-.mod-card.status-rejected {
-  border-left: 4px solid #94a3b8;
-  opacity: 0.7;
-}
-
-.mod-card.status-pending.risk-high { border-left: 4px solid #dc2626; }
-.mod-card.status-pending.risk-medium { border-left: 4px solid #d97706; }
-.mod-card.status-pending.risk-low { border-left: 4px solid #16a34a; }
 
 /* Card Header */
 .card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 16px;
   cursor: pointer;
-  transition: background 0.15s;
-}
-
-.card-header:hover {
-  background: #f8fafc;
+  background: white;
 }
 
 .card-left {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   flex: 1;
   min-width: 0;
 }
 
 .card-index {
-  width: 24px;
-  height: 24px;
-  background: #3b82f6;
-  color: white;
-  border-radius: 6px;
-  font-size: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 13px;
   font-weight: 600;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transition: all 0.2s;
 }
+
+/* Use risk colors for index badge */
+.card-index.risk-high { background: #fee2e2; color: #dc2626; }
+.card-index.risk-medium { background: #fef3c7; color: #d97706; }
+.card-index.risk-low { background: #dcfce7; color: #16a34a; }
 
 .card-info {
   flex: 1;
@@ -1483,61 +1477,44 @@ const getClauseTitle = (clauseId: string) => {
 }
 
 .card-clause {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
   color: #1e293b;
   display: block;
-}
-
-.card-preview {
-  font-size: 12px;
-  color: #64748b;
-  display: block;
-  margin-top: 4px;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .card-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   flex-shrink: 0;
 }
 
 .risk-tag {
   font-size: 11px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: 4px;
   font-weight: 500;
+  background: #f1f5f9;
+  color: #64748b;
 }
 
 .risk-tag.risk-high { background: #fee2e2; color: #dc2626; }
 .risk-tag.risk-medium { background: #fef3c7; color: #d97706; }
 .risk-tag.risk-low { background: #dcfce7; color: #16a34a; }
 
-.status-tag {
-  font-size: 11px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.status-tag.status-accepted { background: #dcfce7; color: #16a34a; }
-.status-tag.status-rejected { background: #f1f5f9; color: #64748b; }
-
 .expand-btn {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
-  border-radius: 6px;
+  border-radius: 4px;
   color: #94a3b8;
   cursor: pointer;
 }
@@ -1554,21 +1531,11 @@ const getClauseTitle = (clauseId: string) => {
 }
 
 .reason-block {
-  margin-top: 12px;
-  padding: 12px;
+  margin-top: 16px;
+  padding: 12px 14px;
   border-radius: 8px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-}
-
-.reason-block.risk-high {
-  background: #fef2f2;
-  border-color: #fecaca;
-}
-
-.reason-block.risk-low {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: #fff1f2; /* Light red tint for reason */
+  border: 1px solid #ffe4e6;
 }
 
 .reason-header {
@@ -1577,106 +1544,120 @@ const getClauseTitle = (clauseId: string) => {
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #2563eb;
+  color: #e11d48;
   margin-bottom: 6px;
 }
 
-.reason-block.risk-high .reason-header { color: #dc2626; }
-.reason-block.risk-low .reason-header { color: #16a34a; }
-
 .reason-text {
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.6;
   color: #475569;
   margin: 0;
 }
 
-.text-block {
-  margin-top: 12px;
+/* Diff Section in Card */
+.card-diff-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
 }
 
-.text-label {
+.diff-box {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid transparent;
+}
+
+.diff-box.del {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.diff-box.add {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.box-label {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #64748b;
-  margin-bottom: 6px;
 }
 
-.label-dot {
-  width: 8px;
-  height: 8px;
+.diff-box.del .box-label { color: #991b1b; }
+.diff-box.del .box-label::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #ef4444;
   border-radius: 2px;
 }
 
-.label-dot.del { background: #16a34a; }
-.label-dot.add { background: #dc2626; }
+.diff-box.add .box-label { color: #166534; }
+.diff-box.add .box-label::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: #22c55e;
+  border-radius: 2px;
+}
 
-.text-content {
-  padding: 10px 12px;
-  border-radius: 6px;
+.box-content {
+  padding: 0 12px 10px 12px;
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.6;
+  color: #334155;
 }
 
-/* 基准合同 - 绿色 */
-.text-block.original .text-content {
-  background: #f0fdf4;
-  color: #166534;
-  border: 1px solid #bbf7d0;
-}
-
-/* 对比合同 - 红色突出差异 */
-.text-block.suggested .text-content {
-  background: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+.diff-box.del .box-content {
+  text-decoration: line-through;
+  color: #7f1d1d;
+  opacity: 0.8;
 }
 
 /* Card Actions */
 .card-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 20px;
 }
 
 .action-btn {
-  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px;
+  padding: 8px;
   border: none;
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all 0.2s;
 }
 
 .action-btn.accept {
   background: #16a34a;
   color: white;
+  box-shadow: 0 1px 2px rgba(22, 163, 74, 0.2);
 }
-.action-btn.accept:hover { background: #15803d; }
-
-.action-btn.rewrite {
-  background: #dbeafe;
-  color: #2563eb;
-}
-.action-btn.rewrite:hover { background: #bfdbfe; }
+.action-btn.accept:hover { background: #15803d; transform: translateY(-1px); }
 
 .action-btn.reject {
   background: #f1f5f9;
   color: #64748b;
 }
-.action-btn.reject:hover { background: #e2e8f0; }
+.action-btn.reject:hover { background: #e2e8f0; color: #475569; }
 
 .card-status {
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
 .status-display {
@@ -1685,7 +1666,7 @@ const getClauseTitle = (clauseId: string) => {
   justify-content: center;
   gap: 6px;
   padding: 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
 }
