@@ -53,8 +53,15 @@ const handleSubmit = () => {
     auxiliaryInfo: auxiliaryInfo.value,
     document: uploadedDocument.value?.name
   });
-  // Navigate to result page
-  router.push({ name: 'document-correction-result' });
+  // Navigate to confirm page
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '文档纠错',
+      next: 'document-correction-result',
+      file: uploadedDocument.value?.name
+    }
+  });
 };
 </script>
 

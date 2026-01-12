@@ -51,8 +51,15 @@ const handleSubmit = () => {
     reviewRequirements: reviewRequirements.value,
     document: uploadedDocument.value?.name
   });
-  // Navigate to result page
-  router.push({ name: 'document-review-result' });
+  // Navigate to confirm page
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '文书审查',
+      next: 'document-review-result',
+      file: uploadedDocument.value?.name || selectedDocumentType.value
+    }
+  });
 };
 </script>
 

@@ -87,7 +87,15 @@ const handleSubmit = () => {
     reportLanguage: reportLanguage.value,
     reportLength: reportLength.value
   });
-  router.push({ name: 'similar-case-result' });
+  // Navigate to confirm page
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '类案检索报告',
+      next: 'similar-case-result',
+      file: `案件：${caseTitle.value}`
+    }
+  });
 };
 </script>
 

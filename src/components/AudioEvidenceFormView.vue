@@ -45,8 +45,15 @@ const handleSubmit = () => {
     auxiliaryInfo: auxiliaryInfo.value,
     audio: uploadedAudio.value?.name
   });
-  // Navigate to result page
-  router.push({ name: 'audio-evidence-result' });
+  // Navigate to confirm page
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '录音证据整理',
+      next: 'audio-evidence-result',
+      file: uploadedAudio.value?.name
+    }
+  });
 };
 </script>
 

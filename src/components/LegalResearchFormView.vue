@@ -58,8 +58,15 @@ const handleSubmit = () => {
     length: selectedLength.value
   });
 
-  // 跳转到结果页面
-  router.push({ name: 'legal-research-result' });
+  // 跳转到确认页
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '法律研究报告',
+      next: 'legal-research-result',
+      file: title.value
+    }
+  });
 };
 
 const handleFileUpload = () => {

@@ -65,8 +65,15 @@ const handleSubmit = () => {
     template: uploadedTemplate.value?.name
   });
 
-  // 跳转到结果页面
-  router.push({ name: 'civil-lawsuit-result' });
+  // 跳转到确认页
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '民事起诉状',
+      next: 'civil-lawsuit-result',
+      file: uploadedEvidence.value?.name || uploadedTemplate.value?.name || lawsuitPurpose.value
+    }
+  });
 };
 </script>
 

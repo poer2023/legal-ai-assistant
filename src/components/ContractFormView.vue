@@ -80,8 +80,15 @@ const handleSubmit = () => {
     file: uploadedFile.value?.name
   });
 
-  // 跳转到结果页面
-  router.push({ name: 'contract-draft-result' });
+  // 跳转到确认页
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '合同起草',
+      next: 'contract-draft-result',
+      file: uploadedFile.value?.name || theme.value
+    }
+  });
 };
 </script>
 

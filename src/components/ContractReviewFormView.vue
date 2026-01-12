@@ -49,8 +49,15 @@ const handleSubmit = () => {
     auxiliaryInfo: auxiliaryInfo.value,
     document: uploadedDocument.value?.name
   });
-  // 跳转到审查结果页
-  router.push({ name: 'contract-review-result' });
+  // 跳转到确认页
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '合同审查',
+      next: 'contract-review-result',
+      file: uploadedDocument.value?.name
+    }
+  });
 };
 </script>
 

@@ -54,8 +54,17 @@ const handleSubmit = () => {
     documentA: uploadedDocumentA.value?.name,
     documentB: uploadedDocumentB.value?.name
   });
-  // 跳转到对比结果页
-  router.push({ name: 'contract-comparison-result' });
+  // 跳转到确认页
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '合同对比',
+      next: 'contract-comparison-result',
+      file: (uploadedDocumentA.value && uploadedDocumentB.value) 
+        ? `${uploadedDocumentA.value.name} & ${uploadedDocumentB.value.name}`
+        : '合同对比任务'
+    }
+  });
 };
 </script>
 

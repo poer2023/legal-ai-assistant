@@ -73,6 +73,18 @@ const handleSubmit = () => {
     template: uploadedTemplate.value?.name,
     background: uploadedBackground.value?.name
   });
+
+  // 跳转到确认页
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '文书写作',
+      next: 'document-writing-result',
+      file: topic.value
+    }
+  });
+  
+  // router.push({ name: 'document-writing-result' }); // Assuming this was missing in original trace or implied
 };
 </script>
 

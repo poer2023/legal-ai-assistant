@@ -225,6 +225,18 @@ const routes = [
     component: PlaceholderView,
     meta: { title: '个人中心' }
   },
+  {
+    path: '/agent/generic/confirm',
+    name: 'agent-generic-confirm',
+    component: () => import('../components/AgentConfirmView.vue'),
+    meta: { title: '确认订单' }
+  },
+  {
+    path: '/agent/generic/processing',
+    name: 'agent-generic-processing',
+    component: () => import('../components/AgentProcessingView.vue'),
+    meta: { title: '正在处理' }
+  },
 ];
 
 const router = createRouter({

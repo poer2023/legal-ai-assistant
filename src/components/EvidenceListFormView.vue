@@ -98,8 +98,15 @@ const handleSubmit = () => {
     auxiliaryInfo: auxiliaryInfo.value,
     files: uploadedFiles.value.map(f => f.name)
   });
-  // 跳转到结果页
-  router.push({ name: 'evidence-list-result' });
+  // 跳转到确认页
+  router.push({ 
+    name: 'agent-generic-confirm',
+    query: {
+      type: '证据清单整理',
+      next: 'evidence-list-result',
+      file: uploadedFiles.value.length > 0 ? `共 ${uploadedFiles.value.length} 个文件` : caseReason.value
+    }
+  });
 };
 </script>
 
