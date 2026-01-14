@@ -4,7 +4,7 @@ import {
   Home, 
   MessageSquare, 
   Bot, 
-  BookOpen, 
+  Brain, 
   Search, 
   FileText, 
   Users,
@@ -17,11 +17,11 @@ const route = useRoute();
 
 const navItems = [
   { icon: Home, label: '首页', routeName: 'home' },
-  { icon: MessageSquare, label: 'AI提问', routeName: 'chat' },
-  { icon: Bot, label: '智能体', routeName: 'agents', hot: true },
+  { icon: MessageSquare, label: '法律咨询', routeName: 'chat' },
   { icon: Scale, label: '法律搜索', routeName: 'legal-search' },
   { icon: Search, label: '学术搜索', routeName: 'search' },
-  { icon: BookOpen, label: '知识库', routeName: 'knowledge' },
+  { icon: Bot, label: '智能体', routeName: 'agents', hot: true },
+  { icon: Brain, label: '知识库', routeName: 'knowledge' },
 ];
 
 const bottomItems = [

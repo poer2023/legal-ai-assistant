@@ -49,7 +49,7 @@ const routes = [
     path: '/chat',
     name: 'chat',
     component: AiQnaView,
-    meta: { title: 'AI提问' }
+    meta: { title: '法律咨询' }
   },
   {
     path: '/agent',
