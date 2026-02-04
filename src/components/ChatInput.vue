@@ -9,13 +9,43 @@ import {
   Image,
   Paperclip,
   Send,
-  Check
+  Check,
+  BookOpen,
+  MessageCircle
 } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
 const inputValue = ref('');
 const showSearchDropdown = ref(false);
+const showRoleDropdown = ref(false);
+
+// Dialog role selector
+const selectedRole = ref('consult');
+const dialogRoles = [
+  { id: 'consult', label: '咨询模式', icon: MessageCircle },
+  { id: 'research', label: '研究模式', icon: BookOpen },
+];
+
+const selectRole = (roleId: string) => {
+  selectedRole.value = roleId;
+  showRoleDropdown.value = false;
+};
+
+const toggleRoleDropdown = () => {
+  showRoleDropdown.value = !showRoleDropdown.value;
+  showSearchDropdown.value = false;
+};
+
+const selectedRoleLabel = () => {
+  return dialogRoles.find(r => r.id === selectedRole.value)?.label || '咨询模式';
+};
+
+const placeholderText = () => {
+  return selectedRole.value === 'consult'
+    ? '我是你的Al律师，想咨询什么法律问题，快来问问我!Shift+Enter/Ctrl+Enter换行'
+    : '想了解什么知识，快来问问我!Shift+Enter/Ctrl+Enter换行';
+};
 
 // Multi-select mode: users can enable multiple search modes
 const enabledSearchModes = ref<Set<string>>(new Set(['legal']));
@@ -47,6 +77,7 @@ const isEnabled = (modeId: string) => {
 // Close dropdown when clicking outside
 const closeDropdown = () => {
   showSearchDropdown.value = false;
+  showRoleDropdown.value = false;
 };
 </script>
 
@@ -61,12 +92,34 @@ const closeDropdown = () => {
     <textarea
       v-model="inputValue"
       class="chat-textarea"
-      placeholder="想了解什么知识，快来问问我！Shift+Enter/Ctrl+Enter换行"
+      :placeholder="placeholderText()"
       @click="closeDropdown"
     ></textarea>
 
     <div class="input-actions">
       <div class="left-actions">
+        <!-- Role Selector -->
+        <div class="role-selector" @click.stop="toggleRoleDropdown">
+          <component :is="dialogRoles.find(r => r.id === selectedRole)?.icon" :size="16" class="role-icon" />
+          <span class="role-value">{{ selectedRoleLabel() }}</span>
+          <ChevronDown :size="12" class="role-chevron" />
+
+          <!-- Role Dropdown -->
+          <div v-if="showRoleDropdown" class="role-dropdown">
+            <div
+              v-for="role in dialogRoles"
+              :key="role.id"
+              class="role-dropdown-item"
+              :class="{ selected: selectedRole === role.id }"
+              @click.stop="selectRole(role.id)"
+            >
+              <component :is="role.icon" :size="16" class="role-dropdown-icon" />
+              <span>{{ role.label }}</span>
+              <Check v-if="selectedRole === role.id" :size="16" class="check-icon" />
+            </div>
+          </div>
+        </div>
+
         <!-- Search Mode Selector - All 4 icons visible -->
         <div class="search-mode-selector" @click.stop="toggleSearchDropdown">
           <div class="selected-icons">
@@ -319,5 +372,87 @@ const closeDropdown = () => {
 
 .send-btn.active:hover {
   background: #2563eb;
+}
+
+/* Role Selector */
+.role-selector {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.role-selector:hover {
+  background: #e2e8f0;
+}
+
+.role-icon {
+  color: #3b82f6;
+}
+
+.role-value {
+  font-size: 13px;
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.role-chevron {
+  color: #3b82f6;
+  transition: transform 0.2s;
+}
+
+.role-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  min-width: 140px;
+  padding: 8px;
+  animation: fadeIn 0.15s ease;
+}
+
+.role-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #334155;
+  transition: background-color 0.15s;
+  white-space: nowrap;
+}
+
+.role-dropdown-icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.role-dropdown-item:hover {
+  background: #f8fafc;
+}
+
+.role-dropdown-item.selected {
+  background: #eff6ff;
+  color: #3b82f6;
+  font-weight: 500;
+}
+
+.role-dropdown-item.selected .role-dropdown-icon {
+  color: #3b82f6;
+}
+
+.role-dropdown-item .check-icon {
+  margin-left: auto;
 }
 </style>
