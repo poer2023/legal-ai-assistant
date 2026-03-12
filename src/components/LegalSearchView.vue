@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { Search, RefreshCw, ChevronDown } from 'lucide-vue-next';
+import { Search, ChevronDown, Send } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
 
 const searchQuery = ref('');
 const activeTab = ref<'cases' | 'regulations'>('cases');
+const isFocused = ref(false);
 
-// Search scope options - 根据 tab 动态变化
+// Search scope options
 const searchScope = ref('全文');
 const caseScopeOptions = ['全文', '标题', '案号'];
 const regulationScopeOptions = ['标题', '全文', '发文字号'];
+
 const searchScopeOptions = computed(() => {
   return activeTab.value === 'cases' ? caseScopeOptions : regulationScopeOptions;
 });
@@ -22,40 +24,11 @@ watch(activeTab, (newTab) => {
   searchScope.value = newTab === 'cases' ? '全文' : '标题';
 });
 
-// Sample questions by tab
-const caseSampleQuestions = [
-  '我家房屋因被认定为违章建筑遭城管部门强拆，但未收到任何书面通知',
-  '试用期可以通过二次约定延长吗',
-  '满足哪些条件可以判缓刑',
-  '满足哪些条件可以退一赔三',
-];
-
-const regulationSampleQuestions = [
-  '中华人民共和国民法典',
-  '劳动合同法关于试用期的规定',
-  '刑法关于缓刑的适用条件',
-  '消费者权益保护法退一赔三',
-];
-
-
-
-const getSampleQuestions = () => {
-  if (activeTab.value === 'regulations') {
-    return regulationSampleQuestions;
-  }
-  return caseSampleQuestions;
-};
-
 const handleSearch = () => {
   router.push({ 
     name: 'legal-search-results',
-    query: { q: searchQuery.value || '缓刑条件', tab: activeTab.value }
+    query: { q: searchQuery.value || '民间借贷', tab: activeTab.value }
   });
-};
-
-const handleQuestionClick = (question: string) => {
-  searchQuery.value = question;
-  handleSearch();
 };
 
 const selectSearchScope = (scope: string) => {
@@ -63,25 +36,18 @@ const selectSearchScope = (scope: string) => {
   showScopeDropdown.value = false;
 };
 
-
-
-const getPlaceholder = () => {
-  if (activeTab.value === 'regulations') {
-    return '请输入法律法规关键词';
-  }
-  return '请输入司法案例关键词';
-};
 </script>
 
 <template>
   <div class="legal-search-view">
+    <!-- Subtle decorative orb -->
+    <div class="bg-orb"></div>
+    
     <div class="content-wrapper">
-      <!-- Title Section -->
-      <div class="title-section">
-        <h1 class="page-title highlight">法律搜索</h1>
-      </div>
+      <!-- Title -->
+      <h1 class="page-title">法律搜索</h1>
 
-      <!-- Tab Navigation - Matching Results Page Style -->
+      <!-- Underline Tab Navigation -->
       <nav class="tab-navigation">
         <button 
           class="tab-item" 
@@ -97,47 +63,63 @@ const getPlaceholder = () => {
         >
           法律法规
         </button>
-
+        <!-- Animated underline indicator -->
+        <div 
+          class="tab-indicator" 
+          :style="{ 
+            transform: activeTab === 'cases' ? 'translateX(0)' : 'translateX(calc(100% + 32px))' 
+          }"
+        ></div>
       </nav>
 
-      <!-- Search Container - Matching Results Page Style -->
-      <div class="search-container">
-        <!-- Search Scope Dropdown -->
+      <!-- Search Box -->
+      <div 
+        class="search-container" 
+        :class="{ focused: isFocused }"
+      >
+        <!-- Scope Dropdown -->
         <div class="search-scope-wrapper" @click="showScopeDropdown = !showScopeDropdown">
           <span class="scope-label">{{ searchScope }}</span>
-          <ChevronDown :size="16" class="dropdown-icon" />
-          <div v-if="showScopeDropdown" class="scope-dropdown">
-            <div 
-              v-for="option in searchScopeOptions" 
-              :key="option"
-              class="scope-option"
-              :class="{ active: searchScope === option }"
-              @click.stop="selectSearchScope(option)"
-            >
-              {{ option }}
+          <ChevronDown :size="16" class="dropdown-icon" :class="{ rotated: showScopeDropdown }" />
+          
+          <Transition name="fade-slide">
+            <div v-if="showScopeDropdown" class="scope-dropdown">
+              <div 
+                v-for="option in searchScopeOptions" 
+                :key="option"
+                class="scope-option"
+                :class="{ active: searchScope === option }"
+                @click.stop="selectSearchScope(option)"
+              >
+                {{ option }}
+              </div>
             </div>
-          </div>
+          </Transition>
         </div>
-        
-        <div class="search-input-wrapper">
-          <input 
-            v-model="searchQuery"
-            type="text"
-            class="search-input"
-            :placeholder="getPlaceholder()"
-            @keyup.enter="handleSearch"
-          />
-        </div>
-        
-        <button class="search-btn" @click="handleSearch">
-          <Search :size="16" />
-          <span>搜索</span>
+
+        <div class="divider"></div>
+
+        <input 
+          v-model="searchQuery"
+          type="text"
+          class="search-input"
+          placeholder="请输入案由、关键词、案号或法规名称"
+          @keyup.enter="handleSearch"
+          @focus="isFocused = true"
+          @blur="isFocused = false"
+        />
+        <button class="send-btn" @click="handleSearch">
+          <Send :size="18" />
         </button>
       </div>
 
       <!-- Database Stats -->
-      <p class="database-stats" v-if="activeTab === 'cases'">本数据库已收录司法案例159,280,920篇</p>
-      <p class="database-stats" v-else>本数据库已收录法律法规1,927,651篇</p>
+      <Transition name="fade" mode="out-in">
+        <div class="stats-text" :key="activeTab">
+          <span v-if="activeTab === 'cases'">本数据库已收录司法案例 <span class="stats-number">159,280,920</span> 篇</span>
+          <span v-else>本数据库已收录法律法规 <span class="stats-number">1,927,651</span> 篇</span>
+        </div>
+      </Transition>
 
     </div>
   </div>
@@ -145,71 +127,69 @@ const getPlaceholder = () => {
 
 <style scoped>
 .legal-search-view {
+  position: relative;
   flex: 1;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 40px;
-  position: relative;
   overflow-y: auto;
-  background: #f0f4fa;
+  background: #f5f6fa;
+}
+
+/* Subtle decorative orb in top-right */
+.bg-orb {
+  position: absolute;
+  top: -120px;
+  right: -80px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(37, 99, 235, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }
 
 .content-wrapper {
+  position: relative;
+  z-index: 1;
   width: 100%;
-  max-width: 800px;
-  flex: 1;
+  max-width: 900px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding-bottom: 380px;
-}
-
-.title-section {
-  text-align: center;
-  margin-bottom: 32px;
+  padding-top: 15vh; /* Slightly higher */
 }
 
 .page-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 12px 0;
-}
-
-.highlight {
+  font-size: 34px;
+  font-weight: 600;
   color: #2563eb;
+  margin: 0 0 48px 0;
+  letter-spacing: -0.5px;
 }
 
-.subtitle {
-  font-size: 15px;
-  color: #64748b;
-  margin: 0;
-}
-
-/* Tab Navigation - Matching Results Page */
+/* Underline Tab Navigation */
 .tab-navigation {
+  position: relative;
   display: flex;
   gap: 32px;
-  margin-bottom: 24px;
+  margin-bottom: 40px;
 }
 
 .tab-item {
   position: relative;
-  padding: 8px 4px;
+  padding: 10px 8px;
   background: none;
   border: none;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
-  color: #64748b;
+  color: #94a3b8;
   cursor: pointer;
-  transition: color 0.2s;
+  transition: color 0.25s ease;
 }
 
 .tab-item:hover {
-  color: #2563eb;
+  color: #64748b;
 }
 
 .tab-item.active {
@@ -217,176 +197,177 @@ const getPlaceholder = () => {
   font-weight: 600;
 }
 
-.tab-item.active::after {
-  content: '';
+/* Animated sliding underline */
+.tab-indicator {
   position: absolute;
-  bottom: -2px;
+  bottom: 0;
   left: 0;
-  right: 0;
+  width: calc((100% - 32px) / 2); /* Account for gap */
   height: 2px;
   background: #2563eb;
-  border-radius: 1px;
+  border-radius: 2px;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Search Container - Matching Results Page */
+/* Search Container */
 .search-container {
   width: 100%;
+  max-width: 680px;
   display: flex;
   align-items: center;
-  gap: 0;
   background: white;
-  border-radius: 8px;
-  padding: 4px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  border: 1.5px solid #e2e8f0;
+  border-radius: 20px;
+  padding: 12px 16px 12px 0;
+  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+}
+
+.search-container.focused {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12), 0 8px 32px -8px rgba(37, 99, 235, 0.15);
+  transform: scale(1.01);
 }
 
 .search-scope-wrapper {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 12px 16px;
-  border-right: 1px solid #e2e8f0;
+  gap: 6px;
+  padding: 0 20px;
   cursor: pointer;
   user-select: none;
+  height: 100%;
+  min-width: 90px;
+  justify-content: center;
 }
 
 .scope-label {
-  font-size: 14px;
+  font-size: 15px;
   color: #334155;
   font-weight: 500;
 }
 
 .dropdown-icon {
   color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-icon.rotated {
+  transform: rotate(180deg);
 }
 
 .scope-dropdown {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 16px);
   left: 0;
-  margin-top: 4px;
   background: white;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.12);
   z-index: 100;
-  min-width: 100px;
+  min-width: 120px;
+  padding: 8px;
 }
 
 .scope-option {
-  padding: 10px 16px;
+  padding: 10px 14px;
   font-size: 14px;
-  color: #475569;
+  color: #64748b;
   cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.scope-option:first-child {
-  border-radius: 8px 8px 0 0;
-}
-
-.scope-option:last-child {
-  border-radius: 0 0 8px 8px;
+  border-radius: 10px;
+  text-align: left;
+  transition: all 0.15s ease;
 }
 
 .scope-option:hover {
-  background: #f1f5f9;
+  background: #f8fafc;
+  color: #1e293b;
 }
 
 .scope-option.active {
   color: #2563eb;
   background: #eff6ff;
+  font-weight: 500;
 }
 
-.search-input-wrapper {
-  flex: 1;
-  padding: 0 16px;
+.divider {
+  width: 1px;
+  height: 28px;
+  background: #e2e8f0;
+  margin-right: 16px;
 }
 
 .search-input {
-  width: 100%;
+  flex: 1;
   border: none;
   outline: none;
-  font-size: 15px;
-  color: #334155;
+  font-size: 16px;
+  color: #1e293b;
   background: transparent;
-  padding: 12px 0;
+  padding: 8px 0;
 }
 
 .search-input::placeholder {
   color: #94a3b8;
 }
 
-.search-btn {
+.send-btn {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  border: none;
+  border-radius: 12px;
+  color: white;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 12px 24px;
-  background: #2563eb;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
-  color: white;
+  justify-content: center;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.35);
 }
 
-.search-btn:hover {
-  background: #1d4ed8;
+.send-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px -2px rgba(37, 99, 235, 0.45);
+}
+
+.send-btn:active {
+  transform: translateY(0);
 }
 
 /* Database Stats */
-.database-stats {
-  margin-top: 16px;
-  font-size: 14px;
-  color: #64748b;
-  text-align: center;
-}
-
-/* Quick Stats */
-.quick-stats {
-  display: flex;
-  align-items: center;
-  gap: 32px;
-  margin-top: 48px;
-  padding: 24px 40px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.stat-number {
-  font-size: 24px;
-  font-weight: 700;
-  color: #2563eb;
-}
-
-.stat-label {
+.stats-text {
+  margin-top: 28px;
   font-size: 13px;
-  color: #64748b;
-}
-
-.stat-divider {
-  width: 1px;
-  height: 40px;
-  background: #e2e8f0;
-}
-
-/* Footer */
-.footer-disclaimer {
-  position: absolute;
-  bottom: 24px;
-  font-size: 12px;
   color: #94a3b8;
-  text-align: center;
+  letter-spacing: 0.2px;
+}
+
+.stats-number {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+/* Transitions */
+.fade-slide-enter-active,
+.fade-slide-leave-active {
+  transition: all 0.2s ease;
+}
+
+.fade-slide-enter-from,
+.fade-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
