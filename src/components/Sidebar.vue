@@ -144,11 +144,11 @@ const bottomItems = [
       <button
         class="nav-item"
         :class="{ active: isSkillTemplateActive }"
-        :title="isCollapsed ? '技能&模板' : undefined"
+        :title="isCollapsed ? '技能' : undefined"
         @click="handleItemClick('skills')"
       >
         <Sparkles :size="18" class="nav-icon" />
-        <span class="nav-label">技能&模板</span>
+        <span class="nav-label">技能</span>
       </button>
 
       <button

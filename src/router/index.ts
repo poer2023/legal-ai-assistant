@@ -35,6 +35,7 @@ import TeamSectionShellView from '../components/team/TeamSectionShellView.vue';
 import TeamConsultingOpsView from '../components/team/TeamConsultingOpsView.vue';
 import ProfileView from '../components/ProfileView.vue';
 import GuideView from '../components/GuideView.vue';
+import InvestigationAgentDemoView from '../components/InvestigationAgentDemoView.vue';
 
 // Placeholder views - can be replaced with actual components later
 const PlaceholderView = {
@@ -70,13 +71,13 @@ const routes = [
     path: '/skills',
     name: 'skills',
     component: SkillTemplateView,
-    meta: { title: '技能&模板' }
+    meta: { title: '技能库' }
   },
   {
     path: '/templates',
     name: 'templates',
     redirect: { name: 'skills' },
-    meta: { title: '技能&模板' }
+    meta: { title: '技能库' }
   },
   {
     path: '/create/policy_advisory_report',
@@ -173,6 +174,12 @@ const routes = [
     name: 'contract-drafting-form',
     component: ContractFormView,
     meta: { title: '合同起草' }
+  },
+  {
+    path: '/create/investigation/:agentKey',
+    name: 'investigation-agent-demo',
+    component: InvestigationAgentDemoView,
+    meta: { title: '核查智能体 Demo' }
   },
   {
     path: '/create/:agentSlug',

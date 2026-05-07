@@ -1,15 +1,67 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import {
   MessageCirclePlus,
   SlidersHorizontal,
 } from 'lucide-vue-next';
 import type { SkillCatalogItem } from '../data/skillCatalog';
 import { availableSkills } from '../data/skillCatalog';
+import { getTemplatesForSkill, type SkillTemplateOption } from '../data/legalAssets';
+
+export type SkillDropdownSelection = string | {
+  skillName: string;
+  template: SkillTemplateOption;
+};
+
+const props = withDefaults(defineProps<{
+  inlineQuery?: string;
+  showCreate?: boolean;
+  showManage?: boolean;
+}>(), {
+  inlineQuery: '',
+  showCreate: true,
+  showManage: true,
+});
 
 const emit = defineEmits<{
-  (event: 'select', skillName?: string): void;
+  (event: 'select', selection?: SkillDropdownSelection): void;
   (event: 'manage'): void;
 }>();
+
+const hiddenDefaultSkillIds = new Set(['docx', 'pdf', 'xlsx']);
+
+const templateMap = computed(() => {
+  return new Map(availableSkills.value.map((skill) => [skill.id, getTemplatesForSkill(skill)]));
+});
+
+const templatesForSkill = (skill: SkillCatalogItem) => templateMap.value.get(skill.id) ?? [];
+
+const filteredSkills = computed(() => {
+  const keyword = props.inlineQuery.trim().toLowerCase();
+
+  if (!keyword) return availableSkills.value.filter((skill) => !hiddenDefaultSkillIds.has(skill.id));
+
+  return availableSkills.value.filter((skill) => {
+    const templates = templatesForSkill(skill);
+    const searchable = [
+      skill.name,
+      skill.id,
+      skill.description,
+      ...templates.flatMap((template) => [
+        template.name,
+        template.docType,
+        template.source,
+        template.preview,
+        ...template.requiredFields,
+        ...template.tags,
+      ]),
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    return searchable.includes(keyword);
+  });
+});
 
 const selectSkill = (skill: SkillCatalogItem) => {
   emit('select', skill.name);
@@ -25,24 +77,35 @@ const manageSkills = () => {
 </script>
 
 <template>
-  <div class="skill-dropdown-content">
+  <div class="skill-dropdown-content" :class="{ 'inline-layout': !showManage }">
     <section class="skill-list" aria-label="技能">
-      <button
-        v-for="skill in availableSkills"
+      <article
+        v-for="skill in filteredSkills"
         :key="skill.id"
         class="skill-item"
-        type="button"
-        @click.stop="selectSkill(skill)"
+        role="button"
+        tabindex="0"
+        @click="selectSkill(skill)"
+        @keydown.enter.self.prevent="selectSkill(skill)"
       >
-        <span class="skill-name">{{ skill.name }}</span>
-        <span class="skill-desc">{{ skill.description }}</span>
-      </button>
+        <div class="skill-main">
+          <span class="skill-heading">
+            <span class="skill-name">{{ skill.name }}</span>
+            <span v-if="templatesForSkill(skill).length" class="format-count">
+              模板×{{ templatesForSkill(skill).length }}
+            </span>
+          </span>
+          <span class="skill-desc">{{ skill.description }}</span>
+        </div>
+      </article>
+
+      <p v-if="filteredSkills.length === 0" class="empty-tip">没有匹配的技能或格式模板</p>
     </section>
 
-    <div class="skill-divider" aria-hidden="true"></div>
+    <div v-if="showManage" class="skill-divider" aria-hidden="true"></div>
 
-    <section class="skill-footer-actions" aria-label="技能操作">
-      <button class="skill-footer-row" type="button" @click.stop="createSkill">
+    <section v-if="showManage" class="skill-footer-actions" aria-label="技能操作">
+      <button v-if="showCreate" class="skill-footer-row" type="button" @click.stop="createSkill">
         <MessageCirclePlus :size="16" :stroke-width="2.2" class="skill-row-icon" />
         <span>创建技能</span>
       </button>
@@ -57,23 +120,46 @@ const manageSkills = () => {
 
 <style scoped>
 .skill-dropdown-content {
+  height: min(292px, calc(100vh - 360px));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   color: #475569;
 }
 
+.skill-dropdown-content.inline-layout {
+  height: auto;
+  max-height: min(300px, calc(100vh - 260px));
+}
+
 .skill-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
+.skill-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.skill-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
 .skill-item {
   width: 100%;
-  min-height: 50px;
+  min-height: 46px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  padding: 8px 10px;
+  justify-content: center;
+  padding: 7px 10px;
   border-radius: 8px;
   text-align: left;
   color: #475569;
@@ -84,8 +170,26 @@ const manageSkills = () => {
   background: #f8fafc;
 }
 
-.skill-name {
+.skill-main {
   width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+}
+
+.skill-heading {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skill-name {
+  min-width: 0;
   overflow: hidden;
   color: #334155;
   font-size: 14px;
@@ -94,6 +198,17 @@ const manageSkills = () => {
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.format-count {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #2563eb;
+  background: #eff6ff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .skill-desc {
@@ -107,13 +222,24 @@ const manageSkills = () => {
   white-space: nowrap;
 }
 
+.empty-tip {
+  margin: 8px 10px 10px;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
 .skill-divider {
+  flex-shrink: 0;
   height: 1px;
   margin: 7px 2px;
   background: #eef2f7;
 }
 
 .skill-footer-actions {
+  position: static;
+  flex-shrink: 0;
+  padding-top: 2px;
+  background: #ffffff;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -144,6 +270,7 @@ const manageSkills = () => {
 }
 
 .skill-item:focus-visible,
+.skill-main:focus-visible,
 .skill-footer-row:focus-visible {
   outline: 2px solid #60a5fa;
   outline-offset: 2px;

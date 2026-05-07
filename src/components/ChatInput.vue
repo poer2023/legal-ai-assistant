@@ -7,12 +7,12 @@ import {
   GraduationCap,
   Scale,
   Image,
-  LayoutTemplate,
   MessageCircle,
   Mic,
   ArrowUp,
   Check,
   BookOpen,
+  Eye,
   Plus,
   Puzzle,
   X,
@@ -20,11 +20,16 @@ import {
 } from 'lucide-vue-next';
 import KnowledgeSearchIcon from './icons/KnowledgeSearchIcon.vue';
 import SkillDropdownContent from './SkillDropdownContent.vue';
+import type { SkillDropdownSelection } from './SkillDropdownContent.vue';
 import SkillManageModal from './SkillManageModal.vue';
-import TemplateDropdownContent from './TemplateDropdownContent.vue';
-import TemplateManageModal from './TemplateManageModal.vue';
-import { isRegisteredSkillName } from '../data/skillCatalog';
-import { defaultTemplateAssets, type TemplateAsset } from '../data/legalAssets';
+import TemplateDetailPanel from './TemplateDetailPanel.vue';
+import { availableSkills, isRegisteredSkillName } from '../data/skillCatalog';
+import {
+  defaultTemplateAssets,
+  getTemplatesForSkill,
+  type SkillTemplateOption,
+  type TemplateAsset,
+} from '../data/legalAssets';
 
 const props = defineProps<{
   modelValue?: string;
@@ -50,15 +55,19 @@ const inputContainerRef = ref<HTMLDivElement | null>(null);
 const editorRef = ref<HTMLDivElement | null>(null);
 const activeSkillRange = ref<Range | null>(null);
 const activeTemplateRange = ref<Range | null>(null);
+const inlineSkillQuery = ref('');
 const inlineTemplateQuery = ref('');
 const selectedSkillToken = ref<HTMLElement | null>(null);
+const openTemplatePickerToken = ref<HTMLElement | null>(null);
+const previewTemplate = ref<SkillTemplateOption | null>(null);
 const inlineShortcutMenuPosition = ref({ left: 16, top: 48 });
+const templatePickerMenuPosition = ref({ left: 16, top: 48 });
 const selectedAssetPromptPrefix = '请使用 ';
 const skillPromptSuffix = ' 帮我完成以下任务，我的需求如下：';
 const skillCreatorPromptSuffix = ' 帮我创建一个可复用的技能，我的需求如下：';
-const templatePromptSuffix = ' 帮我按照这个模板完成写作，我的需求/源文件如下：';
-const templateCreatorPromptSuffix = ' 帮我创建一个可复用的写作模板，我的需求/源文件如下：';
-const inlineTokenSelector = '.skill-inline-code, .template-inline-code';
+const templatePromptSuffix = ' 帮我按照这个格式模板完成写作，我的需求/源文件如下：';
+const templateCreatorPromptSuffix = ' 帮我创建一个可复用的输出格式模板，我的需求/源文件如下：';
+const inlineTokenSelector = '.skill-inline-code, .template-inline-code, .template-picker-inline';
 
 type SkillSlashMatch = {
   query: string;
@@ -96,6 +105,7 @@ const selectRole = (roleId: string) => {
     showTemplateMenu.value = false;
     showInlineSkillMenu.value = false;
     showInlineTemplateMenu.value = false;
+    closeTemplatePickerMenu();
   }
 };
 
@@ -107,7 +117,7 @@ const placeholderText = () => {
     : '我是你的AI律师，想咨询什么法律问题，快来问问我！Shift+Enter/Ctrl+Enter换行';
 };
 
-const selectedThinkingMode = ref('fast');
+const selectedThinkingMode = ref('thinking');
 const thinkingModes = [
   { id: 'fast', label: '快速', description: '适合简单问题，优先更快响应', icon: Zap },
   { id: 'thinking', label: '思考', description: '适合复杂问题，进行深度推理', icon: Brain },
@@ -167,6 +177,7 @@ const toggleActionMenu = () => {
   showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
+  closeTemplatePickerMenu();
 };
 
 const toggleSkillMenu = () => {
@@ -176,6 +187,7 @@ const toggleSkillMenu = () => {
   showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
+  closeTemplatePickerMenu();
 };
 
 const toggleTemplateMenu = () => {
@@ -185,6 +197,7 @@ const toggleTemplateMenu = () => {
   showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
+  closeTemplatePickerMenu();
 };
 
 const toggleThinkingMenu = () => {
@@ -194,6 +207,7 @@ const toggleThinkingMenu = () => {
   showTemplateMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
+  closeTemplatePickerMenu();
 };
 
 const triggerUploadAction = () => {
@@ -219,7 +233,10 @@ const syncEditorState = () => {
   if (!editor) return;
 
   skillTokenCount.value = editor.querySelectorAll('.skill-inline-code').length;
-  templateTokenCount.value = editor.querySelectorAll('.template-inline-code').length;
+  templateTokenCount.value = editor.querySelectorAll('.template-inline-code, .template-picker-inline').length;
+  if (openTemplatePickerToken.value && !editor.contains(openTemplatePickerToken.value)) {
+    openTemplatePickerToken.value = null;
+  }
   inputValue.value = getEditorText();
 };
 
@@ -267,6 +284,26 @@ const selectSkillToken = (token: HTMLElement) => {
   token.focus();
 };
 
+const templatesForSkillName = (skillName: string) => {
+  const skill = availableSkills.value.find((item) => item.name === skillName || item.id === skillName);
+  return skill ? getTemplatesForSkill(skill) : [];
+};
+
+const selectedTemplateForPicker = (token: HTMLElement | null) => {
+  if (!token) return null;
+  const skillName = token.dataset.skillName ?? '';
+  const templateId = token.dataset.templateId ?? '';
+  if (!skillName || !templateId) return null;
+  return templatesForSkillName(skillName).find((template) => template.id === templateId) ?? null;
+};
+
+const openTemplatePickerOptions = computed(() => {
+  const skillName = openTemplatePickerToken.value?.dataset.skillName ?? '';
+  return skillName ? templatesForSkillName(skillName) : [];
+});
+
+const openTemplatePickerSelectedId = computed(() => openTemplatePickerToken.value?.dataset.templateId ?? '');
+
 const createSkillToken = (skillName: string) => {
   const token = document.createElement('code');
   token.className = 'skill-inline-code';
@@ -278,14 +315,49 @@ const createSkillToken = (skillName: string) => {
   return token;
 };
 
-const createTemplateToken = (template: TemplateAsset) => {
+const renderTemplatePickerToken = (token: HTMLElement) => {
+  const selectedTemplate = selectedTemplateForPicker(token);
+  const label = document.createElement('span');
+  label.className = 'template-picker-label';
+  label.textContent = '格式模板：';
+
+  const value = document.createElement('span');
+  value.className = 'template-picker-value';
+  value.textContent = selectedTemplate?.name ?? '选择模板';
+
+  const arrow = document.createElement('span');
+  arrow.className = 'template-picker-arrow';
+  arrow.setAttribute('aria-hidden', 'true');
+
+  token.replaceChildren(label, value, arrow);
+  token.setAttribute('aria-expanded', openTemplatePickerToken.value === token ? 'true' : 'false');
+  token.setAttribute(
+    'aria-label',
+    selectedTemplate ? `已选格式模板 ${selectedTemplate.name}` : '选择格式模板'
+  );
+};
+
+const createTemplatePickerToken = (skillName: string, template?: SkillTemplateOption | null) => {
+  const token = document.createElement('span');
+  token.className = 'template-picker-inline';
+  token.contentEditable = 'false';
+  token.tabIndex = 0;
+  token.dataset.skillName = skillName;
+  token.dataset.templateId = template?.id ?? '';
+  token.setAttribute('role', 'button');
+  token.setAttribute('aria-haspopup', 'listbox');
+  renderTemplatePickerToken(token);
+  return token;
+};
+
+const createTemplateToken = (template: TemplateAsset | SkillTemplateOption) => {
   const token = document.createElement('code');
   token.className = 'template-inline-code';
   token.contentEditable = 'false';
   token.tabIndex = 0;
   token.dataset.templateId = template.id;
-  token.textContent = `模板：${template.name}`;
-  token.setAttribute('aria-label', `已选模板 ${template.name}`);
+  token.textContent = `格式模板：${template.name}`;
+  token.setAttribute('aria-label', `已选格式模板 ${template.name}`);
   return token;
 };
 
@@ -377,7 +449,7 @@ const insertPlainTextAtCaret = (text: string) => {
   syncEditorState();
 };
 
-const insertTemplateToken = (template: TemplateAsset, targetRange?: Range | null) => {
+const insertTemplateToken = (template: TemplateAsset | SkillTemplateOption, targetRange?: Range | null) => {
   const editor = editorRef.value;
   if (!editor) return;
 
@@ -401,9 +473,90 @@ const insertTemplateToken = (template: TemplateAsset, targetRange?: Range | null
   syncEditorState();
 };
 
+const updateTemplatePickerMenuPosition = (token: HTMLElement) => {
+  const container = inputContainerRef.value;
+  if (!container) return;
+
+  const tokenRect = token.getBoundingClientRect();
+  const containerRect = container.getBoundingClientRect();
+  const dropdownWidth = 260;
+
+  templatePickerMenuPosition.value = {
+    left: Math.max(8, Math.min(tokenRect.left - containerRect.left, container.clientWidth - dropdownWidth - 8)),
+    top: tokenRect.bottom - containerRect.top + 8,
+  };
+};
+
+const closeTemplatePickerMenu = () => {
+  const previousToken = openTemplatePickerToken.value;
+  openTemplatePickerToken.value = null;
+  previousToken?.setAttribute('aria-expanded', 'false');
+};
+
+const openTemplatePickerMenu = (token: HTMLElement) => {
+  clearSelectedSkillToken();
+  if (openTemplatePickerToken.value && openTemplatePickerToken.value !== token) {
+    openTemplatePickerToken.value.setAttribute('aria-expanded', 'false');
+  }
+  openTemplatePickerToken.value = token;
+  token.setAttribute('aria-expanded', 'true');
+  updateTemplatePickerMenuPosition(token);
+};
+
+const toggleTemplatePickerMenu = (token: HTMLElement) => {
+  if (openTemplatePickerToken.value === token) {
+    closeTemplatePickerMenu();
+    return;
+  }
+
+  openTemplatePickerMenu(token);
+};
+
+const insertTemplatePickerToken = (
+  skillName: string,
+  targetRange?: Range | null,
+  selectedTemplate?: SkillTemplateOption | null,
+  openAfterInsert = false,
+) => {
+  const editor = editorRef.value;
+  if (!editor) return;
+
+  editor.focus();
+
+  const range = targetRange ?? getCurrentEditorRange() ?? getEditorEndRange();
+  if (!range) return;
+
+  range.deleteContents();
+  const token = createTemplatePickerToken(skillName, selectedTemplate);
+  range.insertNode(token);
+  placeCaretAfter(token);
+  clearSelectedSkillToken();
+
+  showTemplateMenu.value = false;
+  showInlineTemplateMenu.value = false;
+  showInlineSkillMenu.value = false;
+  activeSkillRange.value = null;
+  activeTemplateRange.value = null;
+  inlineTemplateQuery.value = '';
+  syncEditorState();
+
+  if (openAfterInsert) {
+    openTemplatePickerMenu(token);
+  }
+};
+
 const insertSkillPrompt = (skillName: string) => {
   insertPlainTextAtCaret(selectedAssetPromptPrefix);
   insertSkillToken(skillName);
+  const templates = templatesForSkillName(skillName);
+
+  if (skillName !== 'skill-creator' && templates.length) {
+    insertPlainTextAtCaret('，并采用');
+    insertTemplatePickerToken(skillName, null, null, true);
+    insertPlainTextAtCaret('，帮我完成以下任务，我的需求如下：');
+    return;
+  }
+
   insertPlainTextAtCaret(skillName === 'skill-creator' ? skillCreatorPromptSuffix : skillPromptSuffix);
 };
 
@@ -411,6 +564,32 @@ const insertTemplatePrompt = (template: TemplateAsset) => {
   insertPlainTextAtCaret(selectedAssetPromptPrefix);
   insertTemplateToken(template);
   insertPlainTextAtCaret(templatePromptSuffix);
+};
+
+const moveCaretToRangeStart = (range: Range | null | undefined) => {
+  const editor = editorRef.value;
+  if (!editor || !range) return;
+
+  editor.focus();
+  range.deleteContents();
+  range.collapse(true);
+  setEditorRange(range);
+};
+
+const insertSkillTemplatePrompt = (
+  skillName: string,
+  template: SkillTemplateOption,
+  targetRange?: Range | null,
+) => {
+  moveCaretToRangeStart(targetRange);
+  activeSkillRange.value = null;
+  activeTemplateRange.value = null;
+
+  insertPlainTextAtCaret(selectedAssetPromptPrefix);
+  insertSkillToken(skillName);
+  insertPlainTextAtCaret('，并采用');
+  insertTemplatePickerToken(skillName, null, template, false);
+  insertPlainTextAtCaret('，帮我完成以下任务，我的需求如下：');
 };
 
 const getTextPositionAtOffset = (root: Node, targetOffset: number) => {
@@ -539,10 +718,12 @@ const updateInlineSkillMenu = () => {
   if (!match) {
     showInlineSkillMenu.value = false;
     activeSkillRange.value = null;
+    inlineSkillQuery.value = '';
     return false;
   }
 
   activeSkillRange.value = match.range.cloneRange();
+  inlineSkillQuery.value = match.query;
   showActionMenu.value = false;
   showSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
@@ -567,14 +748,14 @@ const updateInlineTemplateMenu = () => {
   showTemplateMenu.value = false;
   showInlineSkillMenu.value = false;
   activeSkillRange.value = null;
+  inlineSkillQuery.value = '';
   showInlineTemplateMenu.value = true;
   updateInlineShortcutMenuPosition(match.range);
   return true;
 };
 
 const updateInlineShortcutMenus = () => {
-  if (updateInlineSkillMenu()) return;
-  updateInlineTemplateMenu();
+  updateInlineSkillMenu();
 };
 
 const transformCompletedShortcutAtCaret = () => {
@@ -584,14 +765,7 @@ const transformCompletedShortcutAtCaret = () => {
     return true;
   }
 
-  const templateMatch = getActiveTemplateMatch();
-  if (!templateMatch) return false;
-
-  const matchedTemplate = findTemplateByShortcutQuery(templateMatch.query);
-  if (!matchedTemplate) return false;
-
-  insertTemplateToken(matchedTemplate, templateMatch.range);
-  return true;
+  return false;
 };
 
 const isInlineTokenNode = (node: Node | null): HTMLElement | null => {
@@ -692,11 +866,56 @@ const removeSkillToken = (token: HTMLElement, caretPreference: 'previous' | 'nex
   updateInlineShortcutMenus();
 };
 
-const handleEditorClick = (event: MouseEvent) => {
-  closeDropdown();
+const selectTemplateFromPicker = (template: SkillTemplateOption) => {
+  const token = openTemplatePickerToken.value;
+  if (!token) return;
 
+  token.dataset.templateId = template.id;
+  renderTemplatePickerToken(token);
+  closeTemplatePickerMenu();
+  placeCaretAfter(token);
+  syncEditorState();
+};
+
+const openTemplatePreview = (template: SkillTemplateOption) => {
+  previewTemplate.value = template;
+};
+
+const closeTemplatePreview = () => {
+  previewTemplate.value = null;
+};
+
+const selectPreviewTemplate = (template: TemplateAsset) => {
+  const selected =
+    openTemplatePickerOptions.value.find((item) => item.id === template.id) ?? previewTemplate.value;
+
+  if (selected) {
+    selectTemplateFromPicker(selected);
+  }
+  closeTemplatePreview();
+};
+
+const handleEditorClick = (event: MouseEvent) => {
   const target = event.target;
   if (target instanceof HTMLElement) {
+    const templatePicker = target.closest('.template-picker-inline');
+    if (templatePicker instanceof HTMLElement) {
+      showActionMenu.value = false;
+      showSkillMenu.value = false;
+      showTemplateMenu.value = false;
+      showThinkingMenu.value = false;
+      showInlineSkillMenu.value = false;
+      showInlineTemplateMenu.value = false;
+      activeSkillRange.value = null;
+      activeTemplateRange.value = null;
+      inlineTemplateQuery.value = '';
+      toggleTemplatePickerMenu(templatePicker);
+      syncEditorState();
+      return;
+    }
+
+    closeDropdown();
+
     const token = target.closest(inlineTokenSelector);
     if (token instanceof HTMLElement) {
       selectSkillToken(token);
@@ -707,6 +926,8 @@ const handleEditorClick = (event: MouseEvent) => {
       syncEditorState();
       return;
     }
+  } else {
+    closeDropdown();
   }
 
   clearSelectedSkillToken();
@@ -733,9 +954,20 @@ const handleEditorKeydown = (event: KeyboardEvent) => {
     showInlineTemplateMenu.value = false;
     activeSkillRange.value = null;
     activeTemplateRange.value = null;
+    inlineSkillQuery.value = '';
     inlineTemplateQuery.value = '';
+    closeTemplatePickerMenu();
     clearSelectedSkillToken();
     return;
+  }
+
+  if ((event.key === 'Enter' || event.key === ' ') && event.target instanceof HTMLElement) {
+    const templatePicker = event.target.closest('.template-picker-inline');
+    if (templatePicker instanceof HTMLElement) {
+      event.preventDefault();
+      toggleTemplatePickerMenu(templatePicker);
+      return;
+    }
   }
 
   if (event.key !== 'Backspace' && event.key !== 'Delete') return;
@@ -756,18 +988,32 @@ const handleEditorKeydown = (event: KeyboardEvent) => {
   removeSkillToken(token, event.key === 'Delete' ? 'next' : 'previous');
 };
 
-const triggerSkillAction = (skillName?: string) => {
-  if (skillName) {
-    insertSkillPrompt(skillName);
+const isTemplateSelection = (
+  selection: SkillDropdownSelection | undefined,
+): selection is Exclude<SkillDropdownSelection, string> =>
+  Boolean(selection && typeof selection !== 'string');
+
+const triggerSkillAction = (selection?: SkillDropdownSelection) => {
+  if (isTemplateSelection(selection)) {
+    insertSkillTemplatePrompt(selection.skillName, selection.template);
+  } else if (selection) {
+    insertSkillPrompt(selection);
   }
   showSkillMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
 };
 
-const triggerInlineSkillAction = (skillName?: string) => {
-  if (skillName) {
-    insertSkillToken(skillName, activeSkillRange.value);
+const triggerInlineSkillAction = (selection?: SkillDropdownSelection) => {
+  if (isTemplateSelection(selection)) {
+    insertSkillTemplatePrompt(selection.skillName, selection.template, activeSkillRange.value);
+  } else if (selection) {
+    insertSkillToken(selection, activeSkillRange.value);
+    const templates = templatesForSkillName(selection);
+    if (templates.length) {
+      insertPlainTextAtCaret('，采用');
+      insertTemplatePickerToken(selection, null, null, true);
+    }
   }
   showSkillMenu.value = false;
   showInlineSkillMenu.value = false;
@@ -855,8 +1101,10 @@ const closeDropdown = () => {
   showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
+  closeTemplatePickerMenu();
   activeSkillRange.value = null;
   activeTemplateRange.value = null;
+  inlineSkillQuery.value = '';
   inlineTemplateQuery.value = '';
 };
 
@@ -903,23 +1151,63 @@ onBeforeUnmount(() => {
       @mousedown.prevent
       @click.stop
     >
-      <SkillDropdownContent @select="triggerInlineSkillAction" @manage="openSkillManageModal" />
+      <SkillDropdownContent
+        :inline-query="inlineSkillQuery"
+        :show-manage="false"
+        @select="triggerInlineSkillAction"
+      />
     </div>
 
     <div
-      v-if="showInlineTemplateMenu"
-      class="inline-template-dropdown"
-      role="menu"
-      :style="{ left: `${inlineShortcutMenuPosition.left}px`, top: `${inlineShortcutMenuPosition.top}px` }"
+      v-if="openTemplatePickerToken"
+      class="template-picker-dropdown"
+      role="listbox"
+      :style="{ left: `${templatePickerMenuPosition.left}px`, top: `${templatePickerMenuPosition.top}px` }"
       @mousedown.prevent
       @click.stop
     >
-      <TemplateDropdownContent
-        :inline-query="inlineTemplateQuery"
-        :show-search="false"
-        :show-manage="false"
-        @select="triggerInlineTemplateAction"
-      />
+      <article
+        v-for="template in openTemplatePickerOptions"
+        :key="template.id"
+        class="template-picker-option"
+        :class="{ selected: openTemplatePickerSelectedId === template.id }"
+        role="option"
+        tabindex="0"
+        :aria-selected="openTemplatePickerSelectedId === template.id"
+        @click="selectTemplateFromPicker(template)"
+        @keydown.enter.prevent="selectTemplateFromPicker(template)"
+      >
+        <span class="template-picker-option-main">
+          <span class="template-picker-option-name">{{ template.name }}</span>
+          <span class="template-picker-option-desc">{{ template.preview }}</span>
+        </span>
+        <button
+          class="template-picker-preview-btn"
+          type="button"
+          :aria-label="`预览${template.name}`"
+          @click.stop="openTemplatePreview(template)"
+        >
+          <Eye :size="14" />
+          <span>预览</span>
+        </button>
+      </article>
+    </div>
+
+    <div
+      v-if="previewTemplate"
+      class="template-preview-backdrop"
+      role="dialog"
+      aria-modal="true"
+      @mousedown.self="closeTemplatePreview"
+    >
+      <section class="template-preview-dialog" @mousedown.stop>
+        <TemplateDetailPanel
+          :template="previewTemplate"
+          layout="modal"
+          @back="closeTemplatePreview"
+          @select="selectPreviewTemplate"
+        />
+      </section>
     </div>
 
     <div class="input-actions">
@@ -997,27 +1285,9 @@ onBeforeUnmount(() => {
           </button>
 
           <div v-if="showSkillMenu" class="skill-dropdown" role="menu">
-            <SkillDropdownContent @select="triggerSkillAction" @manage="openSkillManageModal" />
-          </div>
-        </div>
-
-        <div v-if="isResearchMode" class="template-menu" @click.stop>
-          <button
-            class="text-tool-btn"
-            type="button"
-            aria-label="打开模板菜单"
-            :aria-expanded="showTemplateMenu"
-            @click="toggleTemplateMenu"
-          >
-            <LayoutTemplate :size="20" class="text-tool-icon" />
-            <span>模板</span>
-          </button>
-
-          <div v-if="showTemplateMenu" class="template-dropdown" role="menu">
-            <TemplateDropdownContent
-              @select="triggerTemplateAction"
-              @create="createTemplateFromDropdown"
-              @manage="openTemplateLibrary"
+            <SkillDropdownContent
+              @select="triggerSkillAction"
+              @manage="openSkillManageModal"
             />
           </div>
         </div>
@@ -1091,12 +1361,6 @@ onBeforeUnmount(() => {
       @close="showSkillManageModal = false"
       @create="createSkillFromModal"
       @use="createSkillFromModal"
-    />
-    <TemplateManageModal
-      v-if="showTemplateManageModal"
-      @close="showTemplateManageModal = false"
-      @create="createTemplateFromDropdown"
-      @select="triggerTemplateAction"
     />
   </div>
 </template>
@@ -1174,10 +1438,60 @@ onBeforeUnmount(() => {
   color: #047857;
 }
 
+.chat-editor-row :deep(.template-picker-inline) {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 4px;
+  padding: 0 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 24px;
+  vertical-align: baseline;
+  user-select: none;
+  cursor: pointer;
+}
+
+.chat-editor-row :deep(.template-picker-label) {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.chat-editor-row :deep(.template-picker-value) {
+  max-width: 152px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-editor-row :deep(.template-picker-arrow) {
+  width: 0;
+  height: 0;
+  flex-shrink: 0;
+  border-top: 5px solid currentColor;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  opacity: 0.72;
+}
+
+.chat-editor-row :deep(.template-picker-inline[aria-expanded="true"]) {
+  border-color: #60a5fa;
+  background: #dbeafe;
+}
+
 .chat-editor-row :deep(.skill-inline-code.selected),
 .chat-editor-row :deep(.skill-inline-code:focus),
 .chat-editor-row :deep(.template-inline-code.selected),
-.chat-editor-row :deep(.template-inline-code:focus) {
+.chat-editor-row :deep(.template-inline-code:focus),
+.chat-editor-row :deep(.template-picker-inline.selected),
+.chat-editor-row :deep(.template-picker-inline:focus) {
   outline: 1px solid #93c5fd;
   outline-offset: 1px;
 }
@@ -1279,7 +1593,9 @@ onBeforeUnmount(() => {
 .text-tool-btn:focus-visible,
 .thinking-select-option:focus-visible,
 .send-btn:focus-visible,
-.action-menu-item:focus-visible {
+.action-menu-item:focus-visible,
+.template-picker-option:focus-visible,
+.template-picker-preview-btn:focus-visible {
   outline: 2px solid #60a5fa;
   outline-offset: 2px;
 }
@@ -1346,7 +1662,8 @@ onBeforeUnmount(() => {
 .skill-dropdown,
 .template-dropdown,
 .inline-skill-dropdown,
-.inline-template-dropdown {
+.inline-template-dropdown,
+.template-picker-dropdown {
   --dropdown-x: 0px;
   position: absolute;
   left: 0;
@@ -1368,6 +1685,8 @@ onBeforeUnmount(() => {
 .skill-dropdown,
 .template-dropdown {
   width: 300px;
+  max-height: min(392px, calc(100vh - 240px));
+  overflow: hidden;
   border-color: #dbe4f0;
   border-radius: 12px;
 }
@@ -1379,6 +1698,103 @@ onBeforeUnmount(() => {
   width: 300px;
   max-height: 320px;
   overflow: hidden;
+}
+
+.template-picker-dropdown {
+  top: auto;
+  bottom: auto;
+  width: 260px;
+  max-height: 268px;
+  overflow-y: auto;
+}
+
+.template-picker-option {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #475569;
+  text-align: left;
+  cursor: pointer;
+}
+
+.template-picker-option:hover,
+.template-picker-option.selected {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.template-picker-option-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.template-picker-option-name {
+  overflow: hidden;
+  color: currentColor;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-picker-option-desc {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.template-picker-preview-btn {
+  flex-shrink: 0;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 7px;
+  color: #2563eb;
+  background: #dbeafe;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.template-picker-preview-btn:hover {
+  background: #bfdbfe;
+}
+
+.template-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(2px);
+}
+
+.template-preview-dialog {
+  width: min(1040px, calc(100vw - 56px));
+  height: min(780px, calc(100vh - 56px));
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 28px 80px rgba(15, 23, 42, 0.3);
 }
 
 .action-group {
@@ -1576,7 +1992,8 @@ onBeforeUnmount(() => {
 
   .action-dropdown,
   .skill-dropdown,
-  .template-dropdown {
+  .template-dropdown,
+  .template-picker-dropdown {
     top: calc(100% + 10px);
     bottom: auto;
   }
@@ -1590,6 +2007,10 @@ onBeforeUnmount(() => {
     --dropdown-x: -50%;
     left: 50%;
     width: min(300px, calc(100vw - 32px));
+  }
+
+  .template-picker-dropdown {
+    width: min(260px, calc(100vw - 32px));
   }
 }
 </style>

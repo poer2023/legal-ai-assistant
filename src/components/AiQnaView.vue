@@ -178,7 +178,7 @@ const triggerTemplateAction = (template: TemplateAsset) => {
 };
 
 const renderMockText = (text: string) => {
-  return text.replace(/\[(\d+)\]/g, '<span class="source-index">$1</span>');
+  return text.replace(/\[(\d+)\]/g, '<sup class="source-index">$1</sup>');
 };
 
 const tokenizePromptText = (text: string): PromptPart[] => {
@@ -212,8 +212,8 @@ const submitComposer = () => {
 
   completedQuestion.value = inputValue.value.trim() || reportMock.userPrompt;
   hasCompletedMock.value = true;
-  isReferenceDrawerOpen.value = true;
-  isDocxPreviewOpen.value = false;
+  isReferenceDrawerOpen.value = false;
+  isDocxPreviewOpen.value = true;
   inputValue.value = '';
   selectedTemplate.value = null;
   showSourceNotice.value = false;
@@ -226,8 +226,8 @@ const submitSharedComposer = (value: string) => {
 
   completedQuestion.value = nextValue;
   hasCompletedMock.value = true;
-  isReferenceDrawerOpen.value = true;
-  isDocxPreviewOpen.value = false;
+  isReferenceDrawerOpen.value = false;
+  isDocxPreviewOpen.value = true;
   inputValue.value = '';
   selectedTemplate.value = null;
   showSourceNotice.value = false;
@@ -237,8 +237,8 @@ const submitSharedComposer = (value: string) => {
 const openDocxMock = (prompt?: string) => {
   completedQuestion.value = prompt?.trim() || reportMock.userPrompt;
   hasCompletedMock.value = true;
-  isReferenceDrawerOpen.value = true;
-  isDocxPreviewOpen.value = false;
+  isReferenceDrawerOpen.value = false;
+  isDocxPreviewOpen.value = true;
   inputValue.value = '';
   selectedTemplate.value = null;
   showSourceNotice.value = false;
@@ -436,7 +436,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
                   已按“法律研究报告”模板生成一份婚姻家事方向的 Word 文档，内容覆盖共同财产分割、共同债务、子女抚养、家务补偿及离婚救济等核心问题。
                 </p>
                 <p>
-                  报告已整理为可导出的 `.docx` 文件，右侧保留本次生成所依据的主要法规、司法解释和类案来源。
+                  报告已整理为可导出的 `.docx` 文件，右侧默认打开文件预览；需要核对依据时，可再查看本次生成的参考来源。
                 </p>
 
                 <div
@@ -1490,18 +1490,15 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 :deep(.source-index) {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 2px;
-  border-radius: 999px;
-  color: #6b7280;
-  background: #eef1f5;
-  font-size: 11px;
+  display: inline-block;
+  margin: 0 1px;
+  color: #2a5bd7;
+  background: transparent;
+  font-size: 0.72em;
   font-weight: 800;
-  vertical-align: 1px;
+  line-height: 1;
+  text-indent: 0;
+  vertical-align: super;
 }
 
 .closing-copy {

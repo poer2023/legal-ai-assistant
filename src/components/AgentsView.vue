@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import type { Component } from 'vue';
 import { useRouter } from 'vue-router';
 import SearchBox from './SearchBox.vue';
+import type { InvestigationAgentKey } from '../data/investigationAgents';
 import {
   Bot,
   Clock,
@@ -19,7 +21,48 @@ import {
 
 const router = useRouter();
 
-const allAgents = [
+type AgentCard = {
+  id: number;
+  name: string;
+  description: string;
+  icon: Component;
+  color: string;
+  bgColor: string;
+  routeName: string;
+  agentKey?: InvestigationAgentKey;
+};
+
+const allAgents: AgentCard[] = [
+  {
+    id: 25,
+    name: '网络核查',
+    description: '核查主体网络信息、舆情线索与公开关联风险',
+    icon: SearchCheck,
+    color: '#2563eb',
+    bgColor: '#eff6ff',
+    routeName: 'investigation-agent-demo',
+    agentKey: 'network-verification'
+  },
+  {
+    id: 26,
+    name: '资金流向',
+    description: '梳理交易记录、资金路径与异常流转线索',
+    icon: FileDiff,
+    color: '#0f766e',
+    bgColor: '#ecfdf5',
+    routeName: 'investigation-agent-demo',
+    agentKey: 'fund-flow'
+  },
+  {
+    id: 27,
+    name: '股权穿透核查',
+    description: '穿透股权结构、实际控制人与关联企业关系',
+    icon: LayoutGrid,
+    color: '#7c3aed',
+    bgColor: '#f5f3ff',
+    routeName: 'investigation-agent-demo',
+    agentKey: 'equity-penetration'
+  },
   {
     id: 1,
     name: '咨政报告',
@@ -239,20 +282,47 @@ const allAgents = [
 ];
 
 const recentAgents = [
-  allAgents.find(agent => agent.name === '民事起诉状')!,
-  allAgents.find(agent => agent.name === '会议纪要')!,
-  allAgents.find(agent => agent.name === '文档纠错')!,
-  allAgents.find(agent => agent.name === '咨政报告')!,
-  allAgents.find(agent => agent.name === '类案分析报告')!,
+  allAgents.find(agent => agent.name === '网络核查')!,
+  allAgents.find(agent => agent.name === '资金流向')!,
+  allAgents.find(agent => agent.name === '股权穿透核查')!,
 ];
 
-const handleCardClick = (routeName: string, agentName: string) => {
-  if (routeName === 'prod-generic-agent') {
-    router.push({ name: routeName, params: { agentSlug: agentName } });
+const writingIconAgents = new Set([
+  '民事起诉书',
+  '民事起诉状',
+  '文书写作',
+  '公文写作',
+  '会议纪要',
+  '职称评选报告',
+]);
+
+const pencilIconAgents = new Set([
+  '合同协议',
+  '合同起草',
+  'PPT',
+  '公众号文章',
+  '设计说明书',
+  '去AI痕迹',
+]);
+
+const getAgentIconClass = (agentName: string) => {
+  if (writingIconAgents.has(agentName)) return 'agent-icon-writing';
+  if (pencilIconAgents.has(agentName)) return 'agent-icon-pencil';
+  return 'agent-icon-word';
+};
+
+const handleCardClick = (agent: AgentCard) => {
+  if (agent.routeName === 'investigation-agent-demo' && agent.agentKey) {
+    router.push({ name: agent.routeName, params: { agentKey: agent.agentKey } });
     return;
   }
 
-  router.push({ name: routeName });
+  if (agent.routeName === 'prod-generic-agent') {
+    router.push({ name: agent.routeName, params: { agentSlug: agent.name } });
+    return;
+  }
+
+  router.push({ name: agent.routeName });
 };
 </script>
 
@@ -278,26 +348,28 @@ const handleCardClick = (routeName: string, agentName: string) => {
             <Clock :size="18" class="title-icon" />
             <span>最近使用</span>
           </div>
-          <div class="section-action">
+          <button class="section-action" type="button" aria-label="查看智能体使用记录">
             <ChevronRight :size="16" />
             <span>使用记录</span>
-          </div>
+          </button>
         </div>
         <div class="agent-grid">
-          <div
+          <button
             v-for="agent in recentAgents"
             :key="`recent-${agent.id}`"
             class="agent-card"
-            @click="handleCardClick(agent.routeName, agent.name)"
+            type="button"
+            :aria-label="`打开${agent.name}智能体：${agent.description}`"
+            @click="handleCardClick(agent)"
           >
-            <div class="agent-icon" :style="{ backgroundColor: agent.bgColor }">
-              <component :is="agent.icon" :size="24" :style="{ color: agent.color }" />
+            <div class="agent-icon" :class="getAgentIconClass(agent.name)" aria-hidden="true">
+              <span class="agent-icon-glyph"></span>
             </div>
             <div class="agent-info">
               <span class="agent-name">{{ agent.name }}</span>
               <span class="agent-desc">{{ agent.description }}</span>
             </div>
-          </div>
+          </button>
         </div>
       </section>
 
@@ -309,20 +381,22 @@ const handleCardClick = (routeName: string, agentName: string) => {
           </div>
         </div>
         <div class="agent-grid">
-          <div
+          <button
             v-for="agent in allAgents"
             :key="agent.id"
             class="agent-card"
-            @click="handleCardClick(agent.routeName, agent.name)"
+            type="button"
+            :aria-label="`打开${agent.name}智能体：${agent.description}`"
+            @click="handleCardClick(agent)"
           >
-            <div class="agent-icon" :style="{ backgroundColor: agent.bgColor }">
-              <component :is="agent.icon" :size="24" :style="{ color: agent.color }" />
+            <div class="agent-icon" :class="getAgentIconClass(agent.name)" aria-hidden="true">
+              <span class="agent-icon-glyph"></span>
             </div>
             <div class="agent-info">
               <span class="agent-name">{{ agent.name }}</span>
               <span class="agent-desc">{{ agent.description }}</span>
             </div>
-          </div>
+          </button>
         </div>
       </section>
     </div>
@@ -440,6 +514,7 @@ const handleCardClick = (routeName: string, agentName: string) => {
 }
 
 .agent-card {
+  width: 100%;
   background: white;
   border-radius: 12px;
   padding: 16px;
@@ -450,6 +525,7 @@ const handleCardClick = (routeName: string, agentName: string) => {
   flex-direction: row;
   align-items: center;
   gap: 12px;
+  text-align: left;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
@@ -459,14 +535,139 @@ const handleCardClick = (routeName: string, agentName: string) => {
   border-color: #dbeafe;
 }
 
+.agent-card:focus-visible,
+.section-action:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 3px;
+}
+
 .agent-icon {
   width: 48px;
   height: 48px;
+  position: relative;
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.agent-icon-glyph,
+.agent-icon-glyph::before,
+.agent-icon-glyph::after {
+  content: "";
+  position: absolute;
+  display: block;
+}
+
+.agent-icon-word {
+  background: #eaf4ff;
+}
+
+.agent-icon-word .agent-icon-glyph {
+  left: 17px;
+  top: 13px;
+  width: 20px;
+  height: 25px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #12a9f4 0%, #0c73d9 100%);
+  box-shadow:
+    -7px 7px 0 -1px #0d52b7,
+    5px -5px 0 -2px rgba(255, 255, 255, 0.75);
+}
+
+.agent-icon-word .agent-icon-glyph::before {
+  left: -6px;
+  top: 6px;
+  width: 15px;
+  height: 16px;
+  border-radius: 3px;
+  background: #0b55c7;
+  box-shadow: 0 4px 8px rgba(14, 90, 200, 0.28);
+}
+
+.agent-icon-word .agent-icon-glyph::after {
+  left: -2px;
+  top: 8px;
+  color: #ffffff;
+  content: "W";
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.agent-icon-writing {
+  background: linear-gradient(135deg, #496bea 0%, #3564e7 100%);
+  box-shadow: inset 0 -1px 0 rgba(18, 42, 118, 0.16);
+}
+
+.agent-icon-writing .agent-icon-glyph {
+  left: 14px;
+  top: 12px;
+  width: 21px;
+  height: 26px;
+  border-radius: 4px;
+  background: #fffaf0;
+  box-shadow: 5px 1px 0 -1px #d8e8ff;
+}
+
+.agent-icon-writing .agent-icon-glyph::before {
+  left: 4px;
+  top: 6px;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #f97316;
+  box-shadow:
+    0 8px 0 #60a5fa,
+    8px 0 0 #f97316,
+    8px 8px 0 #60a5fa;
+}
+
+.agent-icon-writing .agent-icon-glyph::after {
+  right: -5px;
+  bottom: -3px;
+  width: 8px;
+  height: 22px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, #ffd84d 0 32%, #ffffff 32% 50%, #60a5fa 50% 100%);
+  transform: rotate(28deg);
+  box-shadow: 0 3px 7px rgba(30, 64, 175, 0.25);
+}
+
+.agent-icon-pencil {
+  background: #ffe86a;
+}
+
+.agent-icon-pencil .agent-icon-glyph {
+  left: 12px;
+  top: 13px;
+  width: 28px;
+  height: 12px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #6bb7ff 0 58%, #ffffff 58% 72%, #f59e0b 72% 100%);
+  transform: rotate(45deg);
+  box-shadow: 0 7px 12px rgba(176, 126, 0, 0.2);
+}
+
+.agent-icon-pencil .agent-icon-glyph::before {
+  right: -8px;
+  top: 2px;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 9px solid #475569;
+}
+
+.agent-icon-pencil .agent-icon-glyph::after {
+  left: -3px;
+  top: 0;
+  width: 5px;
+  height: 12px;
+  border-radius: 6px 0 0 6px;
+  background: #93c5fd;
 }
 
 .agent-info {

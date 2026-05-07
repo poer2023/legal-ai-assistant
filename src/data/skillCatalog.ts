@@ -566,370 +566,371 @@ ${renderBullets(skill.guardrails)}
   },
 ];
 
-const legalWorkflowSkillSeeds: LegalWorkflowSkillSeed[] = [
+const onboardedLegalSkillSeeds: LegalWorkflowSkillSeed[] = [
   {
-    id: 'legal-intake',
-    name: 'legal-intake',
-    description: '法律事实采集与问题澄清，把模糊咨询整理成可回答、可检索、可写作的事实框架。',
-    shortDescription: 'Collect facts, goals, jurisdiction, evidence, and missing information before legal work.',
+    id: 'contract-drafting',
+    name: '合同起草',
+    description: '基于模板与业务信息的合同起草助手。',
+    shortDescription: 'Draft contracts from transaction facts, party positions, clauses, risk allocation, and templates.',
     overview:
-      '用于法律问答、文书写作、检索分析前的事实采集。先把用户的零散描述整理为主体、地域、时间线、金额、证据、目标和待确认事项，再决定是否进入回答、搜索或写作。',
+      '用于从零起草或基于模板生成合同文本。先确认交易类型、主体信息、履行安排、价款、验收、违约、解除、争议解决和附件清单，再生成可继续编辑的合同草稿。',
     goodFit: [
-      '用户只描述了片段事实，但还没有形成清晰法律问题。',
-      '需要在起草起诉状、律师函、法律意见或合同审查前补齐背景。',
-      '需要判断下一步应追问、检索、写作还是整理证据。',
+      '用户要起草买卖、服务、租赁、借款、合作、保密、股权转让等合同。',
+      '已有业务要点或旧模板，需要整理成结构完整的合同初稿。',
+      '需要站在甲方、乙方、采购方、供应方、出租方或承租方立场配置条款。',
     ],
     workflow: [
-      '识别事项类型、用户立场、预期目标和紧急期限。',
-      '抽取当事人、地区、时间线、金额、合同或行为节点、已有证据。',
-      '把已确认事实、用户推测、法律判断和缺口分开记录。',
-      '只追问会影响结论或文书结构的必要问题。',
-      '给出下一步可进入的技能或工作流建议。',
+      '确认合同类型、适用场景、用户立场、交易目的和是否已有模板。',
+      '抽取主体、标的、数量、价款、税费、付款、交付、验收、期限、附件和联系人。',
+      '识别必须追问的关键缺口，尤其是主体资格、授权、标的边界、付款条件和验收标准。',
+      '按合同结构生成标题、首部、定义、核心条款、一般条款、违约责任、争议解决、签署页和附件。',
+      '根据用户立场加入风险保护条款，例如付款保障、验收异议、责任上限、解除权、保密和知识产权。',
+      '输出草稿后附上缺口清单、需业务确认项和可谈判条款。',
     ],
     output: [
-      '输出事实摘要、缺口清单、追问问题和建议进入的下一步。',
-      '每个追问都说明为什么会影响法律判断或文书内容。',
-      '对紧急期限、诉讼时效、管辖、证据灭失风险单独标记。',
+      '输出完整合同草稿，并保留待补充字段占位符。',
+      '同时输出条款说明、风险提示、业务确认清单和附件清单。',
+      '对可能影响交易安全的缺失信息单独标注，不用虚构内容补齐。',
     ],
     guardrails: [
-      '不得把未确认事实写成确定事实。',
-      '不得在事实缺口明显时直接给最终法律结论。',
-      '不得替用户虚构证据、金额、日期、主体身份或诉讼请求。',
+      '不得编造主体名称、统一社会信用代码、金额、日期、账户、授权或附件。',
+      '不得把不确定的交易条件写成确定承诺。',
+      '不得忽略用户立场，不能输出双方保护力度完全相同的空泛模板。',
+      '涉及强监管行业、数据出境、金融、医疗、劳动用工等事项时必须提示专项合规核验。',
     ],
-    referenceName: 'intake-checklist.md',
-    referenceContent: `# 法律事实采集清单
+    referenceName: 'contract-drafting-checklist.md',
+    referenceContent: `# 合同起草检查清单
 
-## 基础字段
+## 起草前字段
 
 | 字段 | 说明 |
 | --- | --- |
-| 用户身份 | 咨询人、代理人、当事人或旁观者 |
-| 对方主体 | 自然人、公司、机关、平台或其他组织 |
-| 地域 | 合同履行地、侵权地、不动产所在地、法院或仲裁约定 |
-| 时间线 | 签署、付款、履行、违约、通知、起诉、执行等节点 |
-| 金额 | 本金、违约金、利息、损失、费用 |
-| 材料 | 合同、聊天记录、付款凭证、发票、收据、录音、判决书 |
-| 目标 | 咨询判断、谈判、发函、起诉、答辩、检索或写作 |
+| 合同类型 | 买卖、服务、租赁、借款、合作、保密、股权等 |
+| 用户立场 | 甲方、乙方、买方、卖方、出租方、承租方等 |
+| 主体信息 | 名称、证照、授权代表、联系地址、签署权限 |
+| 标的边界 | 服务范围、货物规格、项目成果、排除事项 |
+| 价款税费 | 金额、币种、税率、发票、付款节点和条件 |
+| 履行验收 | 交付时间、交付方式、验收标准、异议期限 |
+| 风险分配 | 违约责任、责任上限、解除、不可抗力、保密、知识产权 |
+| 争议解决 | 管辖法院、仲裁机构、适用法律、送达地址 |
 
-## 追问优先级
+## 必要追问
 
-1. 会影响诉讼时效、期限、管辖、主体资格的问题优先。
-2. 会影响请求权基础和责任承担的问题其次。
-3. 仅影响表达完整度的问题最后。
+1. 没有主体信息时，先要求补充准确名称和签约身份。
+2. 没有标的范围时，不能直接生成义务边界。
+3. 没有付款和验收条件时，违约责任只能写成占位建议。
+4. 没有用户立场时，先追问保护侧重点。`,
+    templateName: 'contract-draft-template.md',
+    templateContent: `# 合同草稿
 
-## 事实标记
+## 合同名称
 
-- 已确认：用户明确提供或文件中可见。
-- 待确认：用户没有说清，但会影响判断。
-- 推测：用户表达了猜测或情绪化判断。
-- 法律判断：需要引用规则或检索后才能确认。`,
-    templateName: 'intake-output.md',
-    templateContent: `# 法律事实采集结果
+{contract_title}
 
-## 已确认事实
+## 当事人
 
-| 类别 | 内容 |
-| --- | --- |
-| 用户身份 | {user_role} |
-| 对方主体 | {counterparty} |
-| 地域/管辖 | {jurisdiction} |
-| 关键时间线 | {timeline} |
-| 争议金额 | {amount} |
-| 已有材料 | {materials} |
+| 角色 | 主体名称 | 证照/身份信息 | 联系方式 |
+| --- | --- | --- | --- |
+| 甲方 | {party_a} | {party_a_id} | {party_a_contact} |
+| 乙方 | {party_b} | {party_b_id} | {party_b_contact} |
 
-## 待确认事项
+## 正文条款
 
-| 问题 | 影响 |
-| --- | --- |
-| {question} | {impact} |
+1. 合同目的与标的：{subject}
+2. 价款与支付：{payment_terms}
+3. 履行与交付：{delivery_terms}
+4. 验收与质量：{acceptance_terms}
+5. 双方权利义务：{obligations}
+6. 违约责任：{breach_terms}
+7. 解除与终止：{termination_terms}
+8. 保密与知识产权：{confidentiality_ip}
+9. 争议解决：{dispute_resolution}
 
-## 下一步建议
+## 需确认事项
 
-- 建议进入：{next_skill}
-- 原因：{reason}`,
+| 问题 | 影响 | 建议 |
+| --- | --- | --- |
+| {missing_item} | {impact} | {suggestion} |`,
   },
   {
-    id: 'legal-answer',
-    name: 'legal-answer',
-    description: '通用法律问答，按结论、依据、适用条件、风险和下一步组织咨询回复。',
-    shortDescription: 'Answer legal questions with conclusion, basis, conditions, risks, and next steps.',
+    id: 'civil-complaint',
+    name: '民事起诉状',
+    description: '根据诉讼请求与案情陈述，一键生成规范的民事起诉状。',
+    shortDescription: 'Draft civil complaints from parties, claims, facts, evidence, jurisdiction, and filing needs.',
     overview:
-      '用于把用户的法律咨询转成结构化答复。强调先确认事实边界，再给分层结论、法律依据、风险提示和可执行下一步。',
+      '用于把民事纠纷事实整理成法院可读的民事起诉状初稿。重点是让诉讼请求、事实理由、证据目录和管辖依据相互对应。',
     goodFit: [
-      '用户问能不能做、是否违法、有没有胜算、该怎么办。',
-      '需要给非律师用户清楚解释法律判断和风险。',
-      '需要把复杂问题拆成短结论和行动建议。',
+      '用户需要起诉状初稿，案件类型包括合同、借贷、侵权、租赁等普通民事纠纷。',
+      '用户已有案情陈述和证据，需要转成正式诉讼文书。',
+      '用户不确定诉讼请求、事实理由和证据如何对应。',
     ],
     workflow: [
-      '先复述问题和关键事实边界，标记未确认事项。',
-      '判断是否可以直接回答；若事实不足，先列最少必要追问。',
-      '按请求权基础、责任构成、抗辩点或程序路径组织分析。',
-      '把结论分成确定、倾向、需补充确认三个层级。',
-      '给出下一步行动、材料准备和风险提示。',
+      '确认案由、法院、原告、被告、第三人、联系方式和送达地址。',
+      '整理诉讼请求，拆分本金、利息、违约金、赔偿、费用承担、行为请求等项目。',
+      '按时间线抽取合同签订、履行、违约、催告、损失和协商过程。',
+      '为每项诉讼请求匹配事实依据、法律依据方向和证据材料。',
+      '生成民事起诉状正文，控制格式为首部、诉讼请求、事实与理由、证据提示、尾部。',
+      '列出立案前必须补齐的主体材料、证据材料和金额计算表。',
     ],
     output: [
-      '先给短结论，再给理由和依据。',
-      '区分法律风险、证据风险、程序风险和执行风险。',
-      '引用依据时写清法律名称、条文或检索待确认状态。',
+      '输出民事起诉状初稿，包含当事人、诉请、事实理由、法院和具状人信息。',
+      '输出诉讼请求与证据对应表，便于继续整理材料。',
+      '对缺少身份证号、住所地、法院、金额计算、证据名称的项目保留占位并提示。',
     ],
     guardrails: [
-      '不得承诺案件结果或保证胜诉。',
-      '对需要实时检索的现行法、地方政策或最新裁判规则必须标明需核验。',
-      '不得忽略用户所在地区、主体身份和时间节点。',
+      '不得编造身份证号、统一社会信用代码、地址、法院名称、案号或证据。',
+      '不得把无法证明的事实写成确定事实。',
+      '诉讼请求必须具体、可执行，不写空泛的要求赔偿全部损失。',
+      '涉及管辖、诉讼时效、仲裁条款和保全时必须提示核验。',
     ],
-    referenceName: 'answer-structure.md',
-    referenceContent: `# 法律问答结构
+    referenceName: 'civil-complaint-rules.md',
+    referenceContent: `# 民事起诉状规则
 
-## 标准层次
+## 必备结构
 
-1. 短结论：一句话说明倾向。
-2. 适用前提：说明结论依赖哪些事实。
-3. 法律依据：列出规则来源或待检索来源。
-4. 具体分析：把事实代入规则。
-5. 风险提示：证据、程序、时效、执行。
-6. 下一步：补材料、沟通、发函、起诉、报警、投诉或继续检索。
-
-## 结论强度
-
-| 强度 | 使用条件 |
-| --- | --- |
-| 可以明确 | 事实充分，规则稳定 |
-| 初步倾向 | 事实基本够用，但仍有关键变量 |
-| 暂不能判断 | 关键事实缺失或需要现行规则核验 |
-
-## 常见风险类型
-
-- 诉讼时效或除斥期间。
-- 管辖或仲裁条款。
-- 主体不适格。
-- 证据真实性、关联性、合法性不足。
-- 责任比例或损失金额难以证明。`,
-    templateName: 'answer-template.md',
-    templateContent: `# 法律问答回复
-
-## 短结论
-
-{conclusion}
-
-## 适用前提
-
-- {condition}
-
-## 分析
-
-1. {analysis_point}
+1. 标题：民事起诉状。
+2. 当事人信息：自然人写姓名、性别、出生年月、民族、住址、联系方式；法人或组织写名称、住所地、法定代表人。
+3. 诉讼请求：逐项编号，金额和计算方式明确。
+4. 事实与理由：按时间线和请求权基础组织。
+5. 证据提示：列明证据名称和证明目的。
+6. 尾部：此致法院、具状人、日期。
 
 ## 风险提示
 
-| 风险 | 说明 | 建议 |
-| --- | --- | --- |
-| {risk} | {detail} | {action} |
+- 管辖法院不确定时不要直接指定。
+- 有仲裁条款时提示可能不能直接起诉。
+- 超过诉讼时效风险要单独提示。
+- 被告主体不明时优先补工商信息或身份信息。`,
+    templateName: 'civil-complaint-template.md',
+    templateContent: `# 民事起诉状
 
-## 下一步
+原告：{plaintiff}
 
-- {next_step}`,
+被告：{defendant}
+
+第三人：{third_party}
+
+## 诉讼请求
+
+1. {claim_1}
+2. {claim_2}
+3. 本案诉讼费用由被告承担。
+
+## 事实与理由
+
+{facts_and_reasons}
+
+## 证据与证明目的
+
+| 证据 | 证明目的 |
+| --- | --- |
+| {evidence_name} | {proof_purpose} |
+
+此致
+
+{court_name}
+
+具状人：{plaintiff_signature}
+
+{date}
+
+## 立案前待补充
+
+- {missing_item}`,
   },
   {
-    id: 'legal-research',
-    name: 'legal-research',
-    description: '法律研究报告生成，面向复杂问题输出问题拆解、规范依据、类案观点和结论。',
-    shortDescription: 'Create legal research memos with issue trees, rules, cases, analysis, and conclusions.',
+    id: 'document-writing',
+    name: '文书写作',
+    description: '格式规范，逻辑严谨，拟一篇公文只要几分钟。',
+    shortDescription: 'Draft legal documents with purpose, audience, facts, claims, tone, and review notes.',
     overview:
-      '用于复杂法律问题、内部研究备忘录、客户法律意见前的系统分析。重点是问题树、依据来源、争议观点、类案规则和可落地结论。',
+      '用于通用法律文书和业务公文写作。先确认文书类型、使用对象、作者立场、事实材料、表达语气和交付格式，再生成可编辑草稿。',
     goodFit: [
-      '用户要求研究一个复杂法律问题，而不是简单咨询。',
-      '需要形成可交付的研究报告、法律意见基础稿或内部备忘录。',
-      '需要综合法规、案例、监管口径、学理观点和实务路径。',
+      '用户要写律师函、法律意见、代理意见、申请书、声明、通知、备忘录或公文。',
+      '已有事实和观点，需要转为正式文书。',
+      '需要根据法院、客户、对方当事人、内部领导等不同对象调整语气。',
     ],
     workflow: [
-      '确认研究问题、法域、时间范围、交付对象和深度。',
-      '拆成核心问题、子问题和事实变量。',
-      '列出需要检索的规范、案例、政策和观点来源。',
-      '分析主流规则、例外情形、争议点和对本案的适用。',
-      '输出结论、建议路径、证据需求和待核验来源。',
+      '确认文书类型、使用场景、读者对象、发送主体、目标和语气。',
+      '抽取事实、时间线、争议焦点、请求事项、证据和已有依据。',
+      '判断是否缺少影响文书成立的关键信息，必要时先输出追问。',
+      '生成结构化提纲，保证事实、理由、主张和附件对应。',
+      '输出正文草稿，并根据场景控制正式程度、强硬程度和风险提示。',
+      '附上修改建议、缺口清单和需人工复核事项。',
     ],
     output: [
-      '报告必须包含问题、结论、依据、分析、风险和待补充材料。',
-      '对没有检索确认的依据标明待核验，不伪造条文或案例。',
-      '复杂问题用表格呈现观点差异和适用条件。',
+      '输出完整文书草稿，不只输出提纲。',
+      '说明文书用途、语气策略、关键事实来源和需补充材料。',
+      '对可能构成承认、放弃权利或扩大承诺的表述单独提示。',
     ],
     guardrails: [
-      '不得把研究报告写成泛泛普法文章。',
-      '不得跳过事实变量直接套用法条。',
-      '不得编造案例案号、法院、裁判日期或条文编号。',
+      '不得编造事实、证据、法条、案号、审批意见或授权。',
+      '不得擅自替用户作出和解承诺、付款承诺、事实承认或权利放弃。',
+      '不确定的法律依据必须标明待核验，不能包装成已核实引用。',
+      '对外发送文书必须提示人工复核主体身份、权限和送达方式。',
     ],
-    referenceName: 'research-memo-rules.md',
+    referenceName: 'document-writing-rules.md',
+    referenceContent: `# 文书写作规则
+
+## 写作前确认
+
+| 项目 | 说明 |
+| --- | --- |
+| 文书类型 | 律师函、法律意见、代理意见、申请书、声明、通知、公文等 |
+| 使用对象 | 法院、仲裁委、客户、对方当事人、监管机关、内部团队 |
+| 作者身份 | 律师、公司、个人、代理人、部门 |
+| 目标 | 催告、说明、请求、抗辩、汇报、留痕、谈判 |
+| 语气 | 克制、中性、强硬、协商、正式汇报 |
+| 材料 | 事实、证据、合同、法规、案例、既有草稿 |
+
+## 结构原则
+
+1. 先说明文书目的，再陈述事实。
+2. 事实和评价分开，避免混写导致歧义。
+3. 请求事项要具体，不能只有原则表态。
+4. 对外文书避免不必要承认事实。`,
+    templateName: 'document-writing-template.md',
+    templateContent: `# 文书草稿
+
+## 文书信息
+
+| 项目 | 内容 |
+| --- | --- |
+| 文书类型 | {document_type} |
+| 使用对象 | {recipient} |
+| 作者身份 | {author_role} |
+| 写作目标 | {goal} |
+| 语气 | {tone} |
+
+## 正文
+
+{document_body}
+
+## 附件或证据
+
+- {attachment}
+
+## 需确认事项
+
+| 事项 | 原因 |
+| --- | --- |
+| {missing_item} | {reason} |`,
+  },
+  {
+    id: 'legal-research-report',
+    name: '法律研究报告',
+    description: '基于专业知识库的论文专家。',
+    shortDescription: 'Produce legal research reports with issue framing, authorities, cases, analysis, risks, and advice.',
+    overview:
+      '用于复杂法律问题的系统研究和可交付报告。强调问题树、事实变量、法规案例检索、观点比较、结论强度和落地建议。',
+    goodFit: [
+      '用户需要法律研究报告、专项法律意见基础稿、内部研判材料或客户沟通稿。',
+      '问题涉及多部法律、司法解释、案例裁判观点或监管规则。',
+      '需要把检索结果整理成可阅读、可复核、可继续写作的报告。',
+    ],
+    workflow: [
+      '确认研究主题、法域、地域、时间范围、交付对象和报告深度。',
+      '拆解主问题、子问题、事实变量、争议观点和待检索对象。',
+      '制定法规、司法解释、案例、政策、实务观点的检索计划。',
+      '整理依据清单，标明效力状态、适用条件和待核验项。',
+      '比较不同观点和类案规则，说明对本案或业务场景的影响。',
+      '输出结论摘要、正文分析、风险提示、处理建议和资料清单。',
+    ],
+    output: [
+      '输出完整研究报告，包含摘要、研究范围、依据、分析、结论和建议。',
+      '复杂问题必须用表格展示问题树、依据和观点差异。',
+      '未检索确认的条文、案例和政策必须标注待核验。',
+    ],
+    guardrails: [
+      '不得编造法条、案例案号、法院、裁判日期、政策文号或引用来源。',
+      '不得把研究报告写成泛泛普法文章，必须回应研究问题。',
+      '不得跳过事实变量直接得出确定结论。',
+      '涉及现行有效性、地方政策、最新裁判口径时必须提示实时核验。',
+    ],
+    referenceName: 'legal-research-report-rules.md',
     referenceContent: `# 法律研究报告规则
 
-## 问题树
+## 报告结构
 
-| 层级 | 内容 |
-| --- | --- |
-| 主问题 | 用户真正需要解决的法律判断 |
-| 子问题 | 构成要件、程序路径、责任范围、抗辩事由 |
-| 事实变量 | 可能改变结论的事实 |
-| 检索对象 | 法律、司法解释、案例、监管规则、地方规定 |
+1. 结论摘要。
+2. 研究事项与适用场景。
+3. 检索范围与资料来源。
+4. 核心法律依据。
+5. 争议焦点分析。
+6. 类案或实务观点。
+7. 风险提示。
+8. 处理建议。
+9. 待核验事项。
 
-## 观点比较
+## 引用要求
 
-| 观点 | 适用条件 | 支持依据 | 对本案影响 |
-| --- | --- | --- | --- |
-
-## 研究结论标准
-
-- 结论要能回应原问题。
-- 建议要能转化为行动。
-- 风险要说明触发条件。
-- 待核验项要列明检索方向。`,
-    templateName: 'research-memo-template.md',
+- 法律法规写正式名称、条款和效力状态。
+- 案例写案号、法院、裁判日期和裁判要旨；无法确认时不得补写。
+- 实务观点要标明来源类型和适用限制。`,
+    templateName: 'legal-research-report-template.md',
     templateContent: `# 法律研究报告
 
-## 研究问题
+## 一、结论摘要
 
-{question}
+{executive_summary}
 
-## 初步结论
+## 二、研究事项
 
-{conclusion}
+{research_question}
 
-## 问题拆解
+## 三、核心依据
 
-| 子问题 | 事实变量 | 需要检索 |
-| --- | --- | --- |
-| {issue} | {fact_variable} | {source_target} |
+| 依据 | 条文/要旨 | 效力/来源 | 适用问题 |
+| --- | --- | --- | --- |
+| {authority} | {rule} | {status} | {issue} |
 
-## 依据与分析
-
-### {issue_title}
+## 四、分析论证
 
 {analysis}
 
-## 风险与建议
+## 五、风险与建议
 
 | 风险 | 触发条件 | 建议 |
 | --- | --- | --- |
 | {risk} | {condition} | {suggestion} |
 
-## 待核验事项
+## 六、待核验事项
 
 - {verification_item}`,
   },
   {
-    id: 'law-search',
-    name: 'law-search',
-    description: '法规、司法解释、政策和规范性文件检索，把问题转成检索计划与引用清单。',
-    shortDescription: 'Turn legal questions into law, regulation, policy, and citation search plans.',
+    id: 'similar-case-report',
+    name: '类案分析报告',
+    description: '文献总结评价，观点深入剖析。',
+    shortDescription: 'Build similar-case analysis reports with search strategy, comparison, holdings, and strategy.',
     overview:
-      '用于法律搜索场景，把自然语言问题转成法域、效力层级、关键词、时间范围、排除词和引用清单。适合在正式回答或写作前先做依据定位。',
+      '用于从目标案件出发进行类案检索、筛选、比较和裁判规则提炼。重点是判断案例是否真正可类比，而不是罗列案名。',
     goodFit: [
-      '需要查找法律、司法解释、部门规章、地方规定或政策口径。',
-      '需要把用户问题拆成检索关键词和权威来源顺序。',
-      '需要输出可引用的依据清单，而不是直接写答案。',
+      '用户需要支持诉讼策略、法律意见、研究报告或文书观点的类案。',
+      '目标案件有清晰案由、争议焦点、关键事实和证据结构。',
+      '需要比较有利案例、不利案例和差异案例。',
     ],
     workflow: [
-      '识别法域、地域、效力层级、时间范围和问题类型。',
-      '生成核心关键词、同义词、排除词和组合检索式。',
-      '按法律、行政法规、司法解释、部门规章、地方文件排序检索目标。',
-      '记录依据名称、条文、发布日期、施行状态和适用关系。',
-      '输出可用于问答、研究或写作的引用清单。',
+      '确认目标案件案由、法院层级、地域、时间范围、争议焦点和希望支持的观点。',
+      '生成检索关键词、同义词、排除词和筛选条件。',
+      '按事实相似度、争点一致性、法院层级、裁判时间和规则清晰度筛选案例。',
+      '逐案提炼基本案情、争议焦点、裁判理由、裁判结果和可引用规则。',
+      '比较目标案件与类案的相同点、差异点、有利点和风险点。',
+      '输出类案分析报告和诉讼策略建议。',
     ],
     output: [
-      '输出检索计划、关键词组、来源优先级和引用表。',
-      '区分现行有效、已废止、修订中、地方适用和待核验。',
-      '说明每条依据解决哪个子问题。',
+      '输出检索策略、案例筛选表、类案对比表、裁判规则和策略建议。',
+      '每个案例都要说明相似度和能否引用，不能只写案名。',
+      '必须列出不利或差异案例，避免选择性呈现。',
     ],
     guardrails: [
-      '不得用不明来源网页替代正式法规来源。',
-      '不得省略效力状态和适用地域。',
-      '不得把检索计划直接包装成最终法律结论。',
+      '不得编造案号、法院、裁判日期、裁判结果或裁判观点。',
+      '不得只因案由相同就认定为类案。',
+      '不得忽略事实差异、证据差异和法院层级差异。',
+      '无法确认来源的案例只能列为待核验线索。',
     ],
-    referenceName: 'source-priority.md',
-    referenceContent: `# 法律检索来源优先级
-
-## 规范来源顺序
-
-1. 法律。
-2. 行政法规。
-3. 司法解释、司法文件。
-4. 部门规章。
-5. 地方性法规、地方政府规章、地方规范性文件。
-6. 监管问答、办案指南、会议纪要。
-7. 裁判观点和案例。
-
-## 检索字段
-
-| 字段 | 说明 |
-| --- | --- |
-| keyword | 核心概念 |
-| synonyms | 同义词、近义词、旧称 |
-| exclude | 排除词 |
-| jurisdiction | 全国或具体地区 |
-| effective_date | 施行或修订时间 |
-| authority | 发布机关 |
-
-## 引用注意
-
-- 同一问题有上位法和下位法时，先列上位法。
-- 地方文件只能在对应地域内使用。
-- 已废止依据只能用于历史事实或修订沿革说明。`,
-    templateName: 'law-search-plan.md',
-    templateContent: `# 法律检索计划
-
-## 检索目标
-
-{search_goal}
-
-## 关键词
-
-| 类型 | 内容 |
-| --- | --- |
-| 核心词 | {keywords} |
-| 同义词 | {synonyms} |
-| 排除词 | {exclude_terms} |
-
-## 来源优先级
-
-| 顺序 | 来源 | 目标 |
-| --- | --- | --- |
-| 1 | {source_type} | {target_rule} |
-
-## 引用清单
-
-| 依据 | 条文/章节 | 效力状态 | 适用问题 |
-| --- | --- | --- | --- |
-| {law_name} | {article} | {status} | {issue} |`,
-  },
-  {
-    id: 'case-search',
-    name: 'case-search',
-    description: '类案检索与裁判规则提炼，比较事实、争议焦点、裁判理由和本案适用差异。',
-    shortDescription: 'Search and compare similar cases by facts, issues, holdings, and differences.',
-    overview:
-      '用于类案检索、裁判规则归纳和案件胜诉风险判断。重点不是堆案例，而是比较本案与类案的事实相似度、争议焦点和裁判逻辑。',
-    goodFit: [
-      '需要找相似案例支持法律意见、诉讼策略或文书观点。',
-      '需要从多个判决中提炼裁判规则。',
-      '需要判断某个案例能否真正类比到本案。',
-    ],
-    workflow: [
-      '确认案件类型、案由、法院层级、地域、时间范围和核心事实。',
-      '生成案例检索关键词，包括案由、行为、争议焦点、抗辩事由。',
-      '筛选案例时优先看事实相似度、法院层级、裁判时间和规则明确度。',
-      '提炼每个案例的争议焦点、裁判规则、结果和关键差异。',
-      '输出可引用案例、不可类比原因和本案适用建议。',
-    ],
-    output: [
-      '用表格展示案例事实、争议焦点、裁判结果和相似度。',
-      '每个类案必须写明对本案支持或不利的具体原因。',
-      '单独列出差异过大、不宜引用的案例。',
-    ],
-    guardrails: [
-      '不得只因为案由相同就认定为类案。',
-      '不得伪造案号、法院、审理程序或裁判日期。',
-      '不得忽略不利案例和相反裁判观点。',
-    ],
-    referenceName: 'case-comparison-rules.md',
-    referenceContent: `# 类案比较规则
+    referenceName: 'similar-case-analysis-rules.md',
+    referenceContent: `# 类案分析规则
 
 ## 相似度维度
 
@@ -938,7 +939,7 @@ const legalWorkflowSkillSeeds: LegalWorkflowSkillSeed[] = [
 | 法律关系 | 合同、侵权、劳动、婚姻、公司等 |
 | 核心事实 | 行为方式、履行过程、违约形态、损害后果 |
 | 争议焦点 | 法律适用和事实认定焦点 |
-| 证据结构 | 证据类型和证明强度 |
+| 证据结构 | 证据类型、证明强度、举证责任 |
 | 法院层级 | 最高法、高院、中院、基层法院 |
 | 时间 | 是否适用现行规则和当前裁判倾向 |
 
@@ -947,284 +948,71 @@ const legalWorkflowSkillSeeds: LegalWorkflowSkillSeed[] = [
 - 强相关：事实结构和争议焦点高度一致。
 - 可参考：法律问题接近，但事实或证据有差异。
 - 仅背景：只能说明一般规则，不宜作为核心依据。
-- 不利案例：结论相反或暴露本案风险。`,
-    templateName: 'case-search-report.md',
-    templateContent: `# 类案检索报告
+- 不利案例：结论相反或暴露目标案件风险。`,
+    templateName: 'similar-case-report-template.md',
+    templateContent: `# 类案分析报告
 
-## 检索问题
+## 一、目标案件
 
-{case_question}
+{target_case_summary}
 
-## 检索条件
+## 二、检索策略
 
-| 条件 | 内容 |
+| 项目 | 内容 |
 | --- | --- |
 | 案由 | {cause_of_action} |
+| 争议焦点 | {issues} |
 | 关键词 | {keywords} |
 | 法院/地域 | {court_scope} |
 | 时间范围 | {date_range} |
 
-## 类案对比
+## 三、类案对比
 
-| 案例 | 案号 | 法院 | 核心事实 | 裁判规则 | 相似度 | 对本案影响 |
+| 案例 | 案号 | 法院 | 核心事实 | 裁判规则 | 相似度 | 影响 |
 | --- | --- | --- | --- | --- | --- | --- |
 | {case_name} | {case_no} | {court} | {facts} | {holding} | {similarity} | {impact} |
 
-## 不利或差异案例
+## 四、不利或差异案例
 
 - {adverse_case}
 
-## 本案适用建议
+## 五、诉讼策略建议
 
-{recommendation}`,
-  },
-  {
-    id: 'legal-writing',
-    name: 'legal-writing',
-    description: '通用法律文书写作，先确认文书类型、立场、事实、请求和语气，再生成结构化草稿。',
-    shortDescription: 'Draft legal documents from document type, position, facts, claims, evidence, and tone.',
-    overview:
-      '用于起诉状、答辩状、律师函、法律意见书、代理意见、备忘录等法律写作。重点是写作前先锁定文书类型、对象、立场、事实、请求和证据。',
-    goodFit: [
-      '用户要求起草或改写法律文书。',
-      '需要把事实材料整理成正式、可交付、可修改的文书草稿。',
-      '需要根据不同收件对象调整语气和结构。',
-    ],
-    workflow: [
-      '确认文书类型、使用场景、收件对象、作者身份和目标。',
-      '整理事实顺序、证据支撑、法律依据和请求事项。',
-      '先输出提纲或要素清单，再生成正文。',
-      '按文书类型控制格式、标题、称谓、落款和附件。',
-      '最后列出需用户补充或人工复核的内容。',
-    ],
-    output: [
-      '输出文书草稿、要素缺口和可选表达。',
-      '事实、理由、请求、证据必须相互对应。',
-      '保留可替换占位符，不虚构未知信息。',
-    ],
-    guardrails: [
-      '不得编造案号、法院、身份证号、地址、日期或证据。',
-      '不得把草稿包装成已由律师审定的正式文件。',
-      '不得为了流畅而删除关键事实限制或风险提示。',
-    ],
-    referenceName: 'drafting-rules.md',
-    referenceContent: `# 法律文书写作规则
-
-## 写作前确认
-
-| 项目 | 说明 |
-| --- | --- |
-| 文书类型 | 起诉状、答辩状、律师函、法律意见书等 |
-| 使用对象 | 法院、仲裁委、对方当事人、客户、内部团队 |
-| 用户立场 | 原告、被告、申请人、被申请人、顾问 |
-| 核心目标 | 主张权利、抗辩、催告、谈判、说明风险 |
-| 材料 | 合同、证据、检索依据、既有草稿 |
-
-## 正文组织
-
-1. 先事实，后法律评价。
-2. 先无争议事实，后争议事实。
-3. 请求事项必须能被事实和依据支撑。
-4. 语气根据对象调整：法院文书克制，对方函件明确，客户意见解释充分。`,
-    templateName: 'document-brief.md',
-    templateContent: `# 法律文书写作任务单
-
-## 文书信息
-
-| 项目 | 内容 |
-| --- | --- |
-| 文书类型 | {document_type} |
-| 使用对象 | {recipient} |
-| 用户立场 | {position} |
-| 写作目标 | {goal} |
-| 语气 | {tone} |
-
-## 事实与证据
-
-| 事实 | 证据 | 是否确认 |
-| --- | --- | --- |
-| {fact} | {evidence} | {status} |
-
-## 请求或主张
-
-- {claim}
-
-## 待补充
-
-- {missing_item}`,
-  },
-  {
-    id: 'evidence-organizer',
-    name: 'evidence-organizer',
-    description: '证据清单与证明目的整理，把材料对应到争议焦点、证明目的和补强建议。',
-    shortDescription: 'Organize evidence by fact, proof purpose, issue, source, and gap.',
-    overview:
-      '用于证据目录、诉讼材料准备、合同纠纷、劳动争议、借贷纠纷等场景。把用户材料转成证据名称、来源、对应事实、证明目的、风险和补强建议。',
-    goodFit: [
-      '用户上传或描述了大量材料，需要整理成证据目录。',
-      '需要判断哪些证据能证明哪些争议焦点。',
-      '需要发现证据缺口、真实性风险和补强方向。',
-    ],
-    workflow: [
-      '先确定案件目标、争议焦点和待证明事实。',
-      '逐项抽取证据名称、来源、形成时间、持有人和内容摘要。',
-      '把每项证据对应到一个或多个待证明事实。',
-      '评估真实性、关联性、合法性和证明力风险。',
-      '输出证据目录、缺口清单和补强建议。',
-    ],
-    output: [
-      '证据表必须包含证据编号、名称、来源、证明目的和风险。',
-      '证明目的要对应争议焦点，不写空泛表述。',
-      '对关键事实没有证据支撑的地方单独列缺口。',
-    ],
-    guardrails: [
-      '不得伪造证据来源或形成时间。',
-      '不得把用户没有提供的材料写入已有证据。',
-      '不得忽略录音、聊天记录、电子数据的合法性和完整性风险。',
-    ],
-    referenceName: 'evidence-matrix-rules.md',
-    referenceContent: `# 证据矩阵规则
-
-## 证据三性
-
-| 维度 | 检查点 |
-| --- | --- |
-| 真实性 | 来源、原件、形成过程、电子数据完整性 |
-| 关联性 | 是否对应争议焦点或待证明事实 |
-| 合法性 | 取得方式、隐私、商业秘密、录音录像合法性 |
-
-## 证明目的写法
-
-不推荐：证明案件事实。
-
-推荐：证明被告于某日期收到货物但未按合同约定付款。
-
-## 补强方向
-
-- 缺合同原件：补签署页、盖章页、邮件往来。
-- 缺付款证据：补银行流水、收据、发票。
-- 缺交付证据：补签收单、物流记录、验收单。
-- 缺通知证据：补短信、邮件、快递回执、聊天记录。`,
-    templateName: 'evidence-index.md',
-    templateContent: `# 证据目录
-
-| 编号 | 证据名称 | 来源 | 形成时间 | 证明目的 | 对应事实 | 风险 | 补强建议 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 证据一 | {evidence_name} | {source} | {date} | {purpose} | {fact} | {risk} | {suggestion} |
-
-## 证据缺口
-
-| 待证明事实 | 现有证据 | 缺口 | 建议 |
-| --- | --- | --- | --- |
-| {fact_to_prove} | {current_evidence} | {gap} | {action} |`,
-  },
-  {
-    id: 'citation-check',
-    name: 'citation-check',
-    description: '法律引用校验，检查条文、案例、文号、效力状态、引用格式和待核验风险。',
-    shortDescription: 'Check statutes, cases, document numbers, validity status, and citation formatting.',
-    overview:
-      '用于问答、研究报告、法律意见和文书交付前的依据校验。重点是发现伪引、错引、旧法、失效依据、案号不完整和引用格式问题。',
-    goodFit: [
-      '已有法律分析或文书，需要校验引用是否可靠。',
-      '需要统一法条、案例、政策文件和脚注格式。',
-      '需要把待核验引用和高风险引用单独列出。',
-    ],
-    workflow: [
-      '抽取全文中的法律、司法解释、政策文件、案例和文号。',
-      '检查名称、条文、发文机关、发布日期、施行日期和效力状态。',
-      '识别旧法、已废止、地方适用、条文编号错误和案例信息缺失。',
-      '按风险等级给出修正建议或待检索项。',
-      '输出可替换的规范引用格式。',
-    ],
-    output: [
-      '输出引用清单、问题清单、修正建议和待核验项。',
-      '每条问题标注风险等级和影响范围。',
-      '保留原文位置，便于回到文书修改。',
-    ],
-    guardrails: [
-      '不得凭记忆确认最新效力状态。',
-      '不得补写无法确认的案号、日期或条文。',
-      '不得只做文字润色而忽略依据有效性。',
-    ],
-    referenceName: 'citation-validation-rules.md',
-    referenceContent: `# 引用校验规则
-
-## 法规引用字段
-
-| 字段 | 检查 |
-| --- | --- |
-| 名称 | 是否为正式名称 |
-| 条文 | 条、款、项是否准确 |
-| 效力 | 现行有效、已废止、尚未施行、部分修订 |
-| 地域 | 全国或地方适用 |
-| 时间 | 是否适用于案件事实发生时 |
-
-## 案例引用字段
-
-| 字段 | 检查 |
-| --- | --- |
-| 案号 | 是否完整 |
-| 法院 | 是否明确 |
-| 日期 | 裁判日期或公布日期 |
-| 程序 | 一审、二审、再审、执行 |
-| 规则 | 引用的是裁判规则还是事实背景 |
-
-## 风险等级
-
-- 高：可能导致结论依据错误。
-- 中：影响论证可信度或适用范围。
-- 低：格式不统一或信息不完整。`,
-    templateName: 'citation-check-report.md',
-    templateContent: `# 引用校验报告
-
-## 引用清单
-
-| 原文引用 | 类型 | 状态 | 问题 | 风险 | 建议 |
-| --- | --- | --- | --- | --- | --- |
-| {citation} | {type} | {status} | {issue} | {risk_level} | {fix} |
-
-## 可替换写法
-
-原文：{original}
-
-建议：{replacement}
-
-## 待核验
-
-- {verification_item}`,
+{strategy}`,
   },
   {
     id: 'contract-review',
-    name: 'contract-review',
-    description: '通用合同审查，识别条款风险、风险等级、原因、修改建议和替代条款。',
-    shortDescription: 'Review contract clauses for risks, levels, reasons, revisions, and replacement wording.',
+    name: '合同审查',
+    description: '多立场、多强弱视角的智能合同审查与风险提示。',
+    shortDescription: 'Review contracts by party position, risk level, clause issue, revision, and replacement wording.',
     overview:
-      '用于合同片段或完整合同的快速审查。按交易背景、用户立场、核心条款、风险等级、修改建议和替代文本输出。',
+      '用于合同片段或完整合同审查。根据用户立场和交易背景识别主体、标的、付款、交付、验收、违约、解除、保密、知识产权和争议解决风险。',
     goodFit: [
-      '用户粘贴合同条款，要求看风险或怎么改。',
+      '用户上传或粘贴合同，希望知道风险和修改建议。',
       '需要站在甲方、乙方、买方、卖方、出租方、承租方等立场审查。',
-      '需要把审查结果整理为风险矩阵或修改清单。',
+      '需要输出可执行的修订意见或替代条款。',
     ],
     workflow: [
-      '确认合同类型、交易目的、用户立场和重点关注事项。',
-      '按主体、标的、价款、履行、违约、解除、知识产权、保密、争议解决检查。',
-      '对每条风险标注高、中、低和影响原因。',
-      '给出可执行修改建议，必要时提供替代条款。',
-      '列出需要业务确认的事实和附件。',
+      '确认合同类型、交易背景、用户立场、审查重点和风险偏好。',
+      '识别合同结构、核心条款、缺失条款和异常条款。',
+      '按主体资格、标的、价款、付款、交付、验收、质量、违约、解除、责任限制、保密、知识产权、数据、合规和争议解决分模块审查。',
+      '为每项问题标注风险等级、风险类型、影响后果和触发条件。',
+      '给出修改建议，必要时提供可替换条款。',
+      '输出需业务确认的问题和后续谈判重点。',
     ],
     output: [
+      '输出合同审查报告和风险矩阵。',
       '每个风险必须对应原文条款或缺失条款。',
-      '修改建议要能直接交给合同对方沟通。',
-      '区分法律风险、商业风险和表达风险。',
+      '修改建议要能直接交给业务或合同相对方沟通。',
     ],
     guardrails: [
-      '不得离开用户立场泛泛审查。',
+      '不得脱离用户立场泛泛审查。',
       '不得虚构合同没有写明的交易条件。',
-      '不得把所有问题都标成高风险。',
+      '不得把所有问题都标为高风险。',
+      '涉及法律强制性规定、行业监管或跨境事项时必须提示专项核验。',
     ],
-    referenceName: 'contract-risk-levels.md',
-    referenceContent: `# 合同风险等级
+    referenceName: 'contract-review-rules.md',
+    referenceContent: `# 合同审查规则
 
 ## 风险等级
 
@@ -1244,96 +1032,267 @@ const legalWorkflowSkillSeeds: LegalWorkflowSkillSeed[] = [
 - 解除、终止、通知。
 - 保密、知识产权、数据与合规。
 - 管辖、仲裁、法律适用。`,
-    templateName: 'contract-review-matrix.md',
-    templateContent: `# 合同审查矩阵
+    templateName: 'contract-review-report-template.md',
+    templateContent: `# 合同审查报告
+
+## 一、审查信息
+
+| 项目 | 内容 |
+| --- | --- |
+| 合同名称 | {contract_name} |
+| 用户立场 | {position} |
+| 交易背景 | {transaction_background} |
+
+## 二、总体结论
+
+{summary}
+
+## 三、风险矩阵
 
 | 条款 | 风险等级 | 风险类型 | 问题 | 修改建议 | 替代条款 |
 | --- | --- | --- | --- | --- | --- |
 | {clause} | {level} | {risk_type} | {issue} | {suggestion} | {replacement} |
 
-## 需业务确认
+## 四、缺失条款建议
 
-- {business_question}
+- {missing_clause}
 
-## 缺失条款建议
+## 五、需业务确认
 
-- {missing_clause}`,
+- {business_question}`,
   },
   {
-    id: 'document-polish',
-    name: 'document-polish',
-    description: '法律文本润色与格式规范，提升正式性、逻辑顺序、编号、称谓和法言法语表达。',
-    shortDescription: 'Polish legal text for formal tone, logic, numbering, terminology, and formatting.',
+    id: 'document-review',
+    name: '文书审查',
+    description: '自动识别文书类型，按要求进行针对性审查与修改建议。',
+    shortDescription: 'Review legal documents for type, claims, facts, evidence, authorities, structure, and enforceability.',
     overview:
-      '用于法律文本的表达优化、格式统一和交付前清理。保持原意不变，提升正式性、逻辑清晰度、编号一致性和法律表达准确性。',
+      '用于对诉讼文书、法律意见、律师函、合同附件、公文和业务材料进行审查。先识别文书类型和用途，再从内容、法律依据、证据对应、结构格式和表达风险维度输出问题清单。',
     goodFit: [
-      '用户已有草稿，需要变得更正式、更清楚或更像法律文书。',
-      '需要统一标题、编号、称谓、日期、金额和引用格式。',
-      '需要在不改变法律立场的前提下优化表达。',
+      '用户已有文书草稿，需要审查是否完整、准确、可提交或可发送。',
+      '需要识别诉讼请求、事实理由、证据、法律依据之间是否对应。',
+      '需要输出修改建议，而不是直接润色全文。',
     ],
     workflow: [
-      '确认文本用途、收件对象、语气和是否允许实质改写。',
-      '先识别原文结构、主张、事实和法律依据。',
-      '修正口语化、重复、歧义、编号混乱和称谓不一致。',
-      '保留原意，对可能改变法律效果的改动单独说明。',
-      '输出润色稿和修改说明。',
+      '识别文书类型、使用对象、作者立场、交付场景和审查重点。',
+      '检查必备要素是否齐全，例如主体、请求、事实、理由、证据、落款、附件。',
+      '检查事实与主张、请求与依据、证据与证明目的是否对应。',
+      '识别法律依据缺失、引用错误、过度承诺、事实承认和表达歧义。',
+      '按高、中、低风险输出问题清单和修改建议。',
+      '必要时给出局部替换文本或结构调整方案。',
     ],
     output: [
-      '输出润色后正文和主要修改点。',
-      '对实质性修改、事实补充或法律判断变化单独标记。',
-      '如果原文缺事实或依据，不用润色掩盖缺口。',
+      '输出文书审查报告、问题清单、修改建议和待补充材料。',
+      '每条问题应指出位置、风险、影响和建议。',
+      '对可直接修改的表达提供替换文本。',
     ],
     guardrails: [
-      '不得擅自改变用户立场、请求事项或承认事实。',
-      '不得为了文风而删除限制条件和证据边界。',
-      '不得添加未经确认的法条、案例或事实。',
+      '不得替用户补造不存在的事实、证据、案号、法条或授权。',
+      '不得只做错别字检查而忽略实体风险。',
+      '不得在未确认用途时擅自改变文书立场。',
+      '涉及提交法院、监管机关或对外发送的文书必须提示人工复核。',
     ],
-    referenceName: 'legal-style-rules.md',
-    referenceContent: `# 法律文本风格规则
+    referenceName: 'document-review-rules.md',
+    referenceContent: `# 文书审查规则
 
-## 优化方向
+## 审查维度
 
-| 问题 | 处理 |
+| 维度 | 检查点 |
 | --- | --- |
-| 口语化 | 改为正式表达 |
-| 逻辑跳跃 | 增加过渡或调整顺序 |
-| 主体混乱 | 统一称谓 |
-| 编号混乱 | 统一层级和格式 |
-| 事实与评价混杂 | 分开事实陈述和法律评价 |
+| 类型识别 | 文书标题、用途、对象和格式是否匹配 |
+| 主体信息 | 名称、身份、授权、地址和联系方式 |
+| 请求事项 | 是否明确、具体、可执行 |
+| 事实理由 | 时间线、因果关系、争议焦点是否清楚 |
+| 法律依据 | 是否缺失、错引、旧法或待核验 |
+| 证据对应 | 证据是否支撑关键事实和请求 |
+| 表达风险 | 承认事实、放弃权利、过度承诺、歧义 |
 
-## 保留原则
+## 风险等级
 
-- 保留原始立场。
-- 保留事实边界。
-- 保留不确定性提示。
-- 保留证据不足的说明。
+- 高：可能影响提交、胜诉基础、权利义务或法律效果。
+- 中：影响论证可信度、可执行性或沟通效果。
+- 低：格式、表述、编号、标点和一致性问题。`,
+    templateName: 'document-review-report-template.md',
+    templateContent: `# 文书审查报告
 
-## 需要提示用户的改动
+## 一、基本信息
 
-- 可能构成事实承认。
-- 可能扩大或缩小请求范围。
-- 可能改变责任承担表述。
-- 可能影响谈判强硬程度。`,
-    templateName: 'polish-result.md',
-    templateContent: `# 法律文本润色结果
+| 项目 | 内容 |
+| --- | --- |
+| 文书类型 | {document_type} |
+| 使用对象 | {recipient} |
+| 用户立场 | {user_position} |
+| 审查重点 | {review_focus} |
 
-## 润色后正文
+## 二、总体结论
 
-{polished_text}
+{summary}
 
-## 主要修改
+## 三、问题清单
 
-| 位置 | 修改类型 | 说明 |
-| --- | --- | --- |
-| {location} | {change_type} | {note} |
+| 位置 | 风险等级 | 问题 | 影响 | 修改建议 |
+| --- | --- | --- | --- | --- |
+| {location} | {level} | {issue} | {impact} | {suggestion} |
 
-## 需用户确认
+## 四、可替换文本
+
+原文：{original}
+
+建议：{replacement}
+
+## 五、待补充材料
+
+- {missing_item}`,
+  },
+  {
+    id: 'document-correction',
+    name: '文档纠错',
+    description: '仅针对文本格式规范与文字正确性进行纠错，输出可执行修正建议。',
+    shortDescription: 'Proofread documents for typos, punctuation, numbering, formatting, terminology, and consistency.',
+    overview:
+      '用于文档交付前的基础质量检查。聚焦错别字、漏字、多字、标点、编号、格式、称谓、日期、金额和术语一致性，不做实体法律判断扩展。',
+    goodFit: [
+      '用户已有文档，需要检查文字和格式错误。',
+      '需要输出可逐条执行的修正建议。',
+      '需要在不改变原意的情况下统一称谓、编号和格式。',
+    ],
+    workflow: [
+      '确认文档类型、是否允许改写、是否保持原格式和输出方式。',
+      '逐段检查错别字、漏字、多字、语病、重复、标点和空格。',
+      '检查标题层级、序号、编号、条款引用、表格序号和附件编号。',
+      '检查主体称谓、日期格式、金额格式、单位、专有名词和简称一致性。',
+      '输出问题位置、原文、建议修改和问题类型。',
+      '对可能改变原意的修改标注需确认。',
+    ],
+    output: [
+      '输出纠错清单和可替换文本。',
+      '区分文字错误、格式错误、一致性问题和需人工确认项。',
+      '保持原意，不做无必要扩写。',
+    ],
+    guardrails: [
+      '不得改变法律立场、事实陈述、金额、日期或承诺内容。',
+      '不得新增法条、案例、证据或实体分析。',
+      '遇到疑似实体法律问题时只提示需法律审查，不在纠错技能中展开。',
+      '不确定是错字还是专有名词时标为需确认。',
+    ],
+    referenceName: 'document-correction-rules.md',
+    referenceContent: `# 文档纠错规则
+
+## 检查类型
+
+| 类型 | 示例 |
+| --- | --- |
+| 文字错误 | 错别字、漏字、多字、重复词 |
+| 标点格式 | 中英文标点混用、空格、括号、引号 |
+| 编号层级 | 一、（一）、1.、（1）混乱 |
+| 称谓一致 | 甲方/乙方、原告/被告、申请人/被申请人 |
+| 数字日期 | 金额大小写、日期格式、百分比、单位 |
+| 引用一致 | 条款编号、附件编号、页码、标题引用 |
+
+## 修改原则
+
+- 明确错误直接给建议。
+- 可能改变原意的只标注需确认。
+- 不做实体法律判断。
+- 保留原文风格和格式层级。`,
+    templateName: 'document-correction-report-template.md',
+    templateContent: `# 文档纠错报告
+
+## 一、总体情况
+
+{summary}
+
+## 二、纠错清单
+
+| 位置 | 类型 | 原文 | 建议 | 说明 |
+| --- | --- | --- | --- | --- |
+| {location} | {issue_type} | {original} | {replacement} | {note} |
+
+## 三、需人工确认
 
 - {confirmation_item}`,
   },
+  {
+    id: 'contract-compare',
+    name: '合同比对',
+    description: '对比两份合同差异，输出条款级差异清单与风险提示。',
+    shortDescription: 'Compare two contract versions by clause, legal impact, risk level, and action recommendation.',
+    overview:
+      '用于两版合同、补充协议、修订稿或谈判稿之间的差异分析。重点识别新增、删除、修改、措辞变化、义务变化、风险转移和谈判让步。',
+    goodFit: [
+      '用户有原合同和修订版，需要知道改了什么。',
+      '需要判断差异是否影响付款、交付、验收、违约、解除、责任、管辖等关键条款。',
+      '需要输出条款级差异清单和风险等级。',
+    ],
+    workflow: [
+      '确认基准版本、新版本、用户立场和重点关注条款。',
+      '按标题、章节、条款编号和语义内容建立对应关系。',
+      '识别新增、删除、修改、移动、拆分、合并和仅格式变化。',
+      '判断每项差异对权利义务、金额、期限、责任、举证、解除和争议解决的影响。',
+      '按高、中、低风险标注差异，并给出接受、拒绝、谈判或需确认建议。',
+      '输出执行摘要、差异表和重点谈判清单。',
+    ],
+    output: [
+      '输出合同比对报告，包含总体变化、重大风险、条款级差异和建议。',
+      '对每项差异写清原文、新文、变化类型、影响和建议。',
+      '区分实质变化和格式文字变化。',
+    ],
+    guardrails: [
+      '不得只输出文本 diff 而不说明法律或业务影响。',
+      '不得忽略条款编号变化导致的引用错位。',
+      '无法确认对应关系时必须标注未匹配，不得强行合并。',
+      '不得替用户直接接受高风险修改。',
+    ],
+    referenceName: 'contract-compare-rules.md',
+    referenceContent: `# 合同比对规则
+
+## 差异类型
+
+| 类型 | 说明 |
+| --- | --- |
+| 新增 | 新版本增加条款或义务 |
+| 删除 | 新版本删除保护、义务、限制或救济 |
+| 修改 | 内容、金额、期限、责任、条件发生变化 |
+| 移动 | 条款位置变化但内容基本不变 |
+| 拆分/合并 | 原条款被拆为多条或多条合并 |
+| 格式变化 | 编号、标点、标题、排版变化 |
+
+## 重点风险
+
+- 付款条件变严或收款保障下降。
+- 交付、验收、质量标准变模糊。
+- 违约责任降低、责任上限新增或扩大免责。
+- 解除权、暂停履行权、单方变更权变化。
+- 保密、知识产权、数据、竞业或排他义务增加。
+- 管辖、仲裁、适用法律、送达条款变化。`,
+    templateName: 'contract-compare-report-template.md',
+    templateContent: `# 合同比对报告
+
+## 一、比对信息
+
+| 项目 | 内容 |
+| --- | --- |
+| 基准版本 | {base_version} |
+| 新版本 | {new_version} |
+| 用户立场 | {position} |
+
+## 二、总体变化
+
+{summary}
+
+## 三、条款级差异
+
+| 条款 | 变化类型 | 原文 | 新文 | 影响 | 风险 | 建议 |
+| --- | --- | --- | --- | --- | --- | --- |
+| {clause} | {change_type} | {old_text} | {new_text} | {impact} | {risk_level} | {suggestion} |
+
+## 四、重点谈判项
+
+- {negotiation_item}`,
+  },
 ];
 
-const legalWorkflowSkills: SkillCatalogItem[] = legalWorkflowSkillSeeds.map((skill) => ({
+const legalWorkflowSkills: SkillCatalogItem[] = onboardedLegalSkillSeeds.map((skill) => ({
   id: skill.id,
   name: skill.name,
   description: skill.description,
@@ -1391,11 +1350,12 @@ const addedRecommendedSkillIds = ref<string[]>(readAddedSkillIds());
 
 export const availableSkills = computed<SkillCatalogItem[]>(() => [
   ...defaultSkills,
-  ...recommendedSkills.filter((skill) => addedRecommendedSkillIds.value.includes(skill.id)),
+  ...recommendedSkills,
 ]);
 
 export const registeredSkillNames = computed(() => new Set([
   ...availableSkills.value.map((skill) => skill.name),
+  ...availableSkills.value.map((skill) => skill.id),
   'skill-creator',
   'template-creator',
 ]));
@@ -1404,11 +1364,12 @@ export const isRegisteredSkillName = (skillName: string) => registeredSkillNames
 
 export const isRecommendedSkill = (skillId: string) => recommendedSkillIds.has(skillId);
 
-export const isAddedRecommendedSkill = (skillId: string) => addedRecommendedSkillIds.value.includes(skillId);
+export const isAddedRecommendedSkill = (skillId: string) =>
+  recommendedSkillIds.has(skillId) || addedRecommendedSkillIds.value.includes(skillId);
 
 export const addRecommendedSkill = (skillId: string) => {
   if (!recommendedSkillIds.has(skillId)) return false;
-  if (addedRecommendedSkillIds.value.includes(skillId)) return false;
+  if (isAddedRecommendedSkill(skillId)) return false;
 
   const nextIds = normalizeAddedSkillIds([...addedRecommendedSkillIds.value, skillId]);
   addedRecommendedSkillIds.value = nextIds;

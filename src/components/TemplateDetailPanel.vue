@@ -162,24 +162,26 @@ onBeforeUnmount(() => {
 <template>
   <section class="template-detail-panel" :class="panelClass">
     <header class="detail-header">
-      <div class="detail-title-area">
-        <button class="detail-back-btn" type="button" aria-label="返回模板列表" @click="emit('back')">
-          <ChevronRight :size="17" class="back-chevron" />
-        </button>
-        <div class="detail-title-copy">
-          <span class="detail-kicker">{{ template.docType }} · {{ template.source }} · {{ template.requiredFields.length }} 个字段</span>
-          <h2>{{ template.name }}</h2>
-          <p>{{ template.preview }}</p>
+      <div class="detail-heading-row">
+        <div class="detail-title-area">
+          <button class="detail-back-btn" type="button" aria-label="返回模板列表" @click="emit('back')">
+            <ChevronRight :size="17" class="back-chevron" />
+          </button>
+          <div class="detail-title-copy">
+            <span class="detail-kicker">{{ template.docType }} · {{ template.source }}</span>
+            <h2>{{ template.name }}</h2>
+          </div>
+        </div>
+        <div class="detail-actions">
+          <span v-if="statusMessage" class="detail-status">{{ statusMessage }}</span>
+          <button class="doc-action-btn" type="button" @click="copyTemplateDocument">
+            <Copy :size="16" />
+            <span>复制正文</span>
+          </button>
+          <button class="use-template-btn" type="button" @click="selectTemplate">使用模板</button>
         </div>
       </div>
-      <div class="detail-actions">
-        <span v-if="statusMessage" class="detail-status">{{ statusMessage }}</span>
-        <button class="doc-action-btn" type="button" @click="copyTemplateDocument">
-          <Copy :size="16" />
-          <span>复制正文</span>
-        </button>
-        <button class="use-template-btn" type="button" @click="selectTemplate">选择模板</button>
-      </div>
+      <p class="detail-summary">{{ template.preview }}</p>
     </header>
 
     <div class="template-document-shell">
@@ -259,6 +261,13 @@ onBeforeUnmount(() => {
   background: #f3f4f6;
 }
 
+.template-detail-panel.modal-layout {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: #ffffff;
+}
+
 .template-detail-panel.page-layout {
   flex: 1;
   min-height: 0;
@@ -269,23 +278,36 @@ onBeforeUnmount(() => {
 .detail-header {
   min-height: 72px;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: space-between;
-  gap: 16px;
+  gap: 8px;
+  flex-shrink: 0;
   background: #ffffff;
   border-bottom: 1px solid #e5e7eb;
 }
 
 .modal-layout .detail-header {
-  padding: 0 58px 0 24px;
+  min-height: 128px;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 28px 22px 24px;
 }
 
 .page-layout .detail-header {
   min-height: 72px;
-  align-items: flex-start;
+  justify-content: flex-start;
   padding: 2px 0 4px;
   background: #f8fafc;
   border-bottom: 0;
+}
+
+.detail-heading-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
 }
 
 .detail-title-area {
@@ -293,6 +315,12 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-start;
   gap: 12px;
+}
+
+.modal-layout .detail-title-area {
+  flex: 1;
+  align-items: flex-start;
+  gap: 20px;
 }
 
 .detail-back-btn {
@@ -307,6 +335,13 @@ onBeforeUnmount(() => {
   color: #475569;
   background: #ffffff;
   box-shadow: inset 0 0 0 1px #e2e8f0;
+}
+
+.modal-layout .detail-back-btn {
+  width: 36px;
+  height: 36px;
+  margin-top: 1px;
+  border-radius: 11px;
 }
 
 .detail-back-btn:hover {
@@ -324,6 +359,12 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.modal-layout .detail-title-copy {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
 .detail-kicker {
   display: block;
   margin-bottom: 4px;
@@ -331,6 +372,14 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: 650;
   line-height: 1.2;
+}
+
+.modal-layout .detail-kicker {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .detail-title-copy h2 {
@@ -344,10 +393,26 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.detail-title-copy p {
+.modal-layout .detail-title-copy h2 {
+  font-size: 22px;
+  line-height: 1.16;
+}
+
+.detail-summary {
   max-width: 680px;
-  margin: 6px 0 0;
+  margin: 0;
+  padding-left: 42px;
+  overflow: hidden;
   color: #64748b;
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-layout .detail-summary {
+  max-width: 780px;
+  padding-left: 56px;
   font-size: 13.5px;
   line-height: 1.45;
 }
@@ -358,6 +423,11 @@ onBeforeUnmount(() => {
   gap: 10px;
   flex-shrink: 0;
   padding-top: 5px;
+}
+
+.modal-layout .detail-actions {
+  align-self: center;
+  padding-top: 0;
 }
 
 .detail-status {
@@ -406,7 +476,10 @@ onBeforeUnmount(() => {
 }
 
 .modal-layout .template-document-shell {
-  height: calc(100% - 72px);
+  flex: 1;
+  height: auto;
+  min-height: 0;
+  grid-template-columns: 210px minmax(0, 1fr);
 }
 
 .page-layout .template-document-shell {
@@ -472,9 +545,17 @@ onBeforeUnmount(() => {
 .document-stage {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
   padding: 28px 32px 40px;
   background: #eef0f3;
+}
+
+.modal-layout .document-stage {
+  height: 100%;
+  padding: 24px 28px 36px;
+  background:
+    linear-gradient(90deg, rgba(15, 23, 42, 0.05), rgba(15, 23, 42, 0) 24px),
+    #f3f6fa;
 }
 
 .page-layout .document-stage {
@@ -490,6 +571,13 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 28px rgba(15, 23, 42, 0.13);
   color: #111827;
   font-family: "Times New Roman", "Songti SC", "SimSun", serif;
+}
+
+.modal-layout .word-page {
+  width: min(720px, 100%);
+  min-height: 860px;
+  padding: 52px 64px 72px;
+  box-shadow: 0 14px 40px rgba(15, 23, 42, 0.12);
 }
 
 .page-layout .word-page {
@@ -661,12 +749,22 @@ onBeforeUnmount(() => {
 @media (max-width: 640px) {
   .detail-header,
   .page-layout .detail-header {
+    gap: 12px;
+  }
+
+  .detail-heading-row {
     align-items: flex-start;
     flex-direction: column;
     gap: 12px;
   }
 
   .detail-title-copy h2 {
+    white-space: normal;
+  }
+
+  .detail-summary,
+  .modal-layout .detail-summary {
+    padding-left: 0;
     white-space: normal;
   }
 

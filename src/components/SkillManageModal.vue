@@ -329,7 +329,7 @@ onBeforeUnmount(() => {
             <span>
               {{
                 isRecommendedListPage
-                  ? '选择法律问答、写作和搜索场景的通用技能，添加后才会进入输入框'
+                  ? '图中业务技能已上架，可直接在输入框和技能菜单中使用'
                   : '将法律工作流、文书模板和校验规则转化为可复用技能'
               }}
             </span>
@@ -382,7 +382,7 @@ onBeforeUnmount(() => {
             :disabled="isSkillAdded(skill)"
             @click.stop="addSkill(skill)"
           >
-            {{ isSkillAdded(skill) ? '已添加' : '添加' }}
+            {{ isSkillAdded(skill) ? '已上架' : '添加' }}
           </button>
 
           <div v-if="!isRecommendedListPage && openCardMenuId === skill.id" class="card-action-menu" @click.stop>
@@ -556,7 +556,12 @@ onBeforeUnmount(() => {
 
 .skill-modal.detail-mode {
   width: min(1120px, calc(100vw - 40px));
-  min-height: min(700px, calc(100vh - 40px));
+  height: min(700px, calc(100vh - 40px));
+  min-height: 0;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 0;
 }
 
@@ -826,6 +831,7 @@ onBeforeUnmount(() => {
 
 .detail-header {
   height: 72px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -928,8 +934,8 @@ onBeforeUnmount(() => {
 }
 
 .skill-detail-shell {
-  height: calc(min(700px, 100vh - 40px) - 96px);
-  min-height: 520px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   margin: 0 24px 24px;
@@ -940,6 +946,7 @@ onBeforeUnmount(() => {
 }
 
 .detail-tree {
+  min-height: 0;
   overflow: auto;
   padding: 18px 18px 24px;
   border-right: 1px solid #e5e7eb;
@@ -1017,12 +1024,15 @@ onBeforeUnmount(() => {
 
 .detail-doc {
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .doc-header {
   height: 54px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1067,6 +1077,8 @@ onBeforeUnmount(() => {
 }
 
 .doc-content {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: auto;
   padding: 0;
   color: #252525;
@@ -1076,6 +1088,7 @@ onBeforeUnmount(() => {
 .doc-editor {
   width: 100%;
   min-height: 100%;
+  box-sizing: border-box;
   margin: 0;
   padding: 34px 28px 46px;
   border: 0;
@@ -1099,7 +1112,8 @@ onBeforeUnmount(() => {
 .doc-editor {
   display: block;
   resize: none;
-  min-height: 520px;
+  height: 100%;
+  min-height: 100%;
   border-radius: 0;
   box-shadow: inset 0 0 0 2px #dbeafe;
 }
@@ -1167,6 +1181,7 @@ onBeforeUnmount(() => {
 
   .skill-modal.detail-mode {
     width: calc(100vw - 32px);
+    height: calc(100vh - 32px);
   }
 
   .skill-detail-shell {
@@ -1210,6 +1225,7 @@ onBeforeUnmount(() => {
 
   .skill-modal.detail-mode {
     width: calc(100vw - 24px);
+    height: calc(100vh - 24px);
   }
 
   .detail-header {
@@ -1221,9 +1237,10 @@ onBeforeUnmount(() => {
   }
 
   .skill-detail-shell {
-    height: auto;
+    flex: 1 1 auto;
     min-height: 0;
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
     margin: 0 16px 18px;
   }
 
@@ -1234,7 +1251,6 @@ onBeforeUnmount(() => {
   }
 
   .doc-content {
-    max-height: 420px;
     padding: 0;
   }
 

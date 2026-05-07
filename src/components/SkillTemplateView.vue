@@ -5,10 +5,9 @@ import {
   Info,
   LayoutTemplate,
   MoreHorizontal,
-  Puzzle,
   Sparkles,
 } from 'lucide-vue-next';
-import { defaultTemplateAssets, officialTemplateAssets, type TemplateAsset } from '../data/legalAssets';
+import { getTemplatesForSkill, type SkillTemplateOption } from '../data/legalAssets';
 import {
   addRecommendedSkill,
   availableSkills,
@@ -18,54 +17,37 @@ import {
   type SkillCatalogItem,
 } from '../data/skillCatalog';
 import SkillDetailPanel from './SkillDetailPanel.vue';
-import TemplateDetailPanel from './TemplateDetailPanel.vue';
 
-type LibraryKind = 'skills' | 'templates';
 type SkillMode = 'added' | 'recommended';
-type TemplateMode = 'added' | 'recommended';
 
-const activeKind = ref<LibraryKind>('skills');
 const skillMode = ref<SkillMode>('added');
-const templateMode = ref<TemplateMode>('added');
-const customTemplates = ref<TemplateAsset[]>([]);
 const statusMessage = ref('');
 const openCardMenuId = ref<string | null>(null);
 const selectedSkill = ref<SkillCatalogItem | null>(null);
-const selectedTemplate = ref<TemplateAsset | null>(null);
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 const router = useRouter();
 
+const utilitySkillIds = new Set(['docx', 'pdf', 'xlsx']);
+
 const addedSkills = computed(() => availableSkills.value);
-const addedTemplates = computed(() => [...defaultTemplateAssets, ...customTemplates.value]);
+
+const sortSkillsForLibrary = (skills: SkillCatalogItem[]) =>
+  [...skills].sort((left, right) => {
+    const leftIsUtility = utilitySkillIds.has(left.id);
+    const rightIsUtility = utilitySkillIds.has(right.id);
+    if (leftIsUtility === rightIsUtility) return 0;
+    return leftIsUtility ? 1 : -1;
+  });
 
 const visibleSkills = computed(() =>
-  skillMode.value === 'recommended' ? recommendedSkills : addedSkills.value,
+  sortSkillsForLibrary(skillMode.value === 'recommended' ? recommendedSkills : addedSkills.value),
 );
 
-const visibleTemplates = computed(() =>
-  templateMode.value === 'recommended' ? officialTemplateAssets : addedTemplates.value,
-);
-
-const isDetailOpen = computed(() => Boolean(selectedSkill.value || selectedTemplate.value));
-
-const activeTitle = computed(() => {
-  if (activeKind.value === 'skills') {
-    if (skillMode.value === 'recommended') return '推荐技能';
-    return '技能';
-  }
-
-  if (templateMode.value === 'recommended') return '官方模板';
-  return '模板';
-});
+const isDetailOpen = computed(() => Boolean(selectedSkill.value));
 
 const activeSubtitle = computed(() => {
-  if (activeKind.value === 'skills') {
-    if (skillMode.value === 'recommended') return '选择法律问答、写作和搜索场景的通用技能，添加后进入已添加列表';
-    return '将法律工作流、文书模板和校验规则转化为可复用技能';
-  }
-
-  if (templateMode.value === 'recommended') return '选择官方沉淀的文档结构，添加到本次输入上下文';
-  return '将常用文档结构、字段清单和写作约束作为可复用模板';
+  if (skillMode.value === 'recommended') return '图中业务技能已上架，可直接在输入框和技能菜单中使用';
+  return '将法律工作流、输出格式模板和校验规则转化为可复用技能';
 });
 
 const setStatus = (message: string) => {
@@ -81,52 +63,21 @@ const setStatus = (message: string) => {
 
 const clearDetail = () => {
   selectedSkill.value = null;
-  selectedTemplate.value = null;
-};
-
-const switchKind = (kind: LibraryKind) => {
-  activeKind.value = kind;
-  openCardMenuId.value = null;
-  clearDetail();
 };
 
 const setSkillMode = (mode: SkillMode) => {
   skillMode.value = mode;
-  activeKind.value = 'skills';
-  openCardMenuId.value = null;
-  clearDetail();
-};
-
-const setTemplateMode = (mode: TemplateMode) => {
-  templateMode.value = mode;
-  activeKind.value = 'templates';
   openCardMenuId.value = null;
   clearDetail();
 };
 
 const selectSkill = (skill: SkillCatalogItem) => {
-  activeKind.value = 'skills';
   openCardMenuId.value = null;
   setStatus(`${skill.name} 已选择`);
 };
 
-const selectTemplate = (template: TemplateAsset) => {
-  activeKind.value = 'templates';
-  openCardMenuId.value = null;
-  setStatus(`${template.name} 已选择`);
-};
-
 const openSkill = (skill: SkillCatalogItem) => {
-  activeKind.value = 'skills';
   selectedSkill.value = skill;
-  selectedTemplate.value = null;
-  openCardMenuId.value = null;
-};
-
-const openTemplate = (template: TemplateAsset) => {
-  activeKind.value = 'templates';
-  selectedTemplate.value = template;
-  selectedSkill.value = null;
   openCardMenuId.value = null;
 };
 
@@ -136,7 +87,6 @@ const backToList = () => {
 };
 
 const triggerCreateSkill = () => {
-  activeKind.value = 'skills';
   openCardMenuId.value = null;
   clearDetail();
   void router.push({
@@ -149,41 +99,23 @@ const triggerCreateSkill = () => {
   });
 };
 
-const triggerCreateTemplate = () => {
-  activeKind.value = 'templates';
-  openCardMenuId.value = null;
-  clearDetail();
-  void router.push({
-    name: 'home',
-    query: {
-      composerAction: 'template',
-      composerSource: 'library',
-      composerTick: Date.now().toString(),
-    },
-  });
-};
-
 const addSkill = (skill: SkillCatalogItem) => {
   const didAdd = addRecommendedSkill(skill.id);
   setStatus(didAdd ? `${skill.name} 已添加` : `${skill.name} 已在技能列表中`);
-};
-
-const addTemplate = (template: TemplateAsset) => {
-  if (!customTemplates.value.some((item) => item.id === template.id)) {
-    customTemplates.value = [...customTemplates.value, template];
-  }
-  selectTemplate(template);
 };
 
 const useSkillFromDetail = (skillName?: string) => {
   setStatus(`${skillName ?? selectedSkill.value?.name ?? '技能'} 已选择`);
 };
 
+const useTemplateFromDetail = (template: SkillTemplateOption) => {
+  setStatus(`${template.name} 格式模板已选择`);
+};
+
 const isSkillAdded = (skill: SkillCatalogItem) =>
   !isRecommendedSkill(skill.id) || isAddedRecommendedSkill(skill.id);
 
-const isTemplateAdded = (template: TemplateAsset) =>
-  addedTemplates.value.some((item) => item.id === template.id);
+const skillTemplates = (skill: SkillCatalogItem) => getTemplatesForSkill(skill);
 
 const toggleCardMenu = (id: string) => {
   openCardMenuId.value = openCardMenuId.value === id ? null : id;
@@ -203,36 +135,12 @@ onBeforeUnmount(() => {
         <span class="page-icon" aria-hidden="true">
           <Sparkles :size="22" />
         </span>
-        <h1>技能&模板</h1>
+        <h1>技能库</h1>
       </header>
 
-      <section class="content-section" :class="{ 'detail-content-section': isDetailOpen }" aria-label="技能模板管理">
-        <div class="kind-tabs" aria-label="技能与模板">
-          <button
-            class="kind-tab"
-            :class="{ active: activeKind === 'skills' }"
-            type="button"
-            @click="switchKind('skills')"
-          >
-            <Puzzle :size="15" />
-            <span>技能</span>
-            <strong>{{ addedSkills.length }}</strong>
-          </button>
-          <button
-            class="kind-tab"
-            :class="{ active: activeKind === 'templates' }"
-            type="button"
-            @click="switchKind('templates')"
-          >
-            <LayoutTemplate :size="15" />
-            <span>模板</span>
-            <strong>{{ addedTemplates.length }}</strong>
-          </button>
-        </div>
-
-        <template v-if="!selectedSkill && !selectedTemplate">
+      <section class="content-section" :class="{ 'detail-content-section': isDetailOpen }" aria-label="技能库管理">
+        <template v-if="!selectedSkill">
           <header class="section-header">
-            <h2>{{ activeTitle }}</h2>
             <div class="section-toolbar">
               <p class="section-subtitle">
                 <span>{{ activeSubtitle }}</span>
@@ -240,7 +148,7 @@ onBeforeUnmount(() => {
               </p>
               <span v-if="statusMessage" class="status-text">{{ statusMessage }}</span>
 
-              <div v-if="activeKind === 'skills'" class="mode-tabs" aria-label="技能分类">
+              <div class="mode-tabs" aria-label="技能分类">
                 <button
                   class="mode-tab"
                   :class="{ active: skillMode === 'added' }"
@@ -265,36 +173,10 @@ onBeforeUnmount(() => {
                   创建技能
                 </button>
               </div>
-
-              <div v-else class="mode-tabs" aria-label="模板分类">
-                <button
-                  class="mode-tab"
-                  :class="{ active: templateMode === 'added' }"
-                  type="button"
-                  @click="setTemplateMode('added')"
-                >
-                  已添加
-                </button>
-                <button
-                  class="mode-tab recommend-entry"
-                  :class="{ active: templateMode === 'recommended' }"
-                  type="button"
-                  @click="setTemplateMode('recommended')"
-                >
-                  官方模板
-                </button>
-                <button
-                  class="mode-tab"
-                  type="button"
-                  @click="triggerCreateTemplate"
-                >
-                  新建模版
-                </button>
-              </div>
             </div>
           </header>
 
-          <div v-if="activeKind === 'skills'" class="card-grid">
+          <div class="card-grid">
             <article
               v-for="skill in visibleSkills"
               :key="skill.id"
@@ -320,7 +202,7 @@ onBeforeUnmount(() => {
                 :disabled="isSkillAdded(skill)"
                 @click.stop="addSkill(skill)"
               >
-                {{ isSkillAdded(skill) ? '已添加' : '添加' }}
+                {{ isSkillAdded(skill) ? '已上架' : '添加' }}
               </button>
 
               <div v-if="openCardMenuId === `skill-${skill.id}`" class="card-action-menu" @click.stop>
@@ -331,48 +213,20 @@ onBeforeUnmount(() => {
 
               <h3>{{ skill.name }}</h3>
               <p>{{ skill.description }}</p>
-              <span class="card-count">{{ skill.files.length }} 个文件</span>
-            </article>
-          </div>
-
-          <div v-if="activeKind === 'templates'" class="card-grid">
-            <article
-              v-for="template in visibleTemplates"
-              :key="template.id"
-              class="managed-card"
-              :class="{ 'recommend-card': templateMode === 'recommended' }"
-              tabindex="0"
-              @click="openTemplate(template)"
-              @keydown.enter.prevent="openTemplate(template)"
-            >
-              <button
-                v-if="templateMode === 'added'"
-                class="card-more-btn"
-                type="button"
-                :aria-label="`${template.name} 更多操作`"
-                @click.stop="toggleCardMenu(`template-${template.id}`)"
-              >
-                <MoreHorizontal :size="20" />
-              </button>
-              <button
-                v-else
-                class="add-btn"
-                type="button"
-                :disabled="isTemplateAdded(template)"
-                @click.stop="addTemplate(template)"
-              >
-                {{ isTemplateAdded(template) ? '已添加' : '添加' }}
-              </button>
-
-              <div v-if="openCardMenuId === `template-${template.id}`" class="card-action-menu" @click.stop>
-                <button type="button" @click="openTemplate(template)">查看文档</button>
-                <button type="button" @click="addTemplate(template)">选择模板</button>
-                <button type="button" @click="triggerCreateTemplate">新建模版</button>
+              <div v-if="skillTemplates(skill).length" class="card-template-row" aria-label="模板">
+                <span class="format-count">
+                  <LayoutTemplate :size="13" />
+                  模板×{{ skillTemplates(skill).length }}
+                </span>
+                <span
+                  v-for="template in skillTemplates(skill).slice(0, 2)"
+                  :key="template.id"
+                  class="template-chip"
+                >
+                  {{ template.name }}
+                </span>
               </div>
-
-              <h3>{{ template.name }}</h3>
-              <p>{{ template.preview }}</p>
-              <span class="card-count">{{ template.requiredFields.length }} 个字段</span>
+              <span class="card-count">{{ skill.files.length }} 个文件</span>
             </article>
           </div>
         </template>
@@ -384,15 +238,7 @@ onBeforeUnmount(() => {
           layout="page"
           @back="backToList"
           @use="useSkillFromDetail"
-        />
-
-        <TemplateDetailPanel
-          v-else-if="selectedTemplate"
-          class="library-detail-panel"
-          :template="selectedTemplate"
-          layout="page"
-          @back="backToList"
-          @select="addTemplate"
+          @use-template="useTemplateFromDetail"
         />
       </section>
 
@@ -542,15 +388,7 @@ onBeforeUnmount(() => {
 }
 
 .section-header {
-  margin-bottom: 18px;
-}
-
-.section-header h2 {
-  margin: 0 0 16px;
-  color: #141414;
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.2;
+  margin: 4px 0 18px;
 }
 
 .section-toolbar {
@@ -635,8 +473,8 @@ onBeforeUnmount(() => {
 
 .managed-card {
   position: relative;
-  min-height: 108px;
-  padding: 20px 48px 18px 20px;
+  min-height: 142px;
+  padding: 20px 48px 42px 20px;
   border: 1px solid #dedede;
   border-radius: 14px;
   background: #ffffff;
@@ -672,7 +510,46 @@ onBeforeUnmount(() => {
   font-weight: 400;
   line-height: 1.4;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
+}
+
+.card-template-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.format-count,
+.template-chip {
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 160px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.format-count {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.format-count svg {
+  flex-shrink: 0;
+}
+
+.template-chip {
+  overflow: hidden;
+  color: #475569;
+  background: #f1f5f9;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .card-count {
