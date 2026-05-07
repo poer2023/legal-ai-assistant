@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../components/HomeView.vue';
 import AgentsView from '../components/AgentsView.vue';
+import SkillTemplateView from '../components/SkillTemplateView.vue';
 import LegalSearchView from '../components/LegalSearchView.vue';
 import LegalSearchResultsView from '../components/LegalSearchResultsView.vue';
 import LegalDocumentDetailView from '../components/LegalDocumentDetailView.vue';
@@ -27,6 +28,13 @@ import AudioEvidenceResultView from '../components/AudioEvidenceResultView.vue';
 import SimilarCaseFormView from '../components/SimilarCaseFormView.vue';
 import SimilarCaseResultView from '../components/SimilarCaseResultView.vue';
 import AiQnaView from '../components/AiQnaView.vue';
+import KnowledgeBaseView from '../components/KnowledgeBaseView.vue';
+import TeamManageView from '../components/TeamManageView.vue';
+import TeamOverviewView from '../components/TeamOverviewView.vue';
+import TeamSectionShellView from '../components/team/TeamSectionShellView.vue';
+import TeamConsultingOpsView from '../components/team/TeamConsultingOpsView.vue';
+import ProfileView from '../components/ProfileView.vue';
+import GuideView from '../components/GuideView.vue';
 
 // Placeholder views - can be replaced with actual components later
 const PlaceholderView = {
@@ -52,10 +60,125 @@ const routes = [
     meta: { title: '法律咨询' }
   },
   {
-    path: '/agent',
+    path: '/create',
+    alias: '/agent',
     name: 'agents',
     component: AgentsView,
     meta: { title: '智能体' }
+  },
+  {
+    path: '/skills',
+    name: 'skills',
+    component: SkillTemplateView,
+    meta: { title: '技能&模板' }
+  },
+  {
+    path: '/templates',
+    name: 'templates',
+    redirect: { name: 'skills' },
+    meta: { title: '技能&模板' }
+  },
+  {
+    path: '/create/policy_advisory_report',
+    name: 'policy-advisory-report-form',
+    component: LegalResearchFormView,
+    meta: { title: '咨政报告' }
+  },
+  {
+    path: '/create/similar_case_analysis_report',
+    name: 'similar-case-analysis-report-form',
+    component: SimilarCaseFormView,
+    meta: { title: '类案分析报告' }
+  },
+  {
+    path: '/create/document_review',
+    name: 'prod-document-review-form',
+    component: DocumentReviewFormView,
+    meta: { title: '文书审查' }
+  },
+  {
+    path: '/create/legal_research_report',
+    name: 'prod-legal-research-report-form',
+    component: LegalResearchFormView,
+    meta: { title: '法律研究报告' }
+  },
+  {
+    path: '/create/indict',
+    name: 'prod-indict-form',
+    component: CivilLawsuitFormView,
+    meta: { title: '民事起诉书' }
+  },
+  {
+    path: '/create/legal_doc_writing',
+    name: 'prod-legal-doc-writing-form',
+    component: DocumentWritingFormView,
+    meta: { title: '文书写作' }
+  },
+  {
+    path: '/create/document_proofreading',
+    name: 'prod-document-proofreading-form',
+    component: DocumentCorrectionFormView,
+    meta: { title: '文档纠错' }
+  },
+  {
+    path: '/create/missive',
+    name: 'missive-form',
+    component: DocumentWritingFormView,
+    meta: { title: '公文写作' }
+  },
+  {
+    path: '/create/manuscript_review',
+    name: 'manuscript-review-form',
+    component: DocumentReviewFormView,
+    meta: { title: '文稿审查' }
+  },
+  {
+    path: '/create/manuscript_polishing',
+    name: 'manuscript-polishing-form',
+    component: DocumentWritingFormView,
+    meta: { title: '文稿润色' }
+  },
+  {
+    path: '/create/contract_compare',
+    name: 'prod-contract-compare-form',
+    component: ContractCompareFormView,
+    meta: { title: '合同比对' }
+  },
+  {
+    path: '/create/contract',
+    name: 'prod-contract-form',
+    component: ContractFormView,
+    meta: { title: '合同协议' }
+  },
+  {
+    path: '/create/paper',
+    name: 'paper-form',
+    component: LegalResearchFormView,
+    meta: { title: '论文助手' }
+  },
+  {
+    path: '/create/contract_review',
+    name: 'prod-contract-review-form',
+    component: ContractReviewFormView,
+    meta: { title: '合同审查' }
+  },
+  {
+    path: '/create/civil_complaint_drafting',
+    name: 'civil-complaint-drafting-form',
+    component: CivilLawsuitFormView,
+    meta: { title: '民事起诉状' }
+  },
+  {
+    path: '/create/contract_drafting',
+    name: 'contract-drafting-form',
+    component: ContractFormView,
+    meta: { title: '合同起草' }
+  },
+  {
+    path: '/create/:agentSlug',
+    name: 'prod-generic-agent',
+    component: () => import('../components/AgentConfirmView.vue'),
+    meta: { title: '智能体确认' }
   },
   {
     path: '/agent/contract',
@@ -184,7 +307,8 @@ const routes = [
     meta: { title: '类案检索报告', fullScreen: true }
   },
   {
-    path: '/legal-search',
+    path: '/law',
+    alias: '/legal-search',
     name: 'legal-search',
     component: LegalSearchView,
     meta: { title: '法律搜索' }
@@ -202,28 +326,52 @@ const routes = [
     meta: { title: '裁判文书详情', fullScreen: true }
   },
   {
-    path: '/search',
+    path: '/scholar',
+    alias: '/search',
     name: 'search',
     component: AcademicSearchView,
     meta: { title: '学术搜索' }
   },
   {
-    path: '/knowledge',
+    path: '/library',
+    alias: '/knowledge',
     name: 'knowledge',
-    component: PlaceholderView,
+    component: KnowledgeBaseView,
     meta: { title: '知识库' }
+  },
+  {
+    path: '/guide',
+    name: 'guide',
+    component: GuideView,
+    meta: { title: '使用攻略' }
   },
   {
     path: '/team',
     name: 'team',
-    component: PlaceholderView,
-    meta: { title: '团队管理' }
+    component: TeamManageView,
+    meta: { title: '团队管理' },
+    children: [
+      { path: '', name: 'team-overview', component: TeamOverviewView, meta: { title: '团队概览' } },
+      { path: 'members', name: 'team-members', component: TeamSectionShellView, props: { section: 'members' }, meta: { title: '成员管理' } },
+      { path: 'group', alias: 'groups', name: 'team-groups', component: TeamSectionShellView, props: { section: 'groups' }, meta: { title: '小组管理' } },
+      { path: 'agent', alias: 'agents', name: 'team-agents', component: TeamSectionShellView, props: { section: 'agents' }, meta: { title: '智能体管理' } },
+      { path: 'consulting-ops', name: 'team-consulting-ops', component: TeamConsultingOpsView, meta: { title: '咨询运营分析' } },
+      { path: 'consulting-analysis', name: 'team-consulting-analysis', component: TeamConsultingOpsView, meta: { title: '咨询运营分析' } },
+      { path: 'miniprogram', name: 'team-miniprogram', component: TeamSectionShellView, props: { section: 'miniprogram' }, meta: { title: '小程序管理' } },
+    ]
   },
   {
     path: '/profile',
+    alias: ['/profile/questions', '/profile/creations'],
     name: 'profile',
-    component: PlaceholderView,
+    component: ProfileView,
     meta: { title: '个人中心' }
+  },
+  {
+    path: '/profile/basic',
+    name: 'profile-basic',
+    component: ProfileView,
+    meta: { title: '个人信息' }
   },
   {
     path: '/agent/generic/confirm',

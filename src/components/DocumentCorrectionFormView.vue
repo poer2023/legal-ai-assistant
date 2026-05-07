@@ -123,7 +123,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">智能识别文档瑕疵，全面提升文档质量</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- Document Upload -->
         <div class="form-group">

@@ -151,7 +151,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">常见合同协议文本，解决你的日常法律需求</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- Theme Input -->
         <div class="form-group">

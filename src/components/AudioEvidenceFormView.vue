@@ -103,7 +103,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">智能转写音频内容，结构化整理关键证据信息</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- Audio Upload -->
         <div class="form-group">

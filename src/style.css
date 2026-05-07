@@ -1,16 +1,13 @@
 :root {
-  --bg-color: #f7f9fd;
-  /* Very light blue background */
-  --sidebar-bg: #f7f9fd;
-  /* Match main background for seamless look or slightly different */
+  --bg-color: #f8fafc;
+  --sidebar-bg: #eff6ff;
   --header-bg: transparent;
-  /* No more dark header banner */
-  --primary-color: #3b82f6;
+  --primary-color: #2563eb;
   --text-main: #1f2937;
   --text-secondary: #64748b;
   --text-sidebar: #4b5563;
   --card-bg: #ffffff;
-  --border-radius: 12px;
+  --border-radius: 16px;
   --border-color: #e2e8f0;
 }
 
@@ -28,6 +25,7 @@ body {
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 #app {
@@ -53,4 +51,290 @@ textarea {
 a {
   text-decoration: none;
   color: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Team management pages use global rules so Vite HMR failures cannot leave
+   their production-aligned shells unstyled in the running dev tab. */
+.team-manage-page {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  background: #f8fafc;
+}
+
+.team-side-menu {
+  width: 256px;
+  height: 100%;
+  padding: 16px;
+  border-right: 1px solid rgba(229, 231, 235, 0.7);
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+
+.team-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.team-menu-item {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.team-menu-item:hover,
+.team-menu-item.active {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.team-menu-item.active {
+  font-weight: 650;
+}
+
+.team-menu-item .menu-icon {
+  flex-shrink: 0;
+}
+
+.team-main-panel {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.team-mobile-menu {
+  display: none;
+}
+
+.team-section-shell,
+.ops-page {
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+.team-overview-page {
+  width: 100%;
+  min-height: 100%;
+  padding: 32px 16px;
+  color: #1f2937;
+}
+
+.team-overview-header {
+  width: min(896px, 100%);
+  margin: 0 auto 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.team-overview-header h2 {
+  margin: 0;
+  color: #111827;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.team-info-card {
+  width: min(896px, 100%);
+  min-height: calc(100vh - 128px);
+  margin: 0 auto;
+  padding: 48px 64px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.card-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.card-title {
+  min-width: 120px;
+  color: #333333;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.edit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #2551b5;
+  border-radius: 8px;
+  color: #2551b5;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.edit-button:hover {
+  background: #eff6ff;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  margin-bottom: 10px;
+}
+
+.logo-row {
+  min-height: 102px;
+}
+
+.info-label {
+  min-width: 160px;
+  color: #333333;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.info-value {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  color: #333333;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.logo-editor {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  border-radius: 999px;
+}
+
+.team-logo {
+  width: 96px;
+  height: 96px;
+  border: 4px solid #ffffff;
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+  background: linear-gradient(135deg, #2563eb, #60a5fa);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 34px;
+  font-weight: 800;
+}
+
+.logo-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.36);
+  color: #d1d5db;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.logo-editor:hover .logo-overlay {
+  opacity: 1;
+}
+
+@media (max-width: 768px) {
+  .team-side-menu {
+    display: none;
+  }
+
+  .team-manage-page {
+    padding-bottom: 74px;
+  }
+
+  .team-mobile-menu {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 6px 8px;
+    border-top: 1px solid rgba(229, 231, 235, 0.7);
+    background: #ffffff;
+  }
+
+  .team-mobile-menu .mobile-menu-item {
+    min-width: 64px;
+    min-height: 58px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-radius: 8px;
+    color: #334155;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .team-mobile-menu .mobile-menu-item.active {
+    color: #1d4ed8;
+    background: #eff6ff;
+  }
+
+  .team-overview-page {
+    padding: 24px 14px;
+  }
+
+  .team-overview-header {
+    margin-bottom: 24px;
+  }
+
+  .team-info-card {
+    padding: 28px 18px;
+  }
+
+  .info-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    min-height: auto;
+    margin-bottom: 18px;
+  }
+
+  .info-label {
+    min-width: 0;
+  }
 }

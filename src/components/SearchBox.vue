@@ -9,14 +9,14 @@ const searchQuery = ref('');
   <div class="search-container">
     <div class="search-box">
       <Search :size="18" class="search-icon" />
-      <input 
+      <input
         v-model="searchQuery"
-        type="text" 
-        placeholder="搜索智能体、知识库、文书..."
+        type="text"
+        placeholder="搜索智能体，如文献综述、PPT…"
         class="search-input"
       />
     </div>
-    <button class="search-btn">搜索智能体</button>
+    <button class="search-btn">搜索</button>
   </div>
 </template>
 
@@ -26,15 +26,16 @@ const searchQuery = ref('');
   align-items: center;
   gap: 8px;
   background: white;
-  border-radius: 6px;
-  padding: 4px;
-  height: 48px;
+  border-radius: 12px;
+  padding: 6px;
+  height: 52px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 .search-box {
   display: flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 16px;
   width: 320px;
   height: 100%;
 }
@@ -48,8 +49,8 @@ const searchQuery = ref('');
   flex: 1;
   border: none;
   outline: none;
-  padding: 0 10px;
-  font-size: 14px;
+  padding: 0 12px;
+  font-size: 15px;
   color: #334155;
   background: transparent;
 }
@@ -61,10 +62,10 @@ const searchQuery = ref('');
 .search-btn {
   background: #3366ff;
   color: white;
-  padding: 0 20px;
-  height: 100%;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: 0 24px;
+  height: 40px;
+  border-radius: 8px;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -75,7 +76,23 @@ const searchQuery = ref('');
   background: #254eda;
 }
 
-.search-btn:active {
-  transform: translateY(0);
+@media (max-width: 768px) {
+  .search-container {
+    width: 100%;
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-box {
+    width: 100%;
+    min-height: 44px;
+    padding: 0 12px;
+  }
+
+  .search-btn {
+    width: 100%;
+    height: 42px;
+  }
 }
 </style>

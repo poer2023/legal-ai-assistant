@@ -1,208 +1,164 @@
 <script setup lang="ts">
-import { FileText, Scale, BookOpen, FolderSearch, FileSearch, FileDiff, PenTool, FileCheck, Mic, SearchCheck } from 'lucide-vue-next';
-import { useRouter } from 'vue-router';
+import {
+  BriefcaseBusiness,
+  Car,
+  FileText,
+  HandCoins,
+  Home
+} from 'lucide-vue-next';
 
-const router = useRouter();
+const emit = defineEmits<{
+  'select-question': [question: string];
+}>();
 
-const agents = [
+const exampleQuestions = [
   {
     id: 1,
-    name: '合同起草',
-    description: '快速生成各类合同协议，支持多种合同模板',
-    icon: FileText,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'contract-form'
+    question: '劳动赔偿怎么算？',
+    icon: BriefcaseBusiness
   },
   {
     id: 2,
-    name: '民事起诉状',
-    description: '民事诉讼起诉书智能生成，格式规范专业',
-    icon: Scale,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'civil-lawsuit-form'
+    question: '借款利息上限？',
+    icon: HandCoins
   },
   {
     id: 3,
-    name: '法律研究报告',
-    description: '深度法律问题研究分析，生成专业报告',
-    icon: BookOpen,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'legal-research-form'
+    question: '租房押金能退吗？',
+    icon: Home
   },
   {
     id: 4,
-    name: '证据清单整理',
-    description: '证据材料智能整理归档，构建证据链条',
-    icon: FolderSearch,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'evidence-list-form'
+    question: '交通事故怎么赔？',
+    icon: Car
   },
   {
     id: 5,
-    name: '录音证据整理',
-    description: '录音内容智能转写分析，提取关键证据信息',
-    icon: Mic,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'audio-evidence-form'
-  },
-  {
-    id: 6,
-    name: '合同审查',
-    description: '合同条款风险审查分析，识别潜在问题',
-    icon: FileSearch,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'contract-review-form'
-  },
-  {
-    id: 7,
-    name: '合同比对',
-    description: '多版本合同对比分析，标注差异要点',
-    icon: FileDiff,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'contract-comparison-form'
-  },
-  {
-    id: 8,
-    name: '文书写作',
-    description: '各类法律文书智能起草，专业规范',
-    icon: PenTool,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'document-writing-form'
-  },
-  {
-    id: 9,
-    name: '文书审查',
-    description: '法律文书审核校对，确保内容准确',
-    icon: FileCheck,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'document-review-form'
-  },
-  {
-    id: 10,
-    name: '文档纠错',
-    description: '法律文书拼写、格式、术语多重纠错',
-    icon: FileCheck,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'document-correction-form'
-  },
-  {
-    id: 11,
-    name: '类案检索报告',
-    description: '智能检索相似案例，生成专业类案分析报告',
-    icon: SearchCheck,
-    color: '#3b82f6',
-    bgColor: '#eff6ff',
-    routeName: 'similar-case-form'
+    question: '违约金能调低吗？',
+    icon: FileText
   }
 ];
 
-const handleCardClick = (agent: any) => {
-  if (agent.routeName) {
-    router.push({ name: agent.routeName });
-  }
+const exampleQuestionRows = [
+  exampleQuestions.slice(0, 3),
+  exampleQuestions.slice(3)
+];
+
+const handleQuestionClick = (question: string) => {
+  emit('select-question', question);
 };
 </script>
 
 <template>
-  <div class="app-grid">
-    <div 
-      v-for="agent in agents" 
-      :key="agent.id"
-      class="app-card"
-      :class="{ clickable: agent.routeName }"
-      @click="handleCardClick(agent)"
-    >
-      <div class="card-header">
-        <div class="app-icon" :style="{ backgroundColor: agent.bgColor }">
-          <component :is="agent.icon" :size="22" :style="{ color: agent.color }" />
-        </div>
-        <h3 class="app-name">{{ agent.name }}</h3>
-      </div>
-      <p class="app-description">{{ agent.description }}</p>
+  <div class="example-questions" aria-label="示例问题">
+    <div v-for="(row, rowIndex) in exampleQuestionRows" :key="rowIndex" class="question-row">
+      <button
+        v-for="item in row"
+        :key="item.id"
+        class="question-chip"
+        type="button"
+        @click="handleQuestionClick(item.question)"
+      >
+        <component :is="item.icon" :size="21" class="question-icon" />
+        <span>{{ item.question }}</span>
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.app-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 20px;
-}
-
-@media (max-width: 1024px) {
-  .app-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 640px) {
-  .app-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-.app-card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  border: 1px solid #f1f5f9;
-  position: relative;
-  overflow: hidden;
+.example-questions {
+  width: min(1080px, 100%);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-}
-
-.app-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(59, 130, 246, 0.08); /* Blue-tinted shadow */
-  border-color: #dbeafe;
-}
-
-.card-header {
-  display: flex;
   align-items: center;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 18px;
 }
 
-.app-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 10px;
+.question-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
+  gap: 18px;
 }
 
-.app-name {
+.question-chip {
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #525a66;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   font-size: 16px;
-  font-weight: 600;
-  color: #1e293b;
-  margin: 0;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease, transform 0.18s ease;
 }
 
-.app-description {
-  font-size: 14px;
+.question-chip:hover {
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+  box-shadow: 0 8px 22px rgba(37, 99, 235, 0.1);
+  transform: translateY(-1px);
+}
+
+.question-chip:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 3px;
+}
+
+.question-icon {
+  flex-shrink: 0;
   color: #64748b;
-  line-height: 1.6;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+}
+
+.question-chip:hover .question-icon {
+  color: #2563eb;
+}
+
+@media (max-width: 1180px) {
+  .example-questions {
+    width: min(700px, 100%);
+    gap: 12px;
+  }
+
+  .question-row {
+    gap: 12px;
+  }
+
+  .question-chip {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .example-questions {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .question-row {
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .question-chip {
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 40px;
+    padding: 0 14px;
+    font-size: 14px;
+    text-align: left;
+    white-space: normal;
+  }
 }
 </style>

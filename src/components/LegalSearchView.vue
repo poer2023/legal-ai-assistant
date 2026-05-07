@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { Search, ChevronDown, Send } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import { ChevronDown, Search } from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -8,366 +8,303 @@ const router = useRouter();
 const searchQuery = ref('');
 const activeTab = ref<'cases' | 'regulations'>('cases');
 const isFocused = ref(false);
+const isFilterOpen = ref(false);
+const regulationField = ref<'全文' | '标题'>('标题');
 
-// Search scope options
-const searchScope = ref('全文');
-const caseScopeOptions = ['全文', '标题', '案号'];
-const regulationScopeOptions = ['标题', '全文', '发文字号'];
+const fieldOptions = ['全文', '标题'] as const;
 
-const searchScopeOptions = computed(() => {
-  return activeTab.value === 'cases' ? caseScopeOptions : regulationScopeOptions;
+const placeholder = computed(() => {
+  return activeTab.value === 'cases'
+    ? '请输入司法案例关键词...'
+    : '请输入法律法规关键词...';
 });
-const showScopeDropdown = ref(false);
 
-// 监听 tab 切换，自动设置默认搜索范围
-watch(activeTab, (newTab) => {
-  searchScope.value = newTab === 'cases' ? '全文' : '标题';
-});
+const setActiveTab = (tab: 'cases' | 'regulations') => {
+  activeTab.value = tab;
+  isFilterOpen.value = false;
+};
+
+const selectField = (field: '全文' | '标题') => {
+  regulationField.value = field;
+  isFilterOpen.value = false;
+};
 
 const handleSearch = () => {
-  router.push({ 
+  const query = searchQuery.value.trim();
+  if (!query) {
+    return;
+  }
+
+  router.push({
     name: 'legal-search-results',
-    query: { q: searchQuery.value || '民间借贷', tab: activeTab.value }
+    query: { q: query, tab: activeTab.value, field: regulationField.value },
   });
 };
-
-const selectSearchScope = (scope: string) => {
-  searchScope.value = scope;
-  showScopeDropdown.value = false;
-};
-
 </script>
 
 <template>
   <div class="legal-search-view">
-    <!-- Subtle decorative orb -->
-    <div class="bg-orb"></div>
-    
     <div class="content-wrapper">
-      <!-- Title -->
-      <h1 class="page-title">法律搜索</h1>
-
-      <!-- Underline Tab Navigation -->
-      <nav class="tab-navigation">
-        <button 
-          class="tab-item" 
+      <nav class="tab-navigation" aria-label="法律搜索分类">
+        <button
+          class="tab-item"
           :class="{ active: activeTab === 'cases' }"
-          @click="activeTab = 'cases'"
+          @click="setActiveTab('cases')"
         >
           司法案例
         </button>
-        <button 
-          class="tab-item" 
+        <button
+          class="tab-item"
           :class="{ active: activeTab === 'regulations' }"
-          @click="activeTab = 'regulations'"
+          @click="setActiveTab('regulations')"
         >
           法律法规
         </button>
-        <!-- Animated underline indicator -->
-        <div 
-          class="tab-indicator" 
-          :style="{ 
-            transform: activeTab === 'cases' ? 'translateX(0)' : 'translateX(calc(100% + 32px))' 
-          }"
-        ></div>
       </nav>
 
-      <!-- Search Box -->
-      <div 
-        class="search-container" 
-        :class="{ focused: isFocused }"
+      <div
+        class="search-container"
+        :class="{
+          focused: isFocused,
+          'regulation-mode': activeTab === 'regulations',
+          'dropdown-open': isFilterOpen,
+        }"
       >
-        <!-- Scope Dropdown -->
-        <div class="search-scope-wrapper" @click="showScopeDropdown = !showScopeDropdown">
-          <span class="scope-label">{{ searchScope }}</span>
-          <ChevronDown :size="16" class="dropdown-icon" :class="{ rotated: showScopeDropdown }" />
-          
-          <Transition name="fade-slide">
-            <div v-if="showScopeDropdown" class="scope-dropdown">
-              <div 
-                v-for="option in searchScopeOptions" 
-                :key="option"
-                class="scope-option"
-                :class="{ active: searchScope === option }"
-                @click.stop="selectSearchScope(option)"
-              >
-                {{ option }}
-              </div>
-            </div>
-          </Transition>
+        <div v-if="activeTab === 'regulations'" class="field-select-wrap">
+          <button
+            class="field-select"
+            type="button"
+            :aria-expanded="isFilterOpen"
+            aria-label="选择搜索字段"
+            @click.stop="isFilterOpen = !isFilterOpen"
+          >
+            <span class="selector-label">{{ regulationField }}</span>
+            <ChevronDown :size="14" :stroke-width="1.8" class="selector-chevron" />
+          </button>
+
+          <div v-if="isFilterOpen" class="field-dropdown">
+            <button
+              v-for="field in fieldOptions"
+              :key="field"
+              class="field-option"
+              :class="{ active: regulationField === field }"
+              type="button"
+              @mousedown.prevent="selectField(field)"
+            >
+              {{ field }}
+            </button>
+          </div>
         </div>
 
-        <div class="divider"></div>
-
-        <input 
+        <input
           v-model="searchQuery"
           type="text"
           class="search-input"
-          placeholder="请输入案由、关键词、案号或法规名称"
+          :placeholder="placeholder"
           @keyup.enter="handleSearch"
           @focus="isFocused = true"
           @blur="isFocused = false"
         />
-        <button class="send-btn" @click="handleSearch">
-          <Send :size="18" />
+        <button class="search-btn" :disabled="!searchQuery.trim()" @click="handleSearch">
+          <Search :size="23" :stroke-width="2.8" />
         </button>
       </div>
-
-      <!-- Database Stats -->
-      <Transition name="fade" mode="out-in">
-        <div class="stats-text" :key="activeTab">
-          <span v-if="activeTab === 'cases'">本数据库已收录司法案例 <span class="stats-number">159,280,920</span> 篇</span>
-          <span v-else>本数据库已收录法律法规 <span class="stats-number">1,927,651</span> 篇</span>
-        </div>
-      </Transition>
-
     </div>
   </div>
 </template>
 
 <style scoped>
 .legal-search-view {
-  position: relative;
-  flex: 1;
-  height: 100%;
+  min-height: 100%;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  overflow-y: auto;
-  background: #f5f6fa;
-}
-
-/* Subtle decorative orb in top-right */
-.bg-orb {
-  position: absolute;
-  top: -120px;
-  right: -80px;
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.06) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
+  justify-content: center;
+  background: #f6f8ff;
 }
 
 .content-wrapper {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 900px;
+  width: min(848px, calc(100% - 48px));
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 15vh; /* Slightly higher */
+  padding-top: 206px;
 }
 
-.page-title {
-  font-size: 34px;
-  font-weight: 600;
-  color: #2563eb;
-  margin: 0 0 48px 0;
-  letter-spacing: -0.5px;
-}
-
-/* Underline Tab Navigation */
 .tab-navigation {
-  position: relative;
   display: flex;
-  gap: 32px;
-  margin-bottom: 40px;
+  align-items: center;
+  gap: 34px;
+  margin-bottom: 29px;
 }
 
 .tab-item {
   position: relative;
-  padding: 10px 8px;
-  background: none;
-  border: none;
-  font-size: 15px;
-  font-weight: 500;
-  color: #94a3b8;
-  cursor: pointer;
-  transition: color 0.25s ease;
-}
-
-.tab-item:hover {
-  color: #64748b;
+  padding: 0 0 12px;
+  color: #3f4754;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0;
 }
 
 .tab-item.active {
-  color: #2563eb;
-  font-weight: 600;
+  color: #1f5cff;
 }
 
-/* Animated sliding underline */
-.tab-indicator {
+.tab-item.active::after {
+  content: '';
   position: absolute;
-  bottom: 0;
   left: 0;
-  width: calc((100% - 32px) / 2); /* Account for gap */
-  height: 2px;
-  background: #2563eb;
-  border-radius: 2px;
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: #1f5cff;
 }
 
-/* Search Container */
 .search-container {
+  position: relative;
   width: 100%;
-  max-width: 680px;
+  height: 76px;
   display: flex;
   align-items: center;
-  background: white;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 20px;
-  padding: 12px 16px 12px 0;
-  box-shadow: 0 4px 24px -4px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s ease;
+  background: #ffffff;
+  border: 1px solid #a9ceff;
+  border-radius: 11px;
+  padding: 0 24px 0 26px;
+  box-shadow: none;
 }
 
 .search-container.focused {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12), 0 8px 32px -8px rgba(37, 99, 235, 0.15);
-  transform: scale(1.01);
+  border-color: #1f5cff;
 }
 
-.search-scope-wrapper {
+.search-container.regulation-mode {
+  border-color: #1f5cff;
+}
+
+.field-select-wrap {
   position: relative;
+  flex: 0 0 101px;
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 20px;
-  cursor: pointer;
-  user-select: none;
-  height: 100%;
-  min-width: 90px;
-  justify-content: center;
 }
 
-.scope-label {
-  font-size: 15px;
-  color: #334155;
-  font-weight: 500;
+.field-select {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 13px;
+  padding: 0 10px;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1;
 }
 
-.dropdown-icon {
-  color: #94a3b8;
-  transition: transform 0.2s ease;
+.search-container.dropdown-open .selector-label {
+  color: #b9bec8;
 }
 
-.dropdown-icon.rotated {
-  transform: rotate(180deg);
+.selector-chevron {
+  color: #c5cad3;
 }
 
-.scope-dropdown {
+.field-dropdown {
   position: absolute;
-  top: calc(100% + 16px);
-  left: 0;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.12);
-  z-index: 100;
-  min-width: 120px;
-  padding: 8px;
+  top: 62px;
+  left: 2px;
+  z-index: 20;
+  width: 86px;
+  padding: 4px;
+  border: 1px solid rgba(229, 232, 238, 0.9);
+  border-radius: 7px;
+  background: #ffffff;
+  box-shadow: 0 16px 30px rgba(30, 41, 59, 0.14);
 }
 
-.scope-option {
-  padding: 10px 14px;
-  font-size: 14px;
-  color: #64748b;
-  cursor: pointer;
-  border-radius: 10px;
+.field-option {
+  width: 100%;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border-radius: 4px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1;
   text-align: left;
-  transition: all 0.15s ease;
 }
 
-.scope-option:hover {
-  background: #f8fafc;
-  color: #1e293b;
-}
-
-.scope-option.active {
-  color: #2563eb;
-  background: #eff6ff;
-  font-weight: 500;
-}
-
-.divider {
-  width: 1px;
-  height: 28px;
-  background: #e2e8f0;
-  margin-right: 16px;
+.field-option.active {
+  background: #e4f3ff;
+  color: #111827;
+  font-weight: 700;
 }
 
 .search-input {
   flex: 1;
+  min-width: 0;
+  height: 74px;
   border: none;
   outline: none;
-  font-size: 16px;
-  color: #1e293b;
   background: transparent;
-  padding: 8px 0;
+  font-size: 16px;
+  font-weight: 400;
+  color: #1e293b;
+  line-height: 74px;
 }
 
 .search-input::placeholder {
-  color: #94a3b8;
+  color: #a0a7b7;
 }
 
-.send-btn {
-  width: 44px;
-  height: 44px;
-  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-  border: none;
-  border-radius: 12px;
-  color: white;
-  display: flex;
+.search-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.35);
+  flex: 0 0 36px;
+  border-radius: 9px;
+  background: #bcc2cd;
+  color: #ffffff;
 }
 
-.send-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px -2px rgba(37, 99, 235, 0.45);
+.search-btn:disabled {
+  background: #bcc2cd;
+  color: #ffffff;
+  cursor: not-allowed;
 }
 
-.send-btn:active {
-  transform: translateY(0);
-}
+@media (max-width: 640px) {
+  .content-wrapper {
+    width: calc(100% - 28px);
+    padding-top: 96px;
+  }
 
-/* Database Stats */
-.stats-text {
-  margin-top: 28px;
-  font-size: 13px;
-  color: #94a3b8;
-  letter-spacing: 0.2px;
-}
+  .tab-navigation {
+    margin-bottom: 28px;
+  }
 
-.stats-number {
-  color: #2563eb;
-  font-weight: 600;
-}
+  .tab-item {
+    font-size: 22px;
+  }
 
-/* Transitions */
-.fade-slide-enter-active,
-.fade-slide-leave-active {
-  transition: all 0.2s ease;
-}
+  .search-container {
+    height: 68px;
+    padding-left: 18px;
+    padding-right: 18px;
+  }
 
-.fade-slide-enter-from,
-.fade-slide-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
+  .field-select-wrap {
+    flex-basis: 92px;
+  }
 
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+  .search-input {
+    height: 66px;
+    line-height: 66px;
+  }
 }
 </style>

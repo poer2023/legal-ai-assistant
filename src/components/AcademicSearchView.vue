@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { Send } from 'lucide-vue-next';
+import { ChevronDown, GraduationCap, Search } from 'lucide-vue-next';
+import academicSearchFlow from '../assets/academic-search-flow.png';
 
 const searchQuery = ref('');
 
@@ -24,74 +25,40 @@ const handleSearch = () => {
       <!-- Title -->
       <h1 class="page-title">学术搜索</h1>
 
-      <!-- Search Box -->
       <div class="search-container">
+        <button class="source-select" type="button" aria-label="选择文献来源">
+          <span>OA文献</span>
+          <ChevronDown :size="13" stroke-width="2" />
+        </button>
+        <span class="search-divider"></span>
         <input 
           v-model="searchQuery"
           type="text"
           class="search-input"
-          placeholder="搜索专业学术文献，一键学习使用"
+          placeholder="输入文献主题、关键词、作者等搜索，可一键添加到知识库"
           @keyup.enter="handleSearch"
         />
-        <button class="send-btn" @click="handleSearch">
-          <Send :size="18" />
+        <button class="send-btn" type="button" aria-label="搜索" @click="handleSearch">
+          <Search :size="22" stroke-width="3" />
         </button>
       </div>
 
-      <!-- Feature Steps -->
       <div class="feature-steps">
         <template v-for="(step, index) in featureSteps" :key="index">
           <span class="step-item">
-            <span class="step-dot"></span>
+            <GraduationCap v-if="index === 0" :size="16" class="step-icon" stroke-width="2.5" />
             {{ step }}
           </span>
-          <span v-if="index < featureSteps.length - 1" class="step-arrow">→</span>
+          <span v-if="index < featureSteps.length - 1" class="step-arrow" aria-hidden="true"></span>
         </template>
       </div>
 
-      <!-- Feature Showcase (Placeholder for demo images) -->
       <div class="feature-showcase">
-        <div class="showcase-container">
-          <!-- Left card -->
-          <div class="showcase-card left-card">
-            <div class="card-header">
-              <span class="card-title">学术搜索</span>
-            </div>
-            <div class="card-body">
-              <div class="search-demo">
-                <input disabled placeholder="儿童心理健康与家庭功能关联性探索" class="demo-input" />
-                <div class="demo-btn"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Center card (main) -->
-          <div class="showcase-card center-card">
-            <div class="card-header blue-header">
-              <span>智能引用参考文献</span>
-            </div>
-            <div class="card-body">
-              <p class="card-desc">精选引用推荐文献让论文核心论述，一键插入专业论文</p>
-              <button class="demo-action-btn">+ 加入知识库</button>
-            </div>
-          </div>
-
-          <!-- Right card -->
-          <div class="showcase-card right-card">
-            <div class="card-header">
-              <span>一键加入知识库</span>
-              <span class="sub-text">有新创作时智能推荐，高效学习专业文献</span>
-            </div>
-            <div class="card-body">
-              <div class="action-tags">
-                <span class="tag">提问</span>
-                <span class="tag">翻译</span>
-                <span class="tag">思维导图</span>
-                <span class="tag">笔记</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <img
+          class="showcase-image"
+          :src="academicSearchFlow"
+          alt="学术搜索、一键加入知识库、智能引用参考文献的流程示意"
+        />
       </div>
     </div>
   </div>
@@ -100,77 +67,110 @@ const handleSearch = () => {
 <style scoped>
 .academic-search-view {
   flex: 1;
-  height: 100%;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 60px 40px;
+  padding: 65px 40px 48px;
   overflow-y: auto;
+  background: #f6f8ff;
 }
 
 .content-wrapper {
   width: 100%;
-  max-width: 900px;
+  max-width: 1054px;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
 .page-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #2563eb;
-  margin: 0 0 40px 0;
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #1556e8;
+  margin: 0 0 40px;
+  letter-spacing: 0;
 }
 
 .search-container {
   width: 100%;
-  max-width: 700px;
+  min-height: 76px;
   display: flex;
   align-items: center;
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 8px 16px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  background: #ffffff;
+  border: 1.5px solid #2454ff;
+  border-radius: 11px;
+  padding: 0 24px 0 35px;
+  box-shadow: 0 10px 34px rgba(45, 88, 219, 0.08);
+}
+
+.source-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0;
+  color: #202124;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.source-select svg {
+  color: #9aa5b8;
+  margin-top: 1px;
+}
+
+.search-divider {
+  width: 1px;
+  height: 30px;
+  margin: 0 20px 0 19px;
+  background: #d7dce7;
 }
 
 .search-input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
-  font-size: 15px;
-  color: #334155;
+  font-size: 16px;
+  font-weight: 500;
+  color: #1f2937;
   background: transparent;
 }
 
 .search-input::placeholder {
-  color: #94a3b8;
+  color: #9aa3b4;
 }
 
 .send-btn {
   width: 36px;
   height: 36px;
-  background: #2563eb;
+  flex: 0 0 36px;
+  margin-left: 18px;
+  background: #bcc2cf;
   border: none;
-  border-radius: 8px;
-  color: white;
+  border-radius: 9px;
+  color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .send-btn:hover {
-  background: #1d4ed8;
+  background: #2454ff;
+  transform: translateY(-1px);
 }
 
 .feature-steps {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 24px;
+  gap: 9px;
+  margin-top: 42px;
   flex-wrap: wrap;
   justify-content: center;
 }
@@ -178,135 +178,93 @@ const handleSearch = () => {
 .step-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  color: #475569;
+  gap: 5px;
+  font-size: 16px;
+  line-height: 1;
+  color: #1f232b;
+  font-weight: 500;
+  white-space: nowrap;
 }
 
-.step-dot {
-  width: 6px;
-  height: 6px;
-  background: #2563eb;
-  border-radius: 50%;
+.step-icon {
+  color: #2458d8;
+  fill: #2458d8;
 }
 
 .step-arrow {
-  color: #94a3b8;
-  font-size: 12px;
+  position: relative;
+  width: 15px;
+  height: 8px;
+  display: inline-block;
+}
+
+.step-arrow::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 14px;
+  height: 3px;
+  border-radius: 999px;
+  background: #a8bfee;
+}
+
+.step-arrow::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 7px solid #a8bfee;
 }
 
 .feature-showcase {
-  margin-top: 48px;
+  margin-top: 64px;
   width: 100%;
 }
 
-.showcase-container {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  perspective: 1000px;
-}
-
-.showcase-card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
-  overflow: hidden;
-  width: 240px;
-  transition: transform 0.3s;
-}
-
-.left-card {
-  transform: rotate(-5deg) translateY(20px);
-}
-
-.center-card {
-  width: 280px;
-  z-index: 2;
-  box-shadow: 0 12px 32px rgba(37, 99, 235, 0.15);
-}
-
-.right-card {
-  transform: rotate(5deg) translateY(20px);
-}
-
-.card-header {
-  padding: 12px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #334155;
-  border-bottom: 1px solid #f1f5f9;
-}
-
-.blue-header {
-  background: #2563eb;
-  color: white;
-  border-bottom: none;
-}
-
-.sub-text {
-  font-size: 11px;
-  font-weight: 400;
-  color: #64748b;
+.showcase-image {
   display: block;
-  margin-top: 4px;
+  width: min(100%, 1040px);
+  height: auto;
+  margin: 0 auto;
+  user-select: none;
 }
 
-.card-body {
-  padding: 16px;
-}
+@media (max-width: 920px) {
+  .academic-search-view {
+    padding: 44px 20px 36px;
+  }
 
-.search-demo {
-  display: flex;
-  align-items: center;
-  background: #f8fafc;
-  border-radius: 6px;
-  padding: 8px 12px;
-}
+  .page-title {
+    margin-bottom: 28px;
+    font-size: 28px;
+  }
 
-.demo-input {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 11px;
-  color: #64748b;
-}
+  .search-container {
+    min-height: 64px;
+    padding: 0 14px 0 18px;
+  }
 
-.demo-btn {
-  width: 24px;
-  height: 24px;
-  background: #2563eb;
-  border-radius: 6px;
-}
+  .source-select,
+  .search-input,
+  .step-item {
+    font-size: 14px;
+  }
 
-.card-desc {
-  font-size: 12px;
-  color: #64748b;
-  margin: 0 0 12px 0;
-  line-height: 1.5;
-}
+  .search-divider {
+    margin: 0 12px;
+  }
 
-.demo-action-btn {
-  background: #2563eb;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-}
+  .feature-steps {
+    margin-top: 28px;
+  }
 
-.action-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tag {
-  background: #eff6ff;
-  color: #2563eb;
-  padding: 6px 12px;
-  border-radius: 16px;
-  font-size: 12px;
+  .feature-showcase {
+    margin-top: 40px;
+  }
 }
 </style>

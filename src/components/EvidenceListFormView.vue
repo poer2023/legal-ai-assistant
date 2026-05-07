@@ -177,7 +177,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">智能整理证据材料，自动生成专业证据清单</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- 诉讼类型 -->
         <div class="form-group">

@@ -105,7 +105,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">深度透视法律文书，确保每一处细节都合法、合规、严密</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- Document Upload -->
         <div class="form-group">

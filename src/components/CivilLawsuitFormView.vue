@@ -136,7 +136,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">你的AI律师，帮你撰写专业的民事起诉状</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- Lawsuit Purpose Input -->
         <div class="form-group">

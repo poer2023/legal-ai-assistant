@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { 
   FileText, 
-  ChevronLeft,
   CheckCircle2,
-  FileCheck
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -75,7 +73,7 @@ const pageDescription = computed(() => {
         <h1 class="page-title">确认订单</h1>
         <p class="page-desc">{{ pageDescription }}</p>
       </div>
-    </header>
+  </header>
 
     <main class="main-content">
       <!-- Order Info Card -->

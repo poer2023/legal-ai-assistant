@@ -140,7 +140,6 @@ const handleKnowledgeSelect = () => {
           <p class="form-subtitle">基于专业知识库的法律研究专家</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- Title Input -->
         <div class="form-group">

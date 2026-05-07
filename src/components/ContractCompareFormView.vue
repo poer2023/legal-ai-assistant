@@ -11,7 +11,6 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 
-
 const auxiliaryInfo = ref('');
 const uploadedDocumentA = ref<File | null>(null);
 const uploadedDocumentB = ref<File | null>(null);
@@ -117,7 +116,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">AI智能对比两份合同，精准定位差异与风险变化</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- Document Upload -->
         <div class="form-group">

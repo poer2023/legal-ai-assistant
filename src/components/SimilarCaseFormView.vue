@@ -147,7 +147,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">智能检索相似案例，分析裁判规则，生成专业类案报告</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- 案件标题 -->
         <div class="form-group">

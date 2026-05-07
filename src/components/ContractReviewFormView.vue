@@ -11,7 +11,6 @@ import { useRouter } from 'vue-router';
 
 const router = useRouter();
 
-
 const selectedPosition = ref('甲方');
 const selectedStrength = ref('中立');
 const auxiliaryInfo = ref('');
@@ -111,7 +110,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">AI全方位合同体检，精准识别潜在法律风险</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- Document Upload -->
         <div class="form-group">

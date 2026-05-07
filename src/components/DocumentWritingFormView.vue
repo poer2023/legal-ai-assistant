@@ -134,7 +134,6 @@ const handleSubmit = () => {
           <p class="form-subtitle">AI执笔，为您起草专业规范的各类法律文书</p>
         </div>
       </div>
-
       <div class="form-content">
         <!-- 主题 -->
         <div class="form-group">
