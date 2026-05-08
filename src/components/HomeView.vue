@@ -2,7 +2,7 @@
 import { nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ChatInput from './ChatInput.vue';
-import AppGrid from './AppGrid.vue';
+import QuickActions from './QuickActions.vue';
 
 type ComposerAction = 'skill' | 'template';
 type ChatInputController = InstanceType<typeof ChatInput> & {
@@ -93,7 +93,7 @@ watch(
       </div>
 
       <div class="apps-section">
-        <AppGrid @select-question="inputValue = $event" />
+        <QuickActions />
       </div>
     </div>
   </div>

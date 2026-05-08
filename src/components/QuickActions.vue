@@ -1,30 +1,46 @@
 <script setup lang="ts">
-import {
-  FileText,
-  Scale,
-  BookOpen,
-  FolderSearch,
-  Mic,
-  FileSearch,
-  MoreHorizontal
-} from 'lucide-vue-next';
 import { useRouter } from 'vue-router';
+import AgentIcon from './AgentIcon.vue';
+import type { AgentIconKind } from './AgentIcon.vue';
 
 const router = useRouter();
 
-const actions = [
-  { icon: FileText, label: '合同起草', routeName: 'contract-form' },
-  { icon: Scale, label: '民事起诉状', routeName: 'civil-lawsuit-form' },
-  { icon: BookOpen, label: '法律研究报告', routeName: 'legal-research-form' },
-  { icon: FolderSearch, label: '证据清单整理', routeName: 'evidence-list-form' },
-  { icon: Mic, label: '录音证据整理', routeName: 'audio-evidence-form' },
-  { icon: FileSearch, label: '合同审查', routeName: 'contract-review-form' },
-  { icon: MoreHorizontal, label: '更多应用', isMore: true, routeName: 'agents' },
+type QuickAction = {
+  iconKind: AgentIconKind;
+  label: string;
+  routeName: string;
+  params?: Record<string, string>;
+  isMore?: boolean;
+};
+
+const actions: QuickAction[] = [
+  {
+    iconKind: 'network',
+    label: '网络核查',
+    routeName: 'investigation-agent-demo',
+    params: { agentKey: 'network-verification' },
+  },
+  {
+    iconKind: 'flow',
+    label: '资金流向',
+    routeName: 'investigation-agent-demo',
+    params: { agentKey: 'fund-flow' },
+  },
+  {
+    iconKind: 'equity',
+    label: '股权穿透核查',
+    routeName: 'investigation-agent-demo',
+    params: { agentKey: 'equity-penetration' },
+  },
+  { iconKind: 'word', label: '咨政报告', routeName: 'policy-advisory-report-form' },
+  { iconKind: 'word', label: '类案分析报告', routeName: 'similar-case-analysis-report-form' },
+  { iconKind: 'review', label: '文书审查', routeName: 'prod-document-review-form' },
+  { iconKind: 'grid', label: '更多应用', isMore: true, routeName: 'agents' },
 ];
 
-const handleActionClick = (action: any) => {
+const handleActionClick = (action: QuickAction) => {
   if (action.routeName) {
-    router.push({ name: action.routeName });
+    router.push({ name: action.routeName, params: action.params });
   }
 };
 </script>
@@ -38,12 +54,7 @@ const handleActionClick = (action: any) => {
       @click="handleActionClick(action)"
     >
       <div class="icon-wrapper" :class="{ 'more-wrapper': action.isMore }">
-        <component
-          :is="action.icon"
-          :size="24"
-          :style="{ color: action.isMore ? '#6366f1' : '#2563eb' }"
-        />
-        <span v-if="action.isMore" class="more-badge">10</span>
+        <AgentIcon :kind="action.iconKind" />
       </div>
       <div class="action-label">
         {{ action.label }}
@@ -57,23 +68,27 @@ const handleActionClick = (action: any) => {
 .quick-actions-row {
   display: flex;
   gap: 16px;
-  width: 100%;
+  width: min(1185px, 100%);
+  margin: 0 auto;
   justify-content: space-between;
 }
 
 .action-card {
   flex: 1;
   background: white;
-  border-radius: 12px;
-  padding: 20px 10px;
+  min-width: 0;
+  min-height: 122px;
+  border-radius: 8px;
+  padding: 18px 8px 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid transparent;
+  border: 1px solid #dbeafe;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
 }
 
 .action-card:hover {
@@ -83,36 +98,41 @@ const handleActionClick = (action: any) => {
 }
 
 .icon-wrapper {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  background: #eff6ff; /* Default light blue bg for icons */
+  line-height: 0;
 }
 
-/* Specific overrides to match the colorful icons in screenshot somewhat */
-.action-card:nth-child(2) .icon-wrapper { background: #fff7ed; }
-.action-card:nth-child(3) .icon-wrapper { background: #f0fdf4; }
-
 .action-label {
-  font-size: 13px;
+  font-size: 14px;
   color: #334155;
   font-weight: 500;
   text-align: center;
+  line-height: 1.25;
+  white-space: nowrap;
 }
 
-.more-badge {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background: #6366f1;
-  color: white;
-  font-size: 10px;
-  padding: 2px 4px;
-  border-radius: 8px;
-  border: 2px solid white;
+@media (max-width: 1080px) {
+  .quick-actions-row {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .action-card {
+    flex: 0 1 150px;
+  }
+}
+
+@media (max-width: 768px) {
+  .quick-actions-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .action-card {
+    min-height: 108px;
+  }
 }
 </style>

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
 import { useRouter } from 'vue-router';
+import AgentIcon from './AgentIcon.vue';
+import type { AgentIconKind } from './AgentIcon.vue';
 import SearchBox from './SearchBox.vue';
 import type { InvestigationAgentKey } from '../data/investigationAgents';
 import {
@@ -305,10 +307,14 @@ const pencilIconAgents = new Set([
   '去AI痕迹',
 ]);
 
-const getAgentIconClass = (agentName: string) => {
-  if (writingIconAgents.has(agentName)) return 'agent-icon-writing';
-  if (pencilIconAgents.has(agentName)) return 'agent-icon-pencil';
-  return 'agent-icon-word';
+const getAgentIconClass = (agentName: string): AgentIconKind => {
+  if (agentName === '网络核查') return 'network';
+  if (agentName === '资金流向') return 'flow';
+  if (agentName === '股权穿透核查') return 'equity';
+  if (agentName === '文书审查') return 'review';
+  if (writingIconAgents.has(agentName)) return 'writing';
+  if (pencilIconAgents.has(agentName)) return 'pencil';
+  return 'word';
 };
 
 const handleCardClick = (agent: AgentCard) => {
@@ -362,9 +368,7 @@ const handleCardClick = (agent: AgentCard) => {
             :aria-label="`打开${agent.name}智能体：${agent.description}`"
             @click="handleCardClick(agent)"
           >
-            <div class="agent-icon" :class="getAgentIconClass(agent.name)" aria-hidden="true">
-              <span class="agent-icon-glyph"></span>
-            </div>
+            <AgentIcon :kind="getAgentIconClass(agent.name)" />
             <div class="agent-info">
               <span class="agent-name">{{ agent.name }}</span>
               <span class="agent-desc">{{ agent.description }}</span>
@@ -389,9 +393,7 @@ const handleCardClick = (agent: AgentCard) => {
             :aria-label="`打开${agent.name}智能体：${agent.description}`"
             @click="handleCardClick(agent)"
           >
-            <div class="agent-icon" :class="getAgentIconClass(agent.name)" aria-hidden="true">
-              <span class="agent-icon-glyph"></span>
-            </div>
+            <AgentIcon :kind="getAgentIconClass(agent.name)" />
             <div class="agent-info">
               <span class="agent-name">{{ agent.name }}</span>
               <span class="agent-desc">{{ agent.description }}</span>
@@ -539,135 +541,6 @@ const handleCardClick = (agent: AgentCard) => {
 .section-action:focus-visible {
   outline: 2px solid #60a5fa;
   outline-offset: 3px;
-}
-
-.agent-icon {
-  width: 48px;
-  height: 48px;
-  position: relative;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-.agent-icon-glyph,
-.agent-icon-glyph::before,
-.agent-icon-glyph::after {
-  content: "";
-  position: absolute;
-  display: block;
-}
-
-.agent-icon-word {
-  background: #eaf4ff;
-}
-
-.agent-icon-word .agent-icon-glyph {
-  left: 17px;
-  top: 13px;
-  width: 20px;
-  height: 25px;
-  border-radius: 3px;
-  background: linear-gradient(180deg, #12a9f4 0%, #0c73d9 100%);
-  box-shadow:
-    -7px 7px 0 -1px #0d52b7,
-    5px -5px 0 -2px rgba(255, 255, 255, 0.75);
-}
-
-.agent-icon-word .agent-icon-glyph::before {
-  left: -6px;
-  top: 6px;
-  width: 15px;
-  height: 16px;
-  border-radius: 3px;
-  background: #0b55c7;
-  box-shadow: 0 4px 8px rgba(14, 90, 200, 0.28);
-}
-
-.agent-icon-word .agent-icon-glyph::after {
-  left: -2px;
-  top: 8px;
-  color: #ffffff;
-  content: "W";
-  font-size: 10px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.agent-icon-writing {
-  background: linear-gradient(135deg, #496bea 0%, #3564e7 100%);
-  box-shadow: inset 0 -1px 0 rgba(18, 42, 118, 0.16);
-}
-
-.agent-icon-writing .agent-icon-glyph {
-  left: 14px;
-  top: 12px;
-  width: 21px;
-  height: 26px;
-  border-radius: 4px;
-  background: #fffaf0;
-  box-shadow: 5px 1px 0 -1px #d8e8ff;
-}
-
-.agent-icon-writing .agent-icon-glyph::before {
-  left: 4px;
-  top: 6px;
-  width: 4px;
-  height: 4px;
-  border-radius: 999px;
-  background: #f97316;
-  box-shadow:
-    0 8px 0 #60a5fa,
-    8px 0 0 #f97316,
-    8px 8px 0 #60a5fa;
-}
-
-.agent-icon-writing .agent-icon-glyph::after {
-  right: -5px;
-  bottom: -3px;
-  width: 8px;
-  height: 22px;
-  border-radius: 5px;
-  background: linear-gradient(180deg, #ffd84d 0 32%, #ffffff 32% 50%, #60a5fa 50% 100%);
-  transform: rotate(28deg);
-  box-shadow: 0 3px 7px rgba(30, 64, 175, 0.25);
-}
-
-.agent-icon-pencil {
-  background: #ffe86a;
-}
-
-.agent-icon-pencil .agent-icon-glyph {
-  left: 12px;
-  top: 13px;
-  width: 28px;
-  height: 12px;
-  border-radius: 7px;
-  background: linear-gradient(90deg, #6bb7ff 0 58%, #ffffff 58% 72%, #f59e0b 72% 100%);
-  transform: rotate(45deg);
-  box-shadow: 0 7px 12px rgba(176, 126, 0, 0.2);
-}
-
-.agent-icon-pencil .agent-icon-glyph::before {
-  right: -8px;
-  top: 2px;
-  width: 0;
-  height: 0;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-  border-left: 9px solid #475569;
-}
-
-.agent-icon-pencil .agent-icon-glyph::after {
-  left: -3px;
-  top: 0;
-  width: 5px;
-  height: 12px;
-  border-radius: 6px 0 0 6px;
-  background: #93c5fd;
 }
 
 .agent-info {

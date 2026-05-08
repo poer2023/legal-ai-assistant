@@ -154,7 +154,7 @@ const manageSkills = () => {
 
 .skill-item {
   width: 100%;
-  min-height: 46px;
+  min-height: 48px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;

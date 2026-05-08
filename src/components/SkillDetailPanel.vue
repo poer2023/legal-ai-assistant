@@ -15,8 +15,8 @@ import {
   type TemplateDocumentSection,
 } from '../data/legalAssets';
 import {
-  addRecommendedSkill,
-  isAddedRecommendedSkill,
+  addPersonalSkill,
+  isSkillAvailable,
   isRecommendedSkill,
   type SkillCatalogItem,
   type SkillFile,
@@ -181,7 +181,7 @@ const currentFileKey = computed(() =>
 const selectedSkillIsRecommended = computed(() => isRecommendedSkill(props.skill.id));
 
 const selectedSkillIsAdded = computed(() =>
-  !selectedSkillIsRecommended.value || isAddedRecommendedSkill(props.skill.id)
+  !selectedSkillIsRecommended.value || isSkillAvailable(props.skill.id)
 );
 
 const panelClass = computed(() => `${props.layout}-layout`);
@@ -371,8 +371,8 @@ const useSkill = () => {
 };
 
 const addSkill = () => {
-  const didAdd = addRecommendedSkill(props.skill.id);
-  setStatus(didAdd ? `${props.skill.name} 已添加` : `${props.skill.name} 已在技能列表中`);
+  const didAdd = addPersonalSkill(props.skill.id);
+  setStatus(didAdd ? `${props.skill.name} 已添加` : `${props.skill.name} 已添加`);
 };
 
 const useTemplate = (template: SkillTemplateOption) => {
@@ -431,7 +431,6 @@ onBeforeUnmount(() => {
           <ChevronRight :size="17" class="back-chevron" />
         </button>
         <div class="detail-title-copy">
-          <span class="detail-kicker">技能详情 · {{ skill.files.length }} 个文件</span>
           <h2>{{ skill.name }}</h2>
           <p>{{ skill.description }}</p>
         </div>
@@ -700,15 +699,6 @@ onBeforeUnmount(() => {
 
 .detail-title-copy {
   min-width: 0;
-}
-
-.detail-kicker {
-  display: block;
-  margin-bottom: 4px;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 650;
-  line-height: 1.2;
 }
 
 .detail-title-copy h2 {

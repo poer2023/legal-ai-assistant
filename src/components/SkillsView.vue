@@ -107,7 +107,7 @@ const useSkill = (skill: SkillAsset) => {
           <strong>{{ skillAssets.length }}</strong>
         </article>
         <article class="summary-card">
-          <span>推荐技能</span>
+          <span>默认技能</span>
           <strong>{{ featuredSkills.length }}</strong>
         </article>
         <article class="summary-card">
@@ -140,7 +140,7 @@ const useSkill = (skill: SkillAsset) => {
         <div class="section-header">
           <div class="section-title">
             <BookOpen :size="18" />
-            <span>推荐技能</span>
+            <span>默认技能</span>
           </div>
         </div>
         <div class="skill-grid">

@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Brain,
   ChevronDown,
+  File,
+  FolderOpen,
   Globe,
   GraduationCap,
   Scale,
@@ -51,8 +53,12 @@ const showSkillManageModal = ref(false);
 const showTemplateManageModal = ref(false);
 const skillTokenCount = ref(0);
 const templateTokenCount = ref(0);
+const lastEmittedModelValue = ref<string | undefined>(undefined);
 const inputContainerRef = ref<HTMLDivElement | null>(null);
 const editorRef = ref<HTMLDivElement | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const folderInputRef = ref<HTMLInputElement | null>(null);
 const activeSkillRange = ref<Range | null>(null);
 const activeTemplateRange = ref<Range | null>(null);
 const inlineSkillQuery = ref('');
@@ -79,6 +85,10 @@ type TemplateShortcutMatch = SkillSlashMatch;
 watch(
   () => props.modelValue,
   (value) => {
+    if (value !== undefined && value === lastEmittedModelValue.value) {
+      return;
+    }
+
     if (value !== undefined && value !== inputValue.value) {
       inputValue.value = value;
       renderEditorPlainText(value);
@@ -88,6 +98,7 @@ watch(
 );
 
 watch(inputValue, (value) => {
+  lastEmittedModelValue.value = value;
   emit('update:modelValue', value);
 });
 
@@ -166,8 +177,12 @@ const removeSearchMode = (modeId: string) => {
   enabledSearchModes.value.delete(modeId);
 };
 
-const uploadActions = [
-  { id: 'image', label: '上传图片', icon: Image },
+type UploadActionId = 'image' | 'file' | 'folder';
+
+const uploadActions: Array<{ id: UploadActionId; label: string; icon: typeof Image }> = [
+  { id: 'image', label: '添加图片', icon: Image },
+  { id: 'file', label: '添加文件', icon: File },
+  { id: 'folder', label: '添加文件夹', icon: FolderOpen },
 ];
 
 const toggleActionMenu = () => {
@@ -210,8 +225,23 @@ const toggleThinkingMenu = () => {
   closeTemplatePickerMenu();
 };
 
-const triggerUploadAction = () => {
+const triggerUploadAction = (actionId: UploadActionId) => {
   showActionMenu.value = false;
+
+  const inputMap: Record<UploadActionId, HTMLInputElement | null> = {
+    image: imageInputRef.value,
+    file: fileInputRef.value,
+    folder: folderInputRef.value,
+  };
+
+  inputMap[actionId]?.click();
+};
+
+const handleLocalFileSelection = (event: Event) => {
+  const input = event.target as HTMLInputElement | null;
+  if (!input) return;
+
+  input.value = '';
 };
 
 function renderEditorPlainText(value: string) {
@@ -1213,6 +1243,31 @@ onBeforeUnmount(() => {
     <div class="input-actions">
       <div class="left-actions">
         <div class="action-menu" @click.stop>
+          <input
+            ref="imageInputRef"
+            class="native-file-input"
+            type="file"
+            accept="image/*"
+            multiple
+            @change="handleLocalFileSelection"
+          />
+          <input
+            ref="fileInputRef"
+            class="native-file-input"
+            type="file"
+            multiple
+            @change="handleLocalFileSelection"
+          />
+          <input
+            ref="folderInputRef"
+            class="native-file-input"
+            type="file"
+            webkitdirectory
+            directory
+            multiple
+            @change="handleLocalFileSelection"
+          />
+
           <button
             class="plus-btn"
             type="button"
@@ -1256,14 +1311,14 @@ onBeforeUnmount(() => {
               </button>
             </section>
 
-            <section v-if="!isResearchMode" class="action-group" aria-label="上传材料">
+            <section class="action-group" aria-label="上传材料">
               <p class="action-group-title">上传材料</p>
               <button
                 v-for="action in uploadActions"
                 :key="action.id"
                 class="action-menu-item"
                 type="button"
-                @click.stop="triggerUploadAction"
+                @click.stop="triggerUploadAction(action.id)"
               >
                 <component :is="action.icon" :size="16" class="action-icon" />
                 <span>{{ action.label }}</span>
@@ -1519,6 +1574,10 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
+.native-file-input {
+  display: none;
+}
+
 .plus-btn,
 .icon-tool-btn {
   appearance: none;
@@ -1679,7 +1738,11 @@ onBeforeUnmount(() => {
 }
 
 .action-dropdown {
-  width: 264px;
+  width: 228px;
+  max-height: min(360px, calc(100vh - 24px));
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .skill-dropdown,
@@ -1798,18 +1861,18 @@ onBeforeUnmount(() => {
 }
 
 .action-group {
-  padding: 4px 0 8px;
+  padding: 2px 0 3px;
   border-bottom: 1px solid #eef2f7;
 }
 
 .action-group:last-child {
-  padding-bottom: 2px;
+  padding-bottom: 0;
   border-bottom: none;
 }
 
 .action-group-title {
-  margin: 4px 8px 6px;
-  font-size: 12px;
+  margin: 1px 8px 3px;
+  font-size: 11px;
   line-height: 1;
   color: #94a3b8;
   font-weight: 700;
@@ -1817,14 +1880,14 @@ onBeforeUnmount(() => {
 
 .action-menu-item {
   width: 100%;
-  min-height: 38px;
+  min-height: 29px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  border-radius: 8px;
+  gap: 7px;
+  padding: 0 8px;
+  border-radius: 7px;
   color: #475569;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   text-align: left;
   transition: background-color 0.15s, color 0.15s;
@@ -1840,6 +1903,8 @@ onBeforeUnmount(() => {
 }
 
 .action-icon {
+  width: 15px;
+  height: 15px;
   color: #64748b;
   flex-shrink: 0;
 }
@@ -1860,6 +1925,8 @@ onBeforeUnmount(() => {
 }
 
 .check-icon {
+  width: 14px;
+  height: 14px;
   margin-left: auto;
   color: #2563eb;
 }
@@ -1999,7 +2066,13 @@ onBeforeUnmount(() => {
   }
 
   .action-dropdown {
-    width: min(264px, calc(100vw - 64px));
+    position: fixed;
+    top: 12px;
+    bottom: auto;
+    left: max(12px, calc(50vw - 114px));
+    width: min(228px, calc(100vw - 32px));
+    max-height: min(332px, calc(100vh - 24px));
+    transform: none;
   }
 
   .skill-dropdown,

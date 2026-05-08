@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -9,14 +10,21 @@ import {
   Info,
   MoreHorizontal,
   Pencil,
+  Play,
+  Plus,
+  Trash2,
+  UsersRound,
   X,
 } from 'lucide-vue-next';
 import {
-  addRecommendedSkill,
-  availableSkills,
-  isAddedRecommendedSkill,
-  isRecommendedSkill,
-  recommendedSkills,
+  addPersonalSkill,
+  isPersonalSkill,
+  isSkillAvailable,
+  officialRecommendedSkills,
+  personalSkills,
+  publishSkillToTeamMarket,
+  removePersonalSkill,
+  teamMarketSkills,
   type SkillCatalogItem,
   type SkillFile,
 } from '../data/skillCatalog';
@@ -28,7 +36,7 @@ const emit = defineEmits<{
 }>();
 
 const selectedSkill = ref<SkillCatalogItem | null>(null);
-const activeListPage = ref<'default' | 'recommended'>('default');
+const activeListPage = ref<'personal' | 'team-market' | 'recommended'>('personal');
 const activeFileId = ref('');
 const expandedTreeKeys = ref<Record<string, boolean>>({});
 const editMode = ref(false);
@@ -51,10 +59,27 @@ type TreeGroup = {
   folders: TreeFolder[];
 };
 
-const listSkills = computed(() => availableSkills.value);
-const recommendationList = computed(() => recommendedSkills);
 const isRecommendedListPage = computed(() => activeListPage.value === 'recommended');
-const visibleListSkills = computed(() => (isRecommendedListPage.value ? recommendationList.value : listSkills.value));
+const isTeamMarketListPage = computed(() => activeListPage.value === 'team-market');
+const visibleListSkills = computed(() =>
+  ({
+    personal: personalSkills.value,
+    'team-market': teamMarketSkills.value,
+    recommended: officialRecommendedSkills,
+  })[activeListPage.value],
+);
+
+const activeListTitle = computed(() => {
+  if (isTeamMarketListPage.value) return '团队共享';
+  if (isRecommendedListPage.value) return '推荐';
+  return '我的技能';
+});
+
+const activeListSubtitle = computed(() => {
+  if (isTeamMarketListPage.value) return '团队共享中的技能对全员可见，可直接使用，也可添加到自己的技能库。';
+  if (isRecommendedListPage.value) return '从推荐技能中挑选常用工作流，一键添加后即可使用。';
+  return '这里是已添加和创建的可复用技能。';
+});
 
 const selectedFiles = computed(() => selectedSkill.value?.files ?? []);
 
@@ -119,12 +144,8 @@ const currentFileKey = computed(() =>
   selectedSkill.value && activeFile.value ? `${selectedSkill.value.id}:${activeFile.value.id}` : ''
 );
 
-const selectedSkillIsRecommended = computed(() =>
-  selectedSkill.value ? isRecommendedSkill(selectedSkill.value.id) : false
-);
-
 const selectedSkillIsAdded = computed(() =>
-  selectedSkill.value ? !selectedSkillIsRecommended.value || isAddedRecommendedSkill(selectedSkill.value.id) : false
+  selectedSkill.value ? isSkillAvailable(selectedSkill.value.id) : false
 );
 
 const setStatus = (message: string) => {
@@ -167,8 +188,8 @@ const resetDetailState = (skill: SkillCatalogItem) => {
   expandedTreeKeys.value = nextExpanded;
 };
 
-const openRecommendedList = () => {
-  activeListPage.value = 'recommended';
+const setListPage = (page: 'personal' | 'team-market' | 'recommended') => {
+  activeListPage.value = page;
   selectedSkill.value = null;
   activeFileId.value = '';
   editMode.value = false;
@@ -177,12 +198,7 @@ const openRecommendedList = () => {
 };
 
 const backToDefaultList = () => {
-  activeListPage.value = 'default';
-  selectedSkill.value = null;
-  activeFileId.value = '';
-  editMode.value = false;
-  editBuffer.value = '';
-  openCardMenuId.value = null;
+  setListPage('personal');
 };
 
 const selectFile = (file: SkillFile) => {
@@ -217,6 +233,13 @@ const backToList = () => {
 
 const toggleCardMenu = (skillId: string) => {
   openCardMenuId.value = openCardMenuId.value === skillId ? null : skillId;
+};
+
+const closeCardMenuOnOutsideClick = (event: MouseEvent) => {
+  if (!openCardMenuId.value) return;
+  const target = event.target;
+  if (target instanceof Element && target.closest('.card-action-menu, .card-more-btn')) return;
+  openCardMenuId.value = null;
 };
 
 const copyText = async (text: string, label: string) => {
@@ -259,16 +282,38 @@ const downloadCurrentSkill = () => {
   downloadText(`${selectedSkill.value.name}-skill-bundle.md`, createSkillBundleContent(selectedSkill.value));
 };
 
-const copySkillName = (skill: SkillCatalogItem) => {
+const downloadSkill = (skill: SkillCatalogItem) => {
   openCardMenuId.value = null;
-  void copyText(`/${skill.name}`, skill.name);
+  downloadText(`${skill.name}-skill-bundle.md`, createSkillBundleContent(skill));
 };
 
-const isSkillAdded = (skill: SkillCatalogItem) => !isRecommendedSkill(skill.id) || isAddedRecommendedSkill(skill.id);
+const useSkillFromMenu = (skill: SkillCatalogItem) => {
+  openCardMenuId.value = null;
+  useSkill(skill.name);
+};
+
+const editSkill = (skill: SkillCatalogItem) => {
+  openCardMenuId.value = null;
+  openSkill(skill);
+};
+
+const isSkillAdded = (skill: SkillCatalogItem) => isPersonalSkill(skill.id);
 
 const addSkill = (skill: SkillCatalogItem) => {
-  const didAdd = addRecommendedSkill(skill.id);
-  setStatus(didAdd ? `${skill.name} 已添加` : `${skill.name} 已在技能列表中`);
+  const didAdd = addPersonalSkill(skill.id);
+  setStatus(didAdd ? `${skill.name} 已添加` : `${skill.name} 已添加`);
+};
+
+const publishSkill = (skill: SkillCatalogItem) => {
+  const didPublish = publishSkillToTeamMarket(skill.id);
+  openCardMenuId.value = null;
+  setStatus(didPublish ? `${skill.name} 已共享至团队` : `${skill.name} 已共享至团队`);
+};
+
+const deleteSkill = (skill: SkillCatalogItem) => {
+  const didRemove = removePersonalSkill(skill.id);
+  openCardMenuId.value = null;
+  setStatus(didRemove ? `${skill.name} 已删除` : '默认技能不可删除');
 };
 
 const startEditMode = () => {
@@ -296,10 +341,15 @@ const cancelEdit = () => {
   setStatus('已取消编辑');
 };
 
+onMounted(() => {
+  document.addEventListener('click', closeCardMenuOnOutsideClick);
+});
+
 onBeforeUnmount(() => {
   if (statusTimer) {
     clearTimeout(statusTimer);
   }
+  document.removeEventListener('click', closeCardMenuOnOutsideClick);
 });
 </script>
 
@@ -318,31 +368,42 @@ onBeforeUnmount(() => {
 
       <header v-if="!selectedSkill" class="modal-header">
         <h2 id="skill-modal-title">
-          <button v-if="isRecommendedListPage" class="list-back-btn" type="button" @click="backToDefaultList">
+          <button v-if="activeListPage !== 'personal'" class="list-back-btn" type="button" @click="backToDefaultList">
             <ChevronRight :size="16" class="back-chevron" />
-            <span>推荐技能</span>
+            <span>{{ activeListTitle }}</span>
           </button>
-          <span v-else>技能</span>
+          <span v-else>{{ activeListTitle }}</span>
         </h2>
         <div class="modal-toolbar">
           <p class="modal-subtitle">
-            <span>
-              {{
-                isRecommendedListPage
-                  ? '图中业务技能已上架，可直接在输入框和技能菜单中使用'
-                  : '将法律工作流、文书模板和校验规则转化为可复用技能'
-              }}
-            </span>
+            <span>{{ activeListSubtitle }}</span>
             <Info :size="17" :stroke-width="2" />
           </p>
           <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
-          <div v-if="!isRecommendedListPage" class="modal-tabs" aria-label="技能分类">
+          <div class="modal-tabs" aria-label="技能分类">
             <button
-              class="modal-tab recommend-entry"
+              class="modal-tab"
+              :class="{ active: activeListPage === 'personal' }"
               type="button"
-              @click="openRecommendedList"
+              @click="setListPage('personal')"
             >
-              推荐技能
+              我的技能
+            </button>
+            <button
+              class="modal-tab"
+              :class="{ active: activeListPage === 'team-market' }"
+              type="button"
+              @click="setListPage('team-market')"
+            >
+              团队共享
+            </button>
+            <button
+              class="modal-tab"
+              :class="{ active: activeListPage === 'recommended' }"
+              type="button"
+              @click="setListPage('recommended')"
+            >
+              推荐
             </button>
             <button
               class="modal-tab"
@@ -360,13 +421,13 @@ onBeforeUnmount(() => {
           v-for="skill in visibleListSkills"
           :key="skill.id"
           class="managed-skill-card"
-          :class="{ 'recommendation-card': isRecommendedListPage }"
+          :class="{ 'recommendation-card': activeListPage !== 'personal', 'menu-open': openCardMenuId === skill.id }"
           tabindex="0"
           @click="openSkill(skill)"
           @keydown.enter.prevent="openSkill(skill)"
         >
           <button
-            v-if="!isRecommendedListPage"
+            v-if="activeListPage === 'personal'"
             class="card-more-btn"
             type="button"
             :aria-label="`${skill.name} 更多操作`"
@@ -376,24 +437,42 @@ onBeforeUnmount(() => {
           </button>
 
           <button
-            v-if="isRecommendedListPage"
+            v-if="activeListPage !== 'personal'"
             class="add-skill-btn"
             type="button"
             :disabled="isSkillAdded(skill)"
             @click.stop="addSkill(skill)"
           >
-            {{ isSkillAdded(skill) ? '已上架' : '添加' }}
+            <Check v-if="isSkillAdded(skill)" :size="15" />
+            <Plus v-else :size="15" />
+            <span>{{ isSkillAdded(skill) ? '已添加' : '添加' }}</span>
           </button>
 
-          <div v-if="!isRecommendedListPage && openCardMenuId === skill.id" class="card-action-menu" @click.stop>
-            <button type="button" @click="openSkill(skill)">查看详情</button>
-            <button type="button" @click="useSkill(skill.name)">去使用</button>
-            <button type="button" @click="copySkillName(skill)">复制指令</button>
+          <div v-if="activeListPage === 'personal' && openCardMenuId === skill.id" class="card-action-menu" @click.stop>
+            <button class="menu-action" type="button" @click="useSkillFromMenu(skill)">
+              <Play :size="15" />
+              <span>使用技能</span>
+            </button>
+            <button class="menu-action" type="button" @click="editSkill(skill)">
+              <Pencil :size="15" />
+              <span>编辑</span>
+            </button>
+            <button class="menu-action" type="button" @click="downloadSkill(skill)">
+              <Download :size="15" />
+              <span>下载</span>
+            </button>
+            <button class="menu-action" type="button" @click="publishSkill(skill)">
+              <UsersRound :size="15" />
+              <span>共享至团队</span>
+            </button>
+            <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
+              <Trash2 :size="15" />
+              <span>删除</span>
+            </button>
           </div>
 
           <h3>{{ skill.name }}</h3>
           <p>{{ skill.description }}</p>
-          <span class="skill-file-count">{{ skill.files.length }} 个文件</span>
         </article>
       </div>
 
@@ -644,8 +723,8 @@ onBeforeUnmount(() => {
 }
 
 .modal-tab.active {
-  color: #ffffff;
-  background: #151515;
+  color: #1d4ed8;
+  background: #dbeafe;
 }
 
 .modal-tab:hover {
@@ -653,16 +732,8 @@ onBeforeUnmount(() => {
 }
 
 .modal-tab.active:hover {
-  background: #151515;
-}
-
-.modal-tab.recommend-entry {
   color: #1d4ed8;
   background: #dbeafe;
-}
-
-.modal-tab.recommend-entry:hover {
-  background: #bfdbfe;
 }
 
 .list-back-btn {
@@ -701,12 +772,16 @@ onBeforeUnmount(() => {
   transform: translateY(-1px);
 }
 
+.managed-skill-card.menu-open {
+  z-index: 30;
+}
+
 .managed-skill-card.recommendation-card {
   padding-right: 104px;
 }
 
 .managed-skill-card h3 {
-  margin: 0 0 14px;
+  margin: 0 0 12px;
   color: #151515;
   font-size: 16px;
   font-weight: 650;
@@ -749,6 +824,10 @@ onBeforeUnmount(() => {
   right: 16px;
   min-width: 58px;
   height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   padding: 0 12px;
   border-radius: 9px;
   color: #ffffff;
@@ -772,37 +851,48 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 48px;
   right: 14px;
-  z-index: 4;
-  width: 112px;
-  padding: 6px;
-  border: 1px solid #dedede;
-  border-radius: 10px;
+  z-index: 40;
+  width: 176px;
+  padding: 8px;
+  border: 1px solid #dbe4f0;
+  border-radius: 14px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
 }
 
 .card-action-menu button {
   width: 100%;
-  height: 32px;
-  padding: 0 8px;
-  border-radius: 7px;
-  color: #333333;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: #1f2937;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 650;
   text-align: left;
 }
 
-.card-action-menu button:hover {
-  background: #f5f5f5;
+.card-action-menu button svg {
+  flex-shrink: 0;
+  color: #64748b;
 }
 
-.skill-file-count {
-  position: absolute;
-  right: 18px;
-  bottom: 16px;
-  color: #8c8c8c;
-  font-size: 12px;
-  line-height: 1;
+.card-action-menu button:hover {
+  background: #f1f5f9;
+}
+
+.card-action-menu button.danger {
+  color: #dc2626;
+}
+
+.card-action-menu button.danger svg {
+  color: #dc2626;
+}
+
+.card-action-menu button.danger:hover {
+  background: #fef2f2;
 }
 
 .modal-close-btn:focus-visible,

@@ -219,7 +219,7 @@ onBeforeUnmount(() => {
         <h2 id="template-modal-title">
           <button v-if="activeListPage === 'official'" class="list-back-btn" type="button" @click="backToDefaultList">
             <ChevronRight :size="16" class="back-chevron" />
-            <span>官方模板</span>
+            <span>官方推荐</span>
           </button>
           <span v-else>模板</span>
         </h2>
@@ -228,7 +228,7 @@ onBeforeUnmount(() => {
             <span>
               {{
                 activeListPage === 'official'
-                  ? '选择官方沉淀的文档结构，添加到本次输入上下文'
+                  ? '选择官方推荐的文档结构，添加到本次输入上下文'
                   : '将常用文档结构、字段清单和写作约束作为可复用模板'
               }}
             </span>
@@ -237,7 +237,7 @@ onBeforeUnmount(() => {
           <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
           <div v-if="activeListPage === 'default'" class="modal-tabs" aria-label="模板分类">
             <button class="modal-tab recommend-entry" type="button" @click="openOfficialList">
-              官方模板
+              官方推荐
             </button>
             <button class="modal-tab" type="button" @click="createTemplate">
               新建模版

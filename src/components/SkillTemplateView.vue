@@ -1,26 +1,35 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
+  Check,
+  Download,
   Info,
   LayoutTemplate,
   MoreHorizontal,
+  Pencil,
+  Play,
+  Plus,
   Sparkles,
+  Trash2,
+  UsersRound,
 } from 'lucide-vue-next';
 import { getTemplatesForSkill, type SkillTemplateOption } from '../data/legalAssets';
 import {
-  addRecommendedSkill,
-  availableSkills,
-  isAddedRecommendedSkill,
-  isRecommendedSkill,
-  recommendedSkills,
+  addPersonalSkill,
+  isPersonalSkill,
+  officialRecommendedSkills,
+  personalSkills,
+  publishSkillToTeamMarket,
+  removePersonalSkill,
+  teamMarketSkills,
   type SkillCatalogItem,
 } from '../data/skillCatalog';
 import SkillDetailPanel from './SkillDetailPanel.vue';
 
-type SkillMode = 'added' | 'recommended';
+type SkillMode = 'personal' | 'team-market' | 'recommended';
 
-const skillMode = ref<SkillMode>('added');
+const skillMode = ref<SkillMode>('personal');
 const statusMessage = ref('');
 const openCardMenuId = ref<string | null>(null);
 const selectedSkill = ref<SkillCatalogItem | null>(null);
@@ -28,8 +37,6 @@ let statusTimer: ReturnType<typeof setTimeout> | null = null;
 const router = useRouter();
 
 const utilitySkillIds = new Set(['docx', 'pdf', 'xlsx']);
-
-const addedSkills = computed(() => availableSkills.value);
 
 const sortSkillsForLibrary = (skills: SkillCatalogItem[]) =>
   [...skills].sort((left, right) => {
@@ -40,14 +47,21 @@ const sortSkillsForLibrary = (skills: SkillCatalogItem[]) =>
   });
 
 const visibleSkills = computed(() =>
-  sortSkillsForLibrary(skillMode.value === 'recommended' ? recommendedSkills : addedSkills.value),
+  sortSkillsForLibrary(
+    {
+      personal: personalSkills.value,
+      'team-market': teamMarketSkills.value,
+      recommended: officialRecommendedSkills,
+    }[skillMode.value],
+  ),
 );
 
 const isDetailOpen = computed(() => Boolean(selectedSkill.value));
 
 const activeSubtitle = computed(() => {
-  if (skillMode.value === 'recommended') return '图中业务技能已上架，可直接在输入框和技能菜单中使用';
-  return '将法律工作流、输出格式模板和校验规则转化为可复用技能';
+  if (skillMode.value === 'team-market') return '团队共享中的技能对全员可见，可直接使用，也可添加到自己的技能库';
+  if (skillMode.value === 'recommended') return '从推荐技能中挑选常用工作流，一键添加后即可使用';
+  return '这里是已添加和创建的可复用技能';
 });
 
 const setStatus = (message: string) => {
@@ -100,8 +114,43 @@ const triggerCreateSkill = () => {
 };
 
 const addSkill = (skill: SkillCatalogItem) => {
-  const didAdd = addRecommendedSkill(skill.id);
-  setStatus(didAdd ? `${skill.name} 已添加` : `${skill.name} 已在技能列表中`);
+  const didAdd = addPersonalSkill(skill.id);
+  setStatus(didAdd ? `${skill.name} 已添加` : `${skill.name} 已添加`);
+};
+
+const publishSkill = (skill: SkillCatalogItem) => {
+  const didPublish = publishSkillToTeamMarket(skill.id);
+  openCardMenuId.value = null;
+  setStatus(didPublish ? `${skill.name} 已共享至团队` : `${skill.name} 已共享至团队`);
+};
+
+const downloadText = (filename: string, content: string) => {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+  setStatus(`${filename} 已下载`);
+};
+
+const createSkillBundleContent = (skill: SkillCatalogItem) =>
+  skill.files.map((file) => `# ${file.path}\n\n${file.content}`).join('\n\n---\n\n');
+
+const downloadSkill = (skill: SkillCatalogItem) => {
+  openCardMenuId.value = null;
+  downloadText(`${skill.name}-skill-bundle.md`, createSkillBundleContent(skill));
+};
+
+const editSkill = (skill: SkillCatalogItem) => {
+  openSkill(skill);
+};
+
+const deleteSkill = (skill: SkillCatalogItem) => {
+  const didRemove = removePersonalSkill(skill.id);
+  openCardMenuId.value = null;
+  setStatus(didRemove ? `${skill.name} 已删除` : '默认技能不可删除');
 };
 
 const useSkillFromDetail = (skillName?: string) => {
@@ -112,8 +161,7 @@ const useTemplateFromDetail = (template: SkillTemplateOption) => {
   setStatus(`${template.name} 格式模板已选择`);
 };
 
-const isSkillAdded = (skill: SkillCatalogItem) =>
-  !isRecommendedSkill(skill.id) || isAddedRecommendedSkill(skill.id);
+const isSkillAdded = (skill: SkillCatalogItem) => isPersonalSkill(skill.id);
 
 const skillTemplates = (skill: SkillCatalogItem) => getTemplatesForSkill(skill);
 
@@ -121,17 +169,29 @@ const toggleCardMenu = (id: string) => {
   openCardMenuId.value = openCardMenuId.value === id ? null : id;
 };
 
+const closeCardMenuOnOutsideClick = (event: MouseEvent) => {
+  if (!openCardMenuId.value) return;
+  const target = event.target;
+  if (target instanceof Element && target.closest('.card-action-menu, .card-more-btn')) return;
+  openCardMenuId.value = null;
+};
+
+onMounted(() => {
+  document.addEventListener('click', closeCardMenuOnOutsideClick);
+});
+
 onBeforeUnmount(() => {
   if (statusTimer) {
     clearTimeout(statusTimer);
   }
+  document.removeEventListener('click', closeCardMenuOnOutsideClick);
 });
 </script>
 
 <template>
   <div class="skill-template-view" :class="{ 'detail-view': isDetailOpen }">
     <main class="library-shell" :class="{ 'detail-shell': isDetailOpen }">
-      <header class="page-header" :class="{ compact: isDetailOpen }">
+      <header v-if="!isDetailOpen" class="page-header">
         <span class="page-icon" aria-hidden="true">
           <Sparkles :size="22" />
         </span>
@@ -151,19 +211,27 @@ onBeforeUnmount(() => {
               <div class="mode-tabs" aria-label="技能分类">
                 <button
                   class="mode-tab"
-                  :class="{ active: skillMode === 'added' }"
+                  :class="{ active: skillMode === 'personal' }"
                   type="button"
-                  @click="setSkillMode('added')"
+                  @click="setSkillMode('personal')"
                 >
-                  已添加
+                  我的技能
                 </button>
                 <button
-                  class="mode-tab recommend-entry"
+                  class="mode-tab"
+                  :class="{ active: skillMode === 'team-market' }"
+                  type="button"
+                  @click="setSkillMode('team-market')"
+                >
+                  团队共享
+                </button>
+                <button
+                  class="mode-tab"
                   :class="{ active: skillMode === 'recommended' }"
                   type="button"
                   @click="setSkillMode('recommended')"
                 >
-                  推荐技能
+                  推荐
                 </button>
                 <button
                   class="mode-tab"
@@ -181,13 +249,13 @@ onBeforeUnmount(() => {
               v-for="skill in visibleSkills"
               :key="skill.id"
               class="managed-card"
-              :class="{ 'recommend-card': skillMode === 'recommended' }"
+              :class="{ 'recommend-card': skillMode !== 'personal', 'menu-open': openCardMenuId === `skill-${skill.id}` }"
               tabindex="0"
               @click="openSkill(skill)"
               @keydown.enter.prevent="openSkill(skill)"
             >
               <button
-                v-if="skillMode === 'added'"
+                v-if="skillMode === 'personal'"
                 class="card-more-btn"
                 type="button"
                 :aria-label="`${skill.name} 更多操作`"
@@ -196,19 +264,49 @@ onBeforeUnmount(() => {
                 <MoreHorizontal :size="20" />
               </button>
               <button
+                v-else-if="skillMode === 'recommended'"
+                class="add-btn"
+                type="button"
+                :disabled="isSkillAdded(skill)"
+                @click.stop="addSkill(skill)"
+              >
+                <Check v-if="isSkillAdded(skill)" :size="15" />
+                <Plus v-else :size="15" />
+                <span>{{ isSkillAdded(skill) ? '已添加' : '添加' }}</span>
+              </button>
+              <button
                 v-else
                 class="add-btn"
                 type="button"
                 :disabled="isSkillAdded(skill)"
                 @click.stop="addSkill(skill)"
               >
-                {{ isSkillAdded(skill) ? '已上架' : '添加' }}
+                <Check v-if="isSkillAdded(skill)" :size="15" />
+                <Plus v-else :size="15" />
+                <span>{{ isSkillAdded(skill) ? '已添加' : '添加' }}</span>
               </button>
 
               <div v-if="openCardMenuId === `skill-${skill.id}`" class="card-action-menu" @click.stop>
-                <button type="button" @click="openSkill(skill)">查看详情</button>
-                <button type="button" @click="selectSkill(skill)">选择技能</button>
-                <button type="button" @click="triggerCreateSkill">创建技能</button>
+                <button class="menu-action" type="button" @click="selectSkill(skill)">
+                  <Play :size="15" />
+                  <span>使用技能</span>
+                </button>
+                <button class="menu-action" type="button" @click="editSkill(skill)">
+                  <Pencil :size="15" />
+                  <span>编辑</span>
+                </button>
+                <button class="menu-action" type="button" @click="downloadSkill(skill)">
+                  <Download :size="15" />
+                  <span>下载</span>
+                </button>
+                <button class="menu-action" type="button" @click="publishSkill(skill)">
+                  <UsersRound :size="15" />
+                  <span>共享至团队</span>
+                </button>
+                <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
+                  <Trash2 :size="15" />
+                  <span>删除</span>
+                </button>
               </div>
 
               <h3>{{ skill.name }}</h3>
@@ -226,7 +324,6 @@ onBeforeUnmount(() => {
                   {{ template.name }}
                 </span>
               </div>
-              <span class="card-count">{{ skill.files.length }} 个文件</span>
             </article>
           </div>
         </template>
@@ -449,19 +546,13 @@ onBeforeUnmount(() => {
 }
 
 .mode-tab.active {
-  color: #ffffff;
-  background: #151515;
-}
-
-.mode-tab.recommend-entry {
   color: #1d4ed8;
   background: #dbeafe;
 }
 
-.mode-tab.recommend-entry.active,
-.mode-tab.recommend-entry:hover {
+.mode-tab.active:hover {
   color: #1d4ed8;
-  background: #bfdbfe;
+  background: #dbeafe;
 }
 
 .card-grid {
@@ -474,7 +565,7 @@ onBeforeUnmount(() => {
 .managed-card {
   position: relative;
   min-height: 142px;
-  padding: 20px 48px 42px 20px;
+  padding: 20px 48px 24px 20px;
   border: 1px solid #dedede;
   border-radius: 14px;
   background: #ffffff;
@@ -486,6 +577,10 @@ onBeforeUnmount(() => {
   border-color: #c6d3e6;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   transform: translateY(-1px);
+}
+
+.managed-card.menu-open {
+  z-index: 30;
 }
 
 .managed-card.recommend-card {
@@ -552,15 +647,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.card-count {
-  position: absolute;
-  right: 20px;
-  bottom: 16px;
-  color: #8c8c8c;
-  font-size: 13px;
-  font-weight: 400;
-}
-
 .card-more-btn {
   position: absolute;
   top: 16px;
@@ -584,6 +670,10 @@ onBeforeUnmount(() => {
   right: 16px;
   min-width: 58px;
   height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   padding: 0 12px;
   border-radius: 9px;
   color: #ffffff;
@@ -607,28 +697,48 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 44px;
   right: 14px;
-  z-index: 5;
-  min-width: 112px;
-  padding: 6px;
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
+  z-index: 40;
+  min-width: 176px;
+  padding: 8px;
+  border: 1px solid #dbe4f0;
+  border-radius: 14px;
   background: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
 }
 
 .card-action-menu button {
   width: 100%;
-  min-height: 32px;
-  padding: 0 9px;
-  border-radius: 7px;
-  color: #374151;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: #1f2937;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
   text-align: left;
 }
 
+.card-action-menu button svg {
+  flex-shrink: 0;
+  color: #64748b;
+}
+
 .card-action-menu button:hover {
-  background: #f8fafc;
+  background: #f1f5f9;
+}
+
+.card-action-menu button.danger {
+  color: #dc2626;
+}
+
+.card-action-menu button.danger svg {
+  color: #dc2626;
+}
+
+.card-action-menu button.danger:hover {
+  background: #fef2f2;
 }
 
 .kind-tab:focus-visible,
