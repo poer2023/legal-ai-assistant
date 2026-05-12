@@ -48,7 +48,7 @@ const guides = [
 .guide-page {
   min-height: 100%;
   padding: 32px;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .hero {
@@ -58,12 +58,12 @@ const guides = [
 .hero h1 {
   margin: 0 0 8px;
   font-size: 24px;
-  color: #0f172a;
+  color: var(--text-strong);
 }
 
 .hero p {
   margin: 0;
-  color: #64748b;
+  color: var(--text-secondary);
   line-height: 1.7;
 }
 
@@ -74,19 +74,19 @@ const guides = [
 }
 
 .guide-card {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
   padding: 22px;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--shadow-soft);
 }
 
 .guide-icon {
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -96,12 +96,12 @@ const guides = [
 .guide-card h2 {
   margin: 0 0 8px;
   font-size: 16px;
-  color: #0f172a;
+  color: var(--text-strong);
 }
 
 .guide-card p {
   margin: 0;
-  color: #64748b;
+  color: var(--text-secondary);
   line-height: 1.7;
 }
 

@@ -335,8 +335,8 @@ saveHistory();
 <style scoped>
 /* Custom Badge for warning style */
 :deep(.badge-success) {
-  background: #f0fdf4;
-  color: #16a34a;
+  background: var(--diff-added-soft);
+  color: var(--diff-added);
 }
 
 /* Base Layout */
@@ -369,13 +369,13 @@ saveHistory();
 .page-footer {
   text-align: center;
   padding-top: 24px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--surface-soft);
   margin-top: auto;
 }
 
 .page-number {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 /* Research Header */
@@ -383,20 +383,20 @@ saveHistory();
   text-align: center;
   margin-bottom: 40px;
   padding-bottom: 24px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--border-color);
 }
 
 .research-title {
   font-size: 28px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 12px 0;
   line-height: 1.4;
 }
 
 .research-subtitle {
   font-size: 18px;
-  color: #4b5563;
+  color: var(--text-secondary);
   margin: 0 0 24px 0;
   font-weight: 400;
 }
@@ -406,12 +406,12 @@ saveHistory();
   justify-content: center;
   gap: 24px;
   margin-bottom: 24px;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 .keywords {
-  background: #f9fafb;
+  background: var(--surface-muted);
   padding: 12px;
   border-radius: 6px;
   display: inline-block;
@@ -420,11 +420,11 @@ saveHistory();
 
 .keyword-label {
   font-weight: 600;
-  color: #374151;
+  color: var(--text-main);
 }
 
 .keyword-list {
-  color: #4b5563;
+  color: var(--text-secondary);
 }
 
 /* Research Sections */
@@ -436,13 +436,13 @@ saveHistory();
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 12px 0;
 }
 
 .section-content {
   font-size: 14px;
-  color: #374151;
+  color: var(--text-main);
   line-height: 1.8;
   text-align: justify;
 }
@@ -456,13 +456,13 @@ saveHistory();
 .references-section {
   margin-top: auto; /* Push to bottom if needed */
   padding-top: 24px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--border-color);
 }
 
 .references-title {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin-bottom: 16px;
 }
 
@@ -473,7 +473,7 @@ saveHistory();
 
 .reference-item {
   font-size: 13px;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-bottom: 8px;
   line-height: 1.5;
 }

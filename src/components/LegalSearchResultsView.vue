@@ -1273,14 +1273,14 @@ const goToDocumentDetail = (id: number) => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #f0f4fa;
+  background: var(--surface-soft);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   overflow: hidden;
 }
 
 /* Header */
 .page-header {
-  background: #f0f4fa;
+  background: var(--surface-soft);
   padding: 16px 40px;
   flex-shrink: 0;
 }
@@ -1305,17 +1305,17 @@ const goToDocumentDetail = (id: number) => {
   border: none;
   font-size: 16px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .tab-item:hover {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .tab-item.active {
-  color: #2563eb;
+  color: var(--primary-color);
   font-weight: 600;
 }
 
@@ -1326,7 +1326,7 @@ const goToDocumentDetail = (id: number) => {
   left: 0;
   right: 0;
   height: 2px;
-  background: #2563eb;
+  background: var(--primary-color);
   border-radius: 1px;
 }
 
@@ -1348,19 +1348,19 @@ const goToDocumentDetail = (id: number) => {
   align-items: center;
   gap: 4px;
   padding: 8px 12px;
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid var(--border-color);
   cursor: pointer;
   user-select: none;
 }
 
 .scope-label {
   font-size: 14px;
-  color: #334155;
+  color: var(--text-main);
   font-weight: 500;
 }
 
 .dropdown-icon {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .scope-dropdown {
@@ -1369,7 +1369,7 @@ const goToDocumentDetail = (id: number) => {
   left: 0;
   margin-top: 4px;
   background: white;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   z-index: 100;
@@ -1379,7 +1379,7 @@ const goToDocumentDetail = (id: number) => {
 .scope-option {
   padding: 10px 16px;
   font-size: 14px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -1393,12 +1393,12 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .scope-option:hover {
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 .scope-option.active {
-  color: #2563eb;
-  background: #eff6ff;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .search-input-wrapper {
@@ -1411,13 +1411,13 @@ const goToDocumentDetail = (id: number) => {
   border: none;
   outline: none;
   font-size: 14px;
-  color: #334155;
+  color: var(--text-main);
   background: transparent;
   padding: 8px 0;
 }
 
 .search-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .search-btn {
@@ -1425,7 +1425,7 @@ const goToDocumentDetail = (id: number) => {
   align-items: center;
   gap: 6px;
   padding: 8px 20px;
-  background: #2563eb;
+  background: var(--primary-color);
   border: none;
   border-radius: 6px;
   font-size: 14px;
@@ -1436,7 +1436,7 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .search-btn:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .search-in-results {
@@ -1445,7 +1445,7 @@ const goToDocumentDetail = (id: number) => {
   gap: 6px;
   padding: 0 16px;
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -1462,14 +1462,14 @@ const goToDocumentDetail = (id: number) => {
   align-items: center;
   gap: 10px;
   padding: 12px 40px;
-  background: #f0f4fa;
+  background: var(--surface-soft);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
 
 .filter-bar-label {
   font-size: 14px;
-  color: #64748b;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
@@ -1479,10 +1479,10 @@ const goToDocumentDetail = (id: number) => {
   gap: 6px;
   padding: 6px 12px;
   background: white;
-  border: 1px solid #2563eb;
+  border: 1px solid var(--primary-color);
   border-radius: 4px;
   font-size: 13px;
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .selected-filter-tag .tag-remove {
@@ -1491,13 +1491,13 @@ const goToDocumentDetail = (id: number) => {
   padding: 0;
   margin-left: 4px;
   font-size: 14px;
-  color: #2563eb;
+  color: var(--primary-color);
   cursor: pointer;
   line-height: 1;
 }
 
 .selected-filter-tag .tag-remove:hover {
-  color: #1d4ed8;
+  color: var(--primary-hover);
 }
 
 .clear-all-btn {
@@ -1505,13 +1505,13 @@ const goToDocumentDetail = (id: number) => {
   border: none;
   padding: 4px 8px;
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .clear-all-btn:hover {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 /* Selected Tags Bar */
@@ -1520,13 +1520,13 @@ const goToDocumentDetail = (id: number) => {
   align-items: center;
   gap: 8px;
   padding: 8px 40px;
-  background: #f0f4fa;
+  background: var(--surface-soft);
   flex-shrink: 0;
 }
 
 .tag-label {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .selected-tag {
@@ -1534,10 +1534,10 @@ const goToDocumentDetail = (id: number) => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  background: #dbeafe;
+  background: var(--primary-soft-strong);
   border-radius: 4px;
   font-size: 13px;
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .tag-remove {
@@ -1546,13 +1546,13 @@ const goToDocumentDetail = (id: number) => {
   padding: 0;
   margin-left: 2px;
   font-size: 14px;
-  color: #2563eb;
+  color: var(--primary-color);
   cursor: pointer;
   line-height: 1;
 }
 
 .tag-remove:hover {
-  color: #1d4ed8;
+  color: var(--primary-hover);
 }
 
 /* Main Layout */
@@ -1592,7 +1592,7 @@ const goToDocumentDetail = (id: number) => {
   gap: 6px;
   font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin-bottom: 10px;
   cursor: pointer;
   user-select: none;
@@ -1600,7 +1600,7 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .section-title:hover {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .section-label {
@@ -1608,7 +1608,7 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .collapse-icon {
-  color: #94a3b8;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -1624,31 +1624,31 @@ const goToDocumentDetail = (id: number) => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 3px 0;
   transition: color 0.2s;
 }
 
 .filter-item:hover {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .filter-item.active {
-  color: #2563eb;
+  color: var(--primary-color);
   font-weight: 500;
 }
 
 .filter-checkbox {
   width: 14px;
   height: 14px;
-  accent-color: #2563eb;
+  accent-color: var(--primary-color);
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .region-expand-icon {
-  color: #94a3b8;
+  color: var(--text-muted);
   margin-left: auto;
   flex-shrink: 0;
   cursor: pointer;
@@ -1660,18 +1660,18 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .filter-item:hover .region-expand-icon {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .sub-filter-group {
   margin-left: 20px;
   padding-left: 12px;
-  border-left: 2px solid #e2e8f0;
+  border-left: 2px solid var(--border-color);
 }
 
 .filter-item.sub-item {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .filter-label {
@@ -1681,7 +1681,7 @@ const goToDocumentDetail = (id: number) => {
 /* Divider */
 .divider-vertical {
   width: 1px;
-  background: linear-gradient(to bottom, transparent, #e2e8f0 10%, #e2e8f0 90%, transparent);
+  background: linear-gradient(to bottom, transparent, var(--border-color) 10%, var(--border-color) 90%, transparent);
   margin: 20px 0;
 }
 
@@ -1703,11 +1703,11 @@ const goToDocumentDetail = (id: number) => {
 
 .results-count {
   font-size: 14px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .count-number {
-  color: #2563eb;
+  color: var(--primary-color);
   font-weight: 600;
 }
 
@@ -1717,8 +1717,8 @@ const goToDocumentDetail = (id: number) => {
   align-items: center;
   gap: 4px;
   padding: 6px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
   user-select: none;
@@ -1726,7 +1726,7 @@ const goToDocumentDetail = (id: number) => {
 
 .sort-label {
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .sort-dropdown {
@@ -1735,7 +1735,7 @@ const goToDocumentDetail = (id: number) => {
   right: 0;
   margin-top: 4px;
   background: white;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   z-index: 100;
@@ -1745,7 +1745,7 @@ const goToDocumentDetail = (id: number) => {
 .sort-option {
   padding: 10px 16px;
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -1759,12 +1759,12 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .sort-option:hover {
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 .sort-option.active {
-  color: #2563eb;
-  background: #eff6ff;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .results-list {
@@ -1778,7 +1778,7 @@ const goToDocumentDetail = (id: number) => {
   align-items: flex-start;
   gap: 16px;
   padding-bottom: 24px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--surface-soft);
   transition: background-color 0.2s;
 }
 
@@ -1787,7 +1787,7 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .result-item.selected {
-  background: #f8fafc;
+  background: var(--bg-color);
   margin: -8px;
   padding: 8px;
   padding-bottom: 24px;
@@ -1800,15 +1800,15 @@ const goToDocumentDetail = (id: number) => {
   align-items: center;
   gap: 16px;
   padding: 12px 16px;
-  background: #eff6ff;
-  border: 1px solid #dbeafe;
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-soft-strong);
   border-radius: 8px;
   margin-bottom: 20px;
 }
 
 .selected-count {
   font-size: 14px;
-  color: #1e40af;
+  color: var(--primary-hover);
   font-weight: 500;
 }
 
@@ -1817,7 +1817,7 @@ const goToDocumentDetail = (id: number) => {
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: #2563eb;
+  background: var(--primary-color);
   border: none;
   border-radius: 6px;
   font-size: 13px;
@@ -1828,7 +1828,7 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .batch-add-btn:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .batch-add-btn .btn-icon {
@@ -1845,7 +1845,7 @@ const goToDocumentDetail = (id: number) => {
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #2563eb;
+  accent-color: var(--primary-color);
 }
 
 /* Result Actions */
@@ -1860,23 +1860,23 @@ const goToDocumentDetail = (id: number) => {
   gap: 6px;
   padding: 8px 16px;
   background: white;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
   white-space: nowrap;
 }
 
 .add-to-kb-btn:hover {
-  background: #f8fafc;
-  border-color: #2563eb;
-  color: #2563eb;
+  background: var(--bg-color);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 
 .add-to-kb-btn .btn-icon {
-  color: #f59e0b;
+  color: var(--warning-color);
 }
 
 .result-body {
@@ -1887,7 +1887,7 @@ const goToDocumentDetail = (id: number) => {
 .result-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 10px 0;
   line-height: 1.5;
   cursor: pointer;
@@ -1898,7 +1898,7 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .result-title:hover {
-  color: #2563eb;
+  color: var(--primary-color);
   text-decoration: underline;
 }
 
@@ -1912,36 +1912,36 @@ const goToDocumentDetail = (id: number) => {
 }
 
 .status-badge.valid {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--diff-added-soft);
+  color: var(--diff-added);
 }
 
 .status-badge.pending {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--warning-soft);
+  color: var(--warning-color);
 }
 
 .status-badge.invalid {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--diff-removed-soft);
+  color: var(--diff-removed);
 }
 
 .result-meta {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin-bottom: 10px;
 }
 
 .meta-separator {
   margin: 0 4px;
-  color: #cbd5e1;
+  color: var(--border-color);
 }
 
 /* Content Section Wrapper */
 .content-section-wrapper {
   margin-top: 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -1949,8 +1949,8 @@ const goToDocumentDetail = (id: number) => {
 .content-tabs {
   display: flex;
   gap: 0;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .content-tab {
@@ -1959,19 +1959,19 @@ const goToDocumentDetail = (id: number) => {
   border: none;
   font-size: 13px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
 }
 
 .content-tab:hover {
-  color: #2563eb;
-  background: #f1f5f9;
+  color: var(--primary-color);
+  background: var(--surface-soft);
 }
 
 .content-tab.active {
-  color: #2563eb;
+  color: var(--primary-color);
   font-weight: 600;
 }
 
@@ -1982,7 +1982,7 @@ const goToDocumentDetail = (id: number) => {
   left: 0;
   right: 0;
   height: 2px;
-  background: #2563eb;
+  background: var(--primary-color);
 }
 
 .content-body {
@@ -1991,7 +1991,7 @@ const goToDocumentDetail = (id: number) => {
 
 .content-text {
   font-size: 14px;
-  color: #475569;
+  color: var(--text-secondary);
   line-height: 1.7;
   margin: 0;
   display: -webkit-box;
@@ -2002,11 +2002,11 @@ const goToDocumentDetail = (id: number) => {
 
 .content-label {
   font-weight: 600;
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .content-empty {
-  color: #94a3b8;
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -2015,7 +2015,7 @@ const goToDocumentDetail = (id: number) => {
   flex-direction: column;
   gap: 4px;
   padding: 8px 0;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .history-doc-item:last-child {
@@ -2024,7 +2024,7 @@ const goToDocumentDetail = (id: number) => {
 
 .history-doc-title {
   font-size: 14px;
-  color: #2563eb;
+  color: var(--primary-color);
   cursor: pointer;
 }
 
@@ -2034,14 +2034,14 @@ const goToDocumentDetail = (id: number) => {
 
 .history-doc-meta {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 /* Penalty Details */
 .penalty-details {
   margin-top: 12px;
   padding: 12px;
-  background: #f8fafc;
+  background: var(--bg-color);
   border-radius: 6px;
   display: flex;
   flex-direction: column;
@@ -2050,29 +2050,29 @@ const goToDocumentDetail = (id: number) => {
 
 .detail-row {
   font-size: 14px;
-  color: #475569;
+  color: var(--text-secondary);
   display: flex;
 }
 
 .detail-label {
-  color: #64748b;
+  color: var(--text-secondary);
   font-weight: 500;
   min-width: 80px;
 }
 
 .detail-value {
-  color: #334155;
+  color: var(--text-main);
   flex: 1;
 }
 
 .detail-value.amount {
-  color: #dc2626;
+  color: var(--diff-removed);
   font-weight: 600;
 }
 
 /* Highlight style for search terms */
 :deep(.highlight) {
-  color: #dc2626;
+  color: var(--diff-removed);
   font-weight: normal;
 }
 
@@ -2088,12 +2088,12 @@ const goToDocumentDetail = (id: number) => {
 
 .pagination-text {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .pagination-text:hover {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .page-numbers {
@@ -2111,18 +2111,18 @@ const goToDocumentDetail = (id: number) => {
   border: none;
   border-radius: 4px;
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .page-number.active {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
   font-weight: 600;
 }
 
 .page-number:hover:not(.active) {
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 /* Scrollbar styling */
@@ -2138,12 +2138,12 @@ const goToDocumentDetail = (id: number) => {
 
 .results-scroll-container::-webkit-scrollbar-thumb,
 .inner-sidebar::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
+  background-color: var(--border-color);
   border-radius: 3px;
 }
 
 .results-scroll-container::-webkit-scrollbar-thumb:hover,
 .inner-sidebar::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+  background-color: var(--text-muted);
 }
 </style>

@@ -565,14 +565,14 @@ const getStatusClass = (status: ChangeStatus) => ({
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 /* Header - 与审查页一致 */
 .page-header {
   height: 60px;
   background: white;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -594,30 +594,30 @@ const getStatusClass = (status: ChangeStatus) => ({
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 14px;
   cursor: pointer;
 }
 
 .back-btn:hover {
-  background: #f1f5f9;
-  color: #1e293b;
+  background: var(--surface-soft);
+  color: var(--text-main);
 }
 
 .header-divider {
   width: 1px;
   height: 24px;
-  background: #e2e8f0;
+  background: var(--border-color);
 }
 
 .header-icon {
-  color: #8b5cf6;
+  color: var(--skill-color);
 }
 
 .page-title {
   font-size: 17px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
 }
 
@@ -631,23 +631,23 @@ const getStatusClass = (status: ChangeStatus) => ({
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  background: #f8fafc;
+  background: var(--bg-color);
   border-radius: 20px;
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .stat-item .stat-num {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
 }
 
-.stat-item.high { background: #fef2f2; color: #dc2626; }
-.stat-item.high .stat-num { color: #dc2626; }
-.stat-item.pending { background: #fefce8; color: #ca8a04; }
-.stat-item.pending .stat-num { color: #ca8a04; }
-.stat-item.accepted { background: #f0fdf4; color: #16a34a; }
-.stat-item.accepted .stat-num { color: #16a34a; }
+.stat-item.high { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.stat-item.high .stat-num { color: var(--diff-removed); }
+.stat-item.pending { background: var(--warning-soft); color: var(--warning-color); }
+.stat-item.pending .stat-num { color: var(--warning-color); }
+.stat-item.accepted { background: var(--diff-added-soft); color: var(--diff-added); }
+.stat-item.accepted .stat-num { color: var(--diff-added); }
 
 .header-right {
   display: flex;
@@ -664,13 +664,13 @@ const getStatusClass = (status: ChangeStatus) => ({
   align-items: center;
   justify-content: center;
   background: white;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
-.icon-btn:hover:not(:disabled) { background: #f1f5f9; color: #8b5cf6; }
+.icon-btn:hover:not(:disabled) { background: var(--surface-soft); color: var(--skill-color); }
 .icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .bulk-btns { display: flex; gap: 8px; }
@@ -687,17 +687,17 @@ const getStatusClass = (status: ChangeStatus) => ({
   cursor: pointer;
 }
 
-.bulk-btn.reject { background: #fee2e2; color: #dc2626; }
-.bulk-btn.reject:hover { background: #fecaca; }
-.bulk-btn.accept { background: #dcfce7; color: #16a34a; }
-.bulk-btn.accept:hover { background: #bbf7d0; }
+.bulk-btn.reject { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.bulk-btn.reject:hover { background: var(--diff-removed-border); }
+.bulk-btn.accept { background: var(--diff-added-soft); color: var(--diff-added); }
+.bulk-btn.accept:hover { background: var(--diff-added-border); }
 
 .export-btn {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 18px;
-  background: #8b5cf6;
+  background: var(--skill-color);
   border: none;
   border-radius: 6px;
   color: white;
@@ -706,7 +706,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   cursor: pointer;
 }
 
-.export-btn:hover { background: #7c3aed; }
+.export-btn:hover { background: var(--skill-color); }
 
 /* Main Content */
 .main-content {
@@ -739,11 +739,11 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .contract-doc.original {
-  border-top: 4px solid #f87171;
+  border-top: 4px solid var(--diff-removed);
 }
 
 .contract-doc.new {
-  border-top: 4px solid #4ade80;
+  border-top: 4px solid var(--diff-added);
 }
 
 .doc-header {
@@ -751,8 +751,8 @@ const getStatusClass = (status: ChangeStatus) => ({
   align-items: center;
   justify-content: space-between;
   padding: 12px 20px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--bg-color);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .version-tag {
@@ -762,30 +762,30 @@ const getStatusClass = (status: ChangeStatus) => ({
   border-radius: 4px;
 }
 
-.version-tag.old { background: #fef2f2; color: #dc2626; }
-.version-tag.new { background: #f0fdf4; color: #16a34a; }
+.version-tag.old { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.version-tag.new { background: var(--diff-added-soft); color: var(--diff-added); }
 
 .doc-date {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .doc-title {
   padding: 20px;
   text-align: center;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .doc-title h2 {
   font-size: 18px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 8px 0;
 }
 
 .doc-title p {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin: 4px 0;
 }
 
@@ -802,7 +802,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 .clause h4 {
   font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 8px 0;
 }
 
@@ -810,7 +810,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   font-family: inherit;
   font-size: 13px;
   line-height: 1.8;
-  color: #475569;
+  color: var(--text-secondary);
   white-space: pre-wrap;
   margin: 0;
 }
@@ -819,7 +819,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 .diff-panel {
   width: 380px;
   background: white;
-  border-left: 1px solid #e2e8f0;
+  border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -830,13 +830,13 @@ const getStatusClass = (status: ChangeStatus) => ({
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .panel-header h2 {
   font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
 }
 
@@ -852,19 +852,19 @@ const getStatusClass = (status: ChangeStatus) => ({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f1f5f9;
+  background: var(--surface-soft);
   border: none;
   border-radius: 4px;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
-.nav-btn:hover:not(:disabled) { background: #e2e8f0; color: #1e293b; }
+.nav-btn:hover:not(:disabled) { background: var(--border-color); color: var(--text-main); }
 .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .nav-info {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 /* Diff List */
@@ -872,7 +872,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   max-height: 220px;
   overflow-y: auto;
   padding: 12px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .diff-item {
@@ -880,20 +880,20 @@ const getStatusClass = (status: ChangeStatus) => ({
   border-radius: 6px;
   margin-bottom: 6px;
   cursor: pointer;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   position: relative;
 }
 
-.diff-item:hover { background: #faf5ff; }
+.diff-item:hover { background: var(--skill-soft); }
 
 .diff-item.selected {
-  border-color: #8b5cf6;
-  background: #f5f3ff;
+  border-color: var(--skill-color);
+  background: var(--skill-soft);
 }
 
-.diff-item.status-accepted { border-left: 3px solid #16a34a; }
-.diff-item.status-rejected { border-left: 3px solid #94a3b8; opacity: 0.7; }
-.diff-item.status-pending { border-left: 3px solid #eab308; }
+.diff-item.status-accepted { border-left: 3px solid var(--diff-added); }
+.diff-item.status-rejected { border-left: 3px solid var(--text-muted); opacity: 0.7; }
+.diff-item.status-pending { border-left: 3px solid var(--warning-color); }
 
 .diff-item-header {
   display: flex;
@@ -905,7 +905,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 .diff-index {
   width: 18px;
   height: 18px;
-  background: #8b5cf6;
+  background: var(--skill-color);
   color: white;
   border-radius: 4px;
   font-size: 11px;
@@ -922,9 +922,9 @@ const getStatusClass = (status: ChangeStatus) => ({
   font-weight: 500;
 }
 
-.type-add { background: #dcfce7; color: #16a34a; }
-.type-del { background: #fee2e2; color: #dc2626; }
-.type-mod { background: #ede9fe; color: #7c3aed; }
+.type-add { background: var(--diff-added-soft); color: var(--diff-added); }
+.type-del { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.type-mod { background: var(--skill-soft); color: var(--skill-color); }
 
 .diff-risk {
   font-size: 10px;
@@ -933,13 +933,13 @@ const getStatusClass = (status: ChangeStatus) => ({
   margin-left: auto;
 }
 
-.risk-high { background: #fee2e2; color: #dc2626; }
-.risk-medium { background: #fef3c7; color: #d97706; }
-.risk-low { background: #dcfce7; color: #16a34a; }
+.risk-high { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.risk-medium { background: var(--warning-soft); color: var(--warning-color); }
+.risk-low { background: var(--diff-added-soft); color: var(--diff-added); }
 
 .diff-location {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .diff-status-icon {
@@ -948,12 +948,12 @@ const getStatusClass = (status: ChangeStatus) => ({
   right: 10px;
 }
 
-.icon-accepted { color: #16a34a; }
-.icon-rejected { color: #94a3b8; }
+.icon-accepted { color: var(--diff-added); }
+.icon-rejected { color: var(--text-muted); }
 .icon-pending {
   width: 8px;
   height: 8px;
-  background: #eab308;
+  background: var(--warning-color);
   border-radius: 50%;
   display: inline-block;
 }
@@ -980,15 +980,15 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .detail-header.desc {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--warning-soft);
+  color: var(--warning-color);
 }
-.detail-header.desc.risk-high { background: #fee2e2; color: #dc2626; }
-.detail-header.desc.risk-low { background: #dcfce7; color: #16a34a; }
+.detail-header.desc.risk-high { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.detail-header.desc.risk-low { background: var(--diff-added-soft); color: var(--diff-added); }
 
-.detail-header.original { background: #fef2f2; }
-.detail-header.new { background: #f0fdf4; }
-.detail-header.warning { background: #fef3c7; color: #d97706; }
+.detail-header.original { background: var(--diff-removed-soft); }
+.detail-header.new { background: var(--diff-added-soft); }
+.detail-header.warning { background: var(--warning-soft); color: var(--warning-color); }
 
 .label-tag {
   font-size: 12px;
@@ -996,18 +996,18 @@ const getStatusClass = (status: ChangeStatus) => ({
   border-radius: 3px;
 }
 
-.detail-header.original .label-tag { background: #dc2626; color: white; }
-.detail-header.new .label-tag { background: #16a34a; color: white; }
+.detail-header.original .label-tag { background: var(--diff-removed); color: white; }
+.detail-header.new .label-tag { background: var(--diff-added); color: white; }
 
 .detail-desc {
   padding: 12px;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
   border-top: none;
   border-radius: 0 0 6px 6px;
   font-size: 13px;
   line-height: 1.7;
-  color: #78716c;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1019,16 +1019,16 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .detail-text.deleted {
-  background: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+  background: var(--diff-removed-soft);
+  color: var(--diff-removed);
+  border: 1px solid var(--diff-removed-border);
   border-top: none;
 }
 
 .detail-text.added {
-  background: #f0fdf4;
-  color: #166534;
-  border: 1px solid #bbf7d0;
+  background: var(--diff-added-soft);
+  color: var(--diff-added);
+  border: 1px solid var(--diff-added-border);
   border-top: none;
 }
 
@@ -1052,10 +1052,10 @@ const getStatusClass = (status: ChangeStatus) => ({
   cursor: pointer;
 }
 
-.action-btn.accept { background: #16a34a; color: white; }
-.action-btn.accept:hover { background: #15803d; }
-.action-btn.reject { background: #f1f5f9; color: #64748b; }
-.action-btn.reject:hover { background: #e2e8f0; }
+.action-btn.accept { background: var(--diff-added); color: white; }
+.action-btn.accept:hover { background: var(--diff-added); }
+.action-btn.reject { background: var(--surface-soft); color: var(--text-secondary); }
+.action-btn.reject:hover { background: var(--border-color); }
 
 .detail-status { padding-top: 16px; }
 
@@ -1070,6 +1070,6 @@ const getStatusClass = (status: ChangeStatus) => ({
   font-weight: 500;
 }
 
-.status-badge.status-accepted { background: #dcfce7; color: #16a34a; }
-.status-badge.status-rejected { background: #f1f5f9; color: #64748b; }
+.status-badge.status-accepted { background: var(--diff-added-soft); color: var(--diff-added); }
+.status-badge.status-rejected { background: var(--surface-soft); color: var(--text-secondary); }
 </style>

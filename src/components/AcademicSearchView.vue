@@ -73,7 +73,7 @@ const handleSearch = () => {
   align-items: center;
   padding: 65px 40px 48px;
   overflow-y: auto;
-  background: #f6f8ff;
+  background: var(--bg-color);
 }
 
 .content-wrapper {
@@ -88,7 +88,7 @@ const handleSearch = () => {
   font-size: 30px;
   line-height: 1.2;
   font-weight: 800;
-  color: #1556e8;
+  color: var(--primary-color);
   margin: 0 0 40px;
   letter-spacing: 0;
 }
@@ -98,8 +98,8 @@ const handleSearch = () => {
   min-height: 76px;
   display: flex;
   align-items: center;
-  background: #ffffff;
-  border: 1.5px solid #2454ff;
+  background: var(--card-bg);
+  border: 1.5px solid var(--primary-color);
   border-radius: 11px;
   padding: 0 24px 0 35px;
   box-shadow: 0 10px 34px rgba(45, 88, 219, 0.08);
@@ -111,7 +111,7 @@ const handleSearch = () => {
   gap: 8px;
   height: 40px;
   padding: 0;
-  color: #202124;
+  color: var(--text-strong);
   font-size: 16px;
   font-weight: 500;
   line-height: 1;
@@ -119,7 +119,7 @@ const handleSearch = () => {
 }
 
 .source-select svg {
-  color: #9aa5b8;
+  color: var(--text-muted);
   margin-top: 1px;
 }
 
@@ -127,7 +127,7 @@ const handleSearch = () => {
   width: 1px;
   height: 30px;
   margin: 0 20px 0 19px;
-  background: #d7dce7;
+  background: var(--border-color);
 }
 
 .search-input {
@@ -137,12 +137,12 @@ const handleSearch = () => {
   outline: none;
   font-size: 16px;
   font-weight: 500;
-  color: #1f2937;
+  color: var(--text-main);
   background: transparent;
 }
 
 .search-input::placeholder {
-  color: #9aa3b4;
+  color: var(--text-muted);
 }
 
 .send-btn {
@@ -150,10 +150,10 @@ const handleSearch = () => {
   height: 36px;
   flex: 0 0 36px;
   margin-left: 18px;
-  background: #bcc2cf;
+  background: var(--border-color);
   border: none;
   border-radius: 9px;
-  color: #ffffff;
+  color: var(--on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -162,7 +162,7 @@ const handleSearch = () => {
 }
 
 .send-btn:hover {
-  background: #2454ff;
+  background: var(--primary-color);
   transform: translateY(-1px);
 }
 
@@ -181,14 +181,14 @@ const handleSearch = () => {
   gap: 5px;
   font-size: 16px;
   line-height: 1;
-  color: #1f232b;
+  color: var(--text-strong);
   font-weight: 500;
   white-space: nowrap;
 }
 
 .step-icon {
-  color: #2458d8;
-  fill: #2458d8;
+  color: var(--primary-color);
+  fill: var(--primary-color);
 }
 
 .step-arrow {
@@ -206,7 +206,7 @@ const handleSearch = () => {
   width: 14px;
   height: 3px;
   border-radius: 999px;
-  background: #a8bfee;
+  background: var(--primary-border);
 }
 
 .step-arrow::after {
@@ -218,7 +218,7 @@ const handleSearch = () => {
   height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-left: 7px solid #a8bfee;
+  border-left: 7px solid var(--primary-border);
 }
 
 .feature-showcase {

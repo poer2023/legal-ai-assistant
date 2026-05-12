@@ -341,7 +341,7 @@ const referenceSources = [
   min-width: 1028px;
   padding: 0;
   overflow: hidden;
-  background: #e9f1ff;
+  background: var(--primary-soft);
 }
 
 .knowledge-page.with-source-drawer {
@@ -356,7 +356,7 @@ const referenceSources = [
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #e8f0ff;
+  background: var(--primary-soft);
 }
 
 .library-header {
@@ -366,7 +366,7 @@ const referenceSources = [
   justify-content: space-between;
   gap: 20px;
   padding: 14px 16px 14px 17px;
-  background: #dfeafa;
+  background: var(--primary-soft);
 }
 
 .title-line {
@@ -384,13 +384,13 @@ const referenceSources = [
   justify-content: center;
   flex-shrink: 0;
   border-radius: 999px;
-  color: #2751c5;
-  background: #ffffff;
+  color: var(--primary-color);
+  background: var(--card-bg);
 }
 
 .title-line h2 {
   margin: 0;
-  color: #2452c6;
+  color: var(--primary-color);
   font-size: 20px;
   font-weight: 800;
   line-height: 1.2;
@@ -406,8 +406,8 @@ const referenceSources = [
   gap: 6px;
   padding: 0 13px;
   border-radius: 8px;
-  background: #2855bd;
-  color: #ffffff;
+  background: var(--primary-color);
+  color: var(--on-primary);
   font-size: 14px;
   font-weight: 700;
   box-shadow: 0 1px 0 rgba(10, 33, 90, 0.08);
@@ -419,7 +419,7 @@ const referenceSources = [
   display: flex;
   flex-direction: column;
   padding: 16px 10px 0 17px;
-  background: #e8f0ff;
+  background: var(--primary-soft);
 }
 
 .search-row {
@@ -433,10 +433,10 @@ const referenceSources = [
   align-items: center;
   gap: 12px;
   padding-left: 14px;
-  border: 1.5px solid #2b58da;
+  border: 1.5px solid var(--primary-color);
   border-radius: 10px;
-  color: #2d6def;
-  background: #ffffff;
+  color: var(--primary-color);
+  background: var(--card-bg);
   overflow: hidden;
 }
 
@@ -444,21 +444,21 @@ const referenceSources = [
   flex: 1;
   min-width: 0;
   height: 100%;
-  color: #334155;
+  color: var(--text-main);
   font-size: 16px;
   font-weight: 500;
 }
 
 .library-search input::placeholder {
-  color: #9aa3b2;
+  color: var(--text-muted);
 }
 
 .search-button {
   align-self: stretch;
   width: 60px;
   flex-shrink: 0;
-  background: #2855bd;
-  color: #ffffff;
+  background: var(--primary-color);
+  color: var(--on-primary);
   font-size: 14px;
   font-weight: 800;
 }
@@ -481,7 +481,7 @@ const referenceSources = [
   align-items: center;
   justify-content: flex-start;
   gap: 9px;
-  color: #454b5b;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.25;
@@ -495,7 +495,7 @@ const referenceSources = [
   margin-top: 1px;
   display: block;
   border-radius: 4px;
-  background: linear-gradient(180deg, #ffd65f 0%, #ffc837 100%);
+  background: linear-gradient(180deg, var(--warning-border) 0%, var(--warning-border) 100%);
   box-shadow: inset 0 -1px 0 rgba(160, 111, 10, 0.08);
 }
 
@@ -507,7 +507,7 @@ const referenceSources = [
   width: 21px;
   height: 9px;
   border-radius: 3px 3px 0 0;
-  background: #ffbe2f;
+  background: var(--warning-color);
 }
 
 .file-list {
@@ -515,7 +515,7 @@ const referenceSources = [
   flex: 1;
   overflow-y: auto;
   padding: 17px 16px 22px 0;
-  scrollbar-color: #9db8ef transparent;
+  scrollbar-color: var(--primary-border) transparent;
   scrollbar-width: thin;
 }
 
@@ -525,7 +525,7 @@ const referenceSources = [
 
 .file-list::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #9db8ef;
+  background: var(--primary-border);
 }
 
 .file-row {
@@ -550,24 +550,24 @@ const referenceSources = [
   align-items: center;
   justify-content: center;
   border-radius: 3px;
-  color: #ffffff;
+  color: var(--on-primary);
   font-size: 8px;
   font-weight: 900;
   line-height: 1;
 }
 
 .file-type-pdf {
-  background: #ff4f46;
+  background: var(--diff-removed);
 }
 
 .file-type-word {
-  background: #2368d5;
+  background: var(--primary-color);
   font-size: 10px;
 }
 
 .file-type-markdown {
   position: relative;
-  background: #758096;
+  background: var(--text-muted);
 }
 
 .file-type-markdown::before,
@@ -590,12 +590,12 @@ const referenceSources = [
 }
 
 .file-type-sheet {
-  background: #16a45b;
+  background: var(--diff-added);
   font-size: 10px;
 }
 
 .file-type-slide {
-  background: #f56a33;
+  background: var(--warning-color);
   font-size: 10px;
 }
 
@@ -603,7 +603,7 @@ const referenceSources = [
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  color: #444b5c;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 800;
   line-height: 40px;
@@ -615,7 +615,7 @@ const referenceSources = [
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: #8a94a6;
+  color: var(--text-muted);
   font-size: 14px;
   font-weight: 500;
   white-space: nowrap;
@@ -626,7 +626,7 @@ const referenceSources = [
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-  color: #7b8494;
+  color: var(--text-secondary);
 }
 
 .file-actions button {
@@ -642,7 +642,7 @@ const referenceSources = [
   grid-column: 2;
   grid-row: 1 / 3;
   height: 100%;
-  background: #dce7f9;
+  background: var(--primary-soft);
   border-left: 1px solid rgba(199, 213, 238, 0.8);
   border-right: 1px solid rgba(199, 213, 238, 0.45);
 }
@@ -654,7 +654,7 @@ const referenceSources = [
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  background: #e9f1ff;
+  background: var(--primary-soft);
 }
 
 .answer-scroll {
@@ -662,7 +662,7 @@ const referenceSources = [
   min-height: 0;
   overflow-y: auto;
   padding: 24px 32px 12px 26px;
-  scrollbar-color: #a2b9ee transparent;
+  scrollbar-color: var(--primary-border) transparent;
   scrollbar-width: thin;
 }
 
@@ -672,15 +672,15 @@ const referenceSources = [
 
 .answer-scroll::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #a2b9ee;
+  background: var(--primary-border);
 }
 
 .answer-card {
   min-height: 704px;
   padding: 0 30px 14px;
   border-radius: 13px 13px 0 0;
-  background: #ffffff;
-  color: #1f2933;
+  background: var(--card-bg);
+  color: var(--text-main);
 }
 
 .user-message {
@@ -693,13 +693,13 @@ const referenceSources = [
   max-width: 260px;
   padding: 14px 15px 12px;
   border-radius: 13px 13px 0 13px;
-  background: #d7e6ff;
-  color: #293547;
+  background: var(--primary-soft);
+  color: var(--text-main);
 }
 
 .question-bubble p {
   margin: 0;
-  color: #1f2937;
+  color: var(--text-main);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.45;
@@ -710,7 +710,7 @@ const referenceSources = [
   align-items: center;
   gap: 20px;
   margin-top: 12px;
-  color: #778293;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -735,7 +735,7 @@ const referenceSources = [
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: #1f2933;
+  color: var(--text-main);
   font-size: 14px;
   font-weight: 700;
 }
@@ -747,20 +747,20 @@ const referenceSources = [
   gap: 7px;
   padding: 0 12px;
   border-radius: 9px;
-  background: #f6f9ff;
-  color: #566274;
+  background: var(--bg-color);
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 700;
 }
 
 .reference-button.active,
 .reference-button:hover {
-  background: #edf4ff;
-  color: #445066;
+  background: var(--primary-soft);
+  color: var(--text-secondary);
 }
 
 .reference-button svg {
-  color: #2855bd;
+  color: var(--primary-color);
 }
 
 .answer-content {
@@ -774,13 +774,13 @@ const referenceSources = [
 
 .numbered-title {
   margin: 18px 0 5px !important;
-  color: #1f1f1f;
+  color: var(--text-strong);
   font-weight: 800;
 }
 
 .answer-content h3 {
   margin: 28px 0 10px;
-  color: #1e1e1e;
+  color: var(--text-strong);
   font-size: 20px;
   font-weight: 900;
   line-height: 1.35;
@@ -809,7 +809,7 @@ const referenceSources = [
   position: relative;
   margin: 3px 0 12px !important;
   padding-left: 24px !important;
-  color: #5e6a7a;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.66;
 }
@@ -820,7 +820,7 @@ const referenceSources = [
 
 .reasoning-timeline {
   margin: 2px 0 16px;
-  color: #5e6a7a;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.68;
 }
@@ -838,7 +838,7 @@ const referenceSources = [
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #b6bbc5;
+  background: var(--border-color);
 }
 
 .timeline-node::after {
@@ -848,7 +848,7 @@ const referenceSources = [
   bottom: 6px;
   left: 5px;
   width: 1px;
-  background: #e0e4eb;
+  background: var(--border-color);
 }
 
 .timeline-node.last::after {
@@ -865,13 +865,13 @@ const referenceSources = [
   column-gap: 18px;
   row-gap: 4px;
   margin: 12px 0 0;
-  color: #5e6a7a;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.35;
 }
 
 .tool-step strong {
-  color: #245bd6;
+  color: var(--primary-color);
   font-size: 14px;
   font-weight: 900;
 }
@@ -880,25 +880,25 @@ const referenceSources = [
   justify-self: start;
   padding: 4px 13px;
   border-radius: 7px;
-  background: #f4f6f9;
-  color: #566274;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
 }
 
 .tool-step small {
   grid-column: 1 / -1;
   margin-left: 94px;
-  color: #8d98a9;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .mock-answer-content > ul:not(.process-list) {
-  color: #5f6a78;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.74;
 }
 
 .mock-answer-content > p {
-  color: #3f4857;
+  color: var(--text-main);
 }
 
 .bubble {
@@ -909,8 +909,8 @@ const referenceSources = [
   justify-content: center;
   margin: 0 1px;
   border-radius: 999px;
-  background: #f1f1f1;
-  color: #8c8c8c;
+  background: var(--surface-soft);
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1;
 }
@@ -919,7 +919,7 @@ const referenceSources = [
   height: 1px;
   margin: 13px 0 10px;
   border: 0;
-  background: #1f1f1f;
+  background: var(--text-strong);
 }
 
 .closing-copy {
@@ -934,8 +934,8 @@ const referenceSources = [
   min-width: 25px;
   margin-left: 4px;
   border-radius: 5px;
-  background: #f0f0f0;
-  color: #9b9b9b;
+  background: var(--surface-soft);
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
 }
@@ -945,7 +945,7 @@ const referenceSources = [
   align-items: center;
   gap: 14px;
   margin-top: 12px;
-  color: #7e8795;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1;
 }
@@ -964,7 +964,7 @@ const referenceSources = [
   min-height: 0;
   box-sizing: border-box;
   padding: 0 10px 8px 12px;
-  background: #e9f1ff;
+  background: var(--primary-soft);
 }
 
 .qa-toolbar {
@@ -983,10 +983,10 @@ const referenceSources = [
   align-items: center;
   justify-content: center;
   gap: 6px;
-  border: 1px solid #b9d5ff;
+  border: 1px solid var(--primary-border);
   border-radius: 8px;
-  background: #ffffff;
-  color: #445066;
+  background: var(--card-bg);
+  color: var(--text-secondary);
   font-size: 14px;
   box-shadow: 0 2px 6px rgba(37, 99, 235, 0.06);
 }
@@ -994,9 +994,9 @@ const referenceSources = [
 .qa-composer {
   position: relative;
   height: 108px;
-  border: 1px solid #9fc6ff;
+  border: 1px solid var(--primary-border);
   border-radius: 11px;
-  background: #ffffff;
+  background: var(--card-bg);
   overflow: hidden;
 }
 
@@ -1005,13 +1005,13 @@ const referenceSources = [
   height: 100%;
   resize: none;
   padding: 13px 84px 14px 12px;
-  color: #334155;
+  color: var(--text-main);
   font-size: 16px;
   line-height: 1.5;
 }
 
 .qa-composer textarea::placeholder {
-  color: #929cac;
+  color: var(--text-muted);
 }
 
 .composer-actions {
@@ -1021,7 +1021,7 @@ const referenceSources = [
   display: flex;
   align-items: center;
   gap: 13px;
-  color: #687386;
+  color: var(--text-secondary);
 }
 
 .composer-actions button {
@@ -1035,13 +1035,13 @@ const referenceSources = [
   width: 35px;
   height: 35px;
   border-radius: 11px;
-  background: #bec6d6;
-  color: #ffffff !important;
+  background: var(--border-color);
+  color: var(--on-primary) !important;
 }
 
 .qa-dock p {
   margin: 4px 0 0;
-  color: #7a8496;
+  color: var(--text-secondary);
   font-size: 12px;
   text-align: center;
 }
@@ -1052,8 +1052,8 @@ const referenceSources = [
   min-width: 0;
   height: 100%;
   padding: 18px 16px;
-  border-left: 1px solid #dbe5f4;
-  background: #f7f9fc;
+  border-left: 1px solid var(--border-color);
+  background: var(--bg-color);
   box-shadow: -8px 0 18px rgba(64, 88, 128, 0.08);
 }
 
@@ -1071,7 +1071,7 @@ const referenceSources = [
 }
 
 .source-drawer-header strong {
-  color: #1f2937;
+  color: var(--text-main);
   font-size: 16px;
   font-weight: 800;
 }
@@ -1082,8 +1082,8 @@ const referenceSources = [
   align-items: center;
   padding: 0 9px;
   border-radius: 8px;
-  background: #edf1f7;
-  color: #5f6b7a;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 700;
 }
@@ -1095,12 +1095,12 @@ const referenceSources = [
   align-items: center;
   justify-content: center;
   border-radius: 7px;
-  color: #b7bec9;
+  color: var(--text-muted);
 }
 
 .source-drawer-header button:hover {
-  background: #eef3fb;
-  color: #667085;
+  background: var(--border-soft);
+  color: var(--text-secondary);
 }
 
 .source-list {
@@ -1112,7 +1112,7 @@ const referenceSources = [
 .source-card {
   padding: 17px 18px 18px;
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 2px 9px rgba(45, 70, 110, 0.06);
 }
 
@@ -1121,11 +1121,11 @@ const referenceSources = [
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  color: #1f2937;
+  color: var(--text-main);
 }
 
 .source-card-title svg {
-  color: #2357d7;
+  color: var(--primary-color);
 }
 
 .source-card-title strong {
@@ -1135,7 +1135,7 @@ const referenceSources = [
 
 .source-card h4 {
   margin: 0 0 9px;
-  color: #253041;
+  color: var(--text-main);
   font-size: 14px;
   font-weight: 800;
   line-height: 1.45;
@@ -1143,7 +1143,7 @@ const referenceSources = [
 
 .source-card p {
   margin: 0;
-  color: #5c6675;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.75;
 }

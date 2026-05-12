@@ -87,14 +87,14 @@ const handleActionClick = (action: QuickAction) => {
   gap: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border: 1px solid #dbeafe;
+  border: 1px solid var(--primary-soft-strong);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.02);
 }
 
 .action-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  border-color: #e2e8f0;
+  border-color: var(--border-color);
 }
 
 .icon-wrapper {
@@ -106,7 +106,7 @@ const handleActionClick = (action: QuickAction) => {
 
 .action-label {
   font-size: 14px;
-  color: #334155;
+  color: var(--text-main);
   font-weight: 500;
   text-align: center;
   line-height: 1.25;

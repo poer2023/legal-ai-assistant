@@ -5,7 +5,6 @@ import {
   Check,
   Download,
   Info,
-  LayoutTemplate,
   MoreHorizontal,
   Pencil,
   Play,
@@ -14,10 +13,9 @@ import {
   Trash2,
   UsersRound,
 } from 'lucide-vue-next';
-import { getTemplatesForSkill, type SkillTemplateOption } from '../data/legalAssets';
 import {
   addPersonalSkill,
-  isPersonalSkill,
+  isSkillAvailable,
   officialRecommendedSkills,
   personalSkills,
   publishSkillToTeamMarket,
@@ -26,6 +24,7 @@ import {
   type SkillCatalogItem,
 } from '../data/skillCatalog';
 import SkillDetailPanel from './SkillDetailPanel.vue';
+import SkillManageModal from './SkillManageModal.vue';
 
 type SkillMode = 'personal' | 'team-market' | 'recommended';
 
@@ -33,6 +32,7 @@ const skillMode = ref<SkillMode>('personal');
 const statusMessage = ref('');
 const openCardMenuId = ref<string | null>(null);
 const selectedSkill = ref<SkillCatalogItem | null>(null);
+const showSkillManageModal = ref(false);
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 const router = useRouter();
 
@@ -88,6 +88,14 @@ const setSkillMode = (mode: SkillMode) => {
 const selectSkill = (skill: SkillCatalogItem) => {
   openCardMenuId.value = null;
   setStatus(`${skill.name} 已选择`);
+  void router.push({
+    name: 'home',
+    query: {
+      composerAction: 'use-skill',
+      skillName: skill.name,
+      composerTick: Date.now().toString(),
+    },
+  });
 };
 
 const openSkill = (skill: SkillCatalogItem) => {
@@ -103,14 +111,7 @@ const backToList = () => {
 const triggerCreateSkill = () => {
   openCardMenuId.value = null;
   clearDetail();
-  void router.push({
-    name: 'home',
-    query: {
-      composerAction: 'skill',
-      composerSource: 'library',
-      composerTick: Date.now().toString(),
-    },
-  });
+  showSkillManageModal.value = true;
 };
 
 const addSkill = (skill: SkillCatalogItem) => {
@@ -154,16 +155,33 @@ const deleteSkill = (skill: SkillCatalogItem) => {
 };
 
 const useSkillFromDetail = (skillName?: string) => {
-  setStatus(`${skillName ?? selectedSkill.value?.name ?? '技能'} 已选择`);
+  const skill = selectedSkill.value;
+  setStatus(`${skillName ?? skill?.name ?? '技能'} 已选择`);
+  if (!skill) return;
+
+  void router.push({
+    name: 'home',
+    query: {
+      composerAction: 'use-skill',
+      skillName: skill.name,
+      composerTick: Date.now().toString(),
+    },
+  });
 };
 
-const useTemplateFromDetail = (template: SkillTemplateOption) => {
-  setStatus(`${template.name} 格式模板已选择`);
+const useSkillNameFromModal = (skillName?: string) => {
+  if (!skillName) return;
+  void router.push({
+    name: 'home',
+    query: {
+      composerAction: 'use-skill',
+      skillName,
+      composerTick: Date.now().toString(),
+    },
+  });
 };
 
-const isSkillAdded = (skill: SkillCatalogItem) => isPersonalSkill(skill.id);
-
-const skillTemplates = (skill: SkillCatalogItem) => getTemplatesForSkill(skill);
+const isSkillAdded = (skill: SkillCatalogItem) => isSkillAvailable(skill.id);
 
 const toggleCardMenu = (id: string) => {
   openCardMenuId.value = openCardMenuId.value === id ? null : id;
@@ -311,19 +329,6 @@ onBeforeUnmount(() => {
 
               <h3>{{ skill.name }}</h3>
               <p>{{ skill.description }}</p>
-              <div v-if="skillTemplates(skill).length" class="card-template-row" aria-label="模板">
-                <span class="format-count">
-                  <LayoutTemplate :size="13" />
-                  模板×{{ skillTemplates(skill).length }}
-                </span>
-                <span
-                  v-for="template in skillTemplates(skill).slice(0, 2)"
-                  :key="template.id"
-                  class="template-chip"
-                >
-                  {{ template.name }}
-                </span>
-              </div>
             </article>
           </div>
         </template>
@@ -335,11 +340,17 @@ onBeforeUnmount(() => {
           layout="page"
           @back="backToList"
           @use="useSkillFromDetail"
-          @use-template="useTemplateFromDetail"
         />
       </section>
 
     </main>
+
+    <SkillManageModal
+      v-if="showSkillManageModal"
+      start-in-create
+      @close="showSkillManageModal = false"
+      @use="useSkillNameFromModal"
+    />
   </div>
 </template>
 
@@ -349,7 +360,7 @@ onBeforeUnmount(() => {
   height: 100%;
   overflow-y: auto;
   padding: 24px 32px 40px;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .skill-template-view.detail-view {
@@ -391,11 +402,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
-  color: #2563eb;
-  background: #ffffff;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.08);
+  color: var(--primary-color);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-card);
 }
 
 .page-header.compact .page-icon {
@@ -407,7 +418,7 @@ onBeforeUnmount(() => {
 
 .page-header h1 {
   margin: 0;
-  color: #0f172a;
+  color: var(--text-strong);
   font-size: 24px;
   font-weight: 750;
   line-height: 1.2;
@@ -436,10 +447,10 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 7px;
   padding: 0 11px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: #ffffff;
-  color: #475569;
+  background: var(--card-bg);
+  color: var(--text-main);
   font-size: 14px;
   font-weight: 700;
   text-align: left;
@@ -448,24 +459,24 @@ onBeforeUnmount(() => {
 
 .kind-tab strong {
   margin-left: auto;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 750;
 }
 
 .kind-tab:hover,
 .kind-tab.active {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #2563eb;
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 .kind-tab.active {
-  box-shadow: 0 10px 26px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--primary-color) 12%, transparent);
 }
 
 .kind-tab.active strong {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .content-section {
@@ -501,7 +512,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   margin: 0;
-  color: #171717;
+  color: var(--text-main);
   font-size: 14px;
   font-weight: 400;
   line-height: 1.35;
@@ -509,12 +520,12 @@ onBeforeUnmount(() => {
 
 .section-subtitle svg {
   flex-shrink: 0;
-  color: #8c8c8c;
+  color: var(--text-muted);
 }
 
 .status-text {
   margin-left: auto;
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 13px;
   font-weight: 650;
   white-space: nowrap;
@@ -534,25 +545,25 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 0 14px;
   border-radius: 10px;
-  color: #111827;
-  background: #f4f4f4;
+  color: var(--text-strong);
+  background: var(--surface-muted);
   font-size: 14px;
   font-weight: 650;
   line-height: 1;
 }
 
 .mode-tab:hover {
-  background: #e9e9e9;
+  background: var(--surface-soft);
 }
 
 .mode-tab.active {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--primary-hover);
+  background: var(--primary-soft-strong);
 }
 
 .mode-tab.active:hover {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--primary-hover);
+  background: var(--primary-soft-strong);
 }
 
 .card-grid {
@@ -566,16 +577,16 @@ onBeforeUnmount(() => {
   position: relative;
   min-height: 142px;
   padding: 20px 48px 24px 20px;
-  border: 1px solid #dedede;
+  border: 1px solid var(--border-color);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--card-bg);
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 .managed-card:hover {
-  border-color: #c6d3e6;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  border-color: var(--primary-border);
+  box-shadow: var(--shadow-card);
   transform: translateY(-1px);
 }
 
@@ -589,7 +600,7 @@ onBeforeUnmount(() => {
 
 .managed-card h3 {
   margin: 0 0 14px;
-  color: #151515;
+  color: var(--text-strong);
   font-size: 16px;
   font-weight: 650;
   line-height: 1.15;
@@ -600,51 +611,12 @@ onBeforeUnmount(() => {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
-  color: #707070;
+  color: var(--text-secondary);
   font-size: 13.5px;
   font-weight: 400;
   line-height: 1.4;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.card-template-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.format-count,
-.template-chip {
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 160px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.format-count {
-  color: #2563eb;
-  background: #eff6ff;
-}
-
-.format-count svg {
-  flex-shrink: 0;
-}
-
-.template-chip {
-  overflow: hidden;
-  color: #475569;
-  background: #f1f5f9;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .card-more-btn {
@@ -657,11 +629,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #707070;
+  color: var(--text-secondary);
 }
 
 .card-more-btn:hover {
-  background: #f5f5f5;
+  background: var(--surface-muted);
 }
 
 .add-btn {
@@ -676,20 +648,20 @@ onBeforeUnmount(() => {
   gap: 5px;
   padding: 0 12px;
   border-radius: 9px;
-  color: #ffffff;
-  background: #2563eb;
+  color: var(--on-primary);
+  background: var(--primary-color);
   font-size: 13px;
   font-weight: 650;
   line-height: 1;
 }
 
 .add-btn:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .add-btn:disabled {
-  color: #8c8c8c;
-  background: #f4f4f4;
+  color: var(--text-muted);
+  background: var(--surface-muted);
   cursor: default;
 }
 
@@ -700,10 +672,10 @@ onBeforeUnmount(() => {
   z-index: 40;
   min-width: 176px;
   padding: 8px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--border-color);
   border-radius: 14px;
-  background: #ffffff;
-  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-popover);
 }
 
 .card-action-menu button {
@@ -714,7 +686,7 @@ onBeforeUnmount(() => {
   gap: 10px;
   padding: 0 10px;
   border-radius: 10px;
-  color: #1f2937;
+  color: var(--text-main);
   font-size: 13px;
   font-weight: 650;
   text-align: left;
@@ -722,23 +694,23 @@ onBeforeUnmount(() => {
 
 .card-action-menu button svg {
   flex-shrink: 0;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .card-action-menu button:hover {
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 .card-action-menu button.danger {
-  color: #dc2626;
+  color: var(--diff-removed);
 }
 
 .card-action-menu button.danger svg {
-  color: #dc2626;
+  color: var(--diff-removed);
 }
 
 .card-action-menu button.danger:hover {
-  background: #fef2f2;
+  background: var(--diff-removed-soft);
 }
 
 .kind-tab:focus-visible,
@@ -747,7 +719,7 @@ onBeforeUnmount(() => {
 .card-more-btn:focus-visible,
 .card-action-menu button:focus-visible,
 .add-btn:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 

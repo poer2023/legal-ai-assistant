@@ -314,8 +314,8 @@ saveHistory();
 <style scoped>
 /* Custom Badge for info style */
 :deep(.badge-info) {
-  background: #e0f2fe;
-  color: #0284c7;
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 /* Container */
@@ -338,7 +338,7 @@ saveHistory();
 .audio-title {
   font-size: 24px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 16px 0;
 }
 
@@ -350,7 +350,7 @@ saveHistory();
 
 .info-item {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 /* Section Divider */
@@ -364,13 +364,13 @@ saveHistory();
 .divider-line {
   flex: 1;
   height: 1px;
-  background: #e5e7eb;
+  background: var(--border-color);
 }
 
 .divider-text {
   font-size: 16px;
   font-weight: 600;
-  color: #2563eb;
+  color: var(--primary-color);
   white-space: nowrap;
 }
 
@@ -387,16 +387,16 @@ saveHistory();
 .section-title {
   font-size: 18px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 16px 0;
   padding-bottom: 12px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--border-color);
 }
 
 .section-content {
   font-size: 15px;
   line-height: 1.8;
-  color: #374151;
+  color: var(--text-main);
 }
 
 .overview-text {
@@ -415,16 +415,16 @@ saveHistory();
   display: flex;
   gap: 16px;
   padding: 16px;
-  background: #f9fafb;
+  background: var(--surface-muted);
   border-radius: 8px;
-  border-left: 4px solid #2563eb;
+  border-left: 4px solid var(--primary-color);
 }
 
 .keypoint-number {
   flex-shrink: 0;
   width: 32px;
   height: 32px;
-  background: #2563eb;
+  background: var(--primary-color);
   color: white;
   border-radius: 50%;
   display: flex;
@@ -441,13 +441,13 @@ saveHistory();
 .keypoint-title {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 8px 0;
 }
 
 .keypoint-text {
   font-size: 14px;
-  color: #4b5563;
+  color: var(--text-secondary);
   margin: 0;
   line-height: 1.6;
 }
@@ -461,27 +461,27 @@ saveHistory();
 
 .participant-card {
   padding: 16px;
-  background: #f9fafb;
+  background: var(--surface-muted);
   border-radius: 8px;
   text-align: center;
 }
 
 .participant-role {
   font-size: 12px;
-  color: #6b7280;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
 .participant-name {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin-bottom: 4px;
 }
 
 .participant-phone {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 /* Timeline */
@@ -505,10 +505,10 @@ saveHistory();
   top: 4px;
   width: 12px;
   height: 12px;
-  background: #2563eb;
+  background: var(--primary-color);
   border: 3px solid white;
   border-radius: 50%;
-  box-shadow: 0 0 0 2px #2563eb;
+  box-shadow: 0 0 0 2px var(--primary-color);
 }
 
 .timeline-item:not(:last-child) .timeline-dot::after {
@@ -518,28 +518,28 @@ saveHistory();
   top: 12px;
   width: 2px;
   height: 32px;
-  background: #e5e7eb;
+  background: var(--border-color);
   transform: translateX(-50%);
 }
 
 .timeline-time {
   font-size: 14px;
   font-weight: 600;
-  color: #2563eb;
+  color: var(--primary-color);
   margin-bottom: 4px;
 }
 
 .timeline-event {
   font-size: 14px;
-  color: #4b5563;
+  color: var(--text-secondary);
 }
 
 /* Legal Analysis */
 .legal-analysis {
   padding: 16px;
-  background: #fef3c7;
+  background: var(--warning-soft);
   border-radius: 8px;
-  border-left: 4px solid #f59e0b;
+  border-left: 4px solid var(--warning-color);
 }
 
 .legal-text {
@@ -547,14 +547,14 @@ saveHistory();
   white-space: pre-wrap;
   margin: 0;
   font-size: 14px;
-  color: #92400e;
+  color: var(--warning-color);
   line-height: 1.8;
 }
 
 /* Transcript */
 .transcript-intro {
   padding: 12px 16px;
-  background: #e0f2fe;
+  background: var(--primary-soft);
   border-radius: 8px;
   margin-bottom: 16px;
 }
@@ -562,14 +562,14 @@ saveHistory();
 .transcript-intro p {
   margin: 0;
   font-size: 14px;
-  color: #075985;
+  color: var(--primary-hover);
 }
 
 .transcript-content {
   padding: 20px;
-  background: #f9fafb;
+  background: var(--surface-muted);
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border-color);
 }
 
 .transcript-text {
@@ -577,7 +577,7 @@ saveHistory();
   white-space: pre-wrap;
   margin: 0;
   font-size: 14px;
-  color: #374151;
+  color: var(--text-main);
   line-height: 1.8;
 }
 </style>

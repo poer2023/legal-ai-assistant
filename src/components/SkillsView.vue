@@ -13,7 +13,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-vue-next';
-import { findTemplatesByIds, skillAssets, type SkillAsset } from '../data/legalAssets';
+import { skillAssets, type SkillAsset } from '../data/legalAssets';
 
 const router = useRouter();
 
@@ -24,7 +24,6 @@ const selectedSkill = ref<SkillAsset | null>(null);
 const categories = computed(() => ['全部', ...new Set(skillAssets.map((skill) => skill.category))]);
 const recentSkills = computed(() => skillAssets.filter((skill) => skill.recent));
 const featuredSkills = computed(() => skillAssets.filter((skill) => skill.featured));
-const totalLinkedTemplates = computed(() => new Set(skillAssets.flatMap((skill) => skill.templateIds)).size);
 
 const filteredSkills = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
@@ -46,10 +45,6 @@ const filteredSkills = computed(() => {
     return matchesCategory && (!keyword || searchable.includes(keyword));
   });
 });
-
-const selectedTemplates = computed(() =>
-  selectedSkill.value ? findTemplatesByIds(selectedSkill.value.templateIds) : [],
-);
 
 const openSkill = (skill: SkillAsset) => {
   selectedSkill.value = skill;
@@ -111,8 +106,8 @@ const useSkill = (skill: SkillAsset) => {
           <strong>{{ featuredSkills.length }}</strong>
         </article>
         <article class="summary-card">
-          <span>关联模板</span>
-          <strong>{{ totalLinkedTemplates }}</strong>
+          <span>技能分类</span>
+          <strong>{{ categories.length - 1 }}</strong>
         </article>
       </section>
 
@@ -231,16 +226,6 @@ const useSkill = (skill: SkillAsset) => {
           </div>
         </div>
 
-        <div class="detail-section">
-          <h3>关联模板</h3>
-          <div class="template-links">
-            <div v-for="template in selectedTemplates" :key="template.id" class="template-link">
-              <strong>{{ template.name }}</strong>
-              <span>{{ template.docType }}</span>
-            </div>
-          </div>
-        </div>
-
         <button class="drawer-primary" @click="useSkill(selectedSkill)">
           立即使用
           <ArrowRight :size="16" />
@@ -255,7 +240,7 @@ const useSkill = (skill: SkillAsset) => {
   flex: 1;
   height: 100%;
   overflow-y: auto;
-  background: #f8fafc;
+  background: var(--bg-color);
   padding: 24px 32px 40px;
 }
 
@@ -273,7 +258,7 @@ const useSkill = (skill: SkillAsset) => {
   padding: 24px 28px;
   margin-bottom: 18px;
   color: white;
-  background: linear-gradient(135deg, #1e40af 0%, #2563eb 58%, #0f766e 100%);
+  background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary-color) 58%, var(--diff-added) 100%);
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(37, 99, 235, 0.18);
 }
@@ -292,7 +277,7 @@ const useSkill = (skill: SkillAsset) => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #2563eb;
+  color: var(--primary-color);
   background: white;
   border-radius: 12px;
 }
@@ -320,7 +305,7 @@ const useSkill = (skill: SkillAsset) => {
   padding: 0 14px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.96);
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .search-box input {
@@ -328,7 +313,7 @@ const useSkill = (skill: SkillAsset) => {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #1e293b;
+  color: var(--text-main);
   font-size: 14px;
 }
 
@@ -338,7 +323,7 @@ const useSkill = (skill: SkillAsset) => {
   gap: 16px;
   padding: 14px 16px;
   margin-bottom: 18px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   background: white;
 }
@@ -348,7 +333,7 @@ const useSkill = (skill: SkillAsset) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
@@ -364,17 +349,17 @@ const useSkill = (skill: SkillAsset) => {
   min-height: 32px;
   padding: 0 12px;
   border-radius: 8px;
-  background: #f8fafc;
-  color: #475569;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-color);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
   font-size: 13px;
   font-weight: 600;
 }
 
 .category-btn.active {
-  color: #1d4ed8;
-  background: #eff6ff;
-  border-color: #bfdbfe;
+  color: var(--primary-hover);
+  background: var(--primary-soft);
+  border-color: var(--primary-border);
 }
 
 .summary-grid {
@@ -386,21 +371,21 @@ const useSkill = (skill: SkillAsset) => {
 
 .summary-card {
   padding: 18px 20px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   background: white;
 }
 
 .summary-card span {
   display: block;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .summary-card strong {
   display: block;
   margin-top: 8px;
-  color: #0f172a;
+  color: var(--text-strong);
   font-size: 24px;
 }
 
@@ -416,7 +401,7 @@ const useSkill = (skill: SkillAsset) => {
 }
 
 .result-count {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -433,9 +418,9 @@ const useSkill = (skill: SkillAsset) => {
   justify-content: space-between;
   gap: 12px;
   padding: 0 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  color: #1e293b;
+  color: var(--text-main);
   background: white;
   font-size: 14px;
   font-weight: 700;
@@ -445,7 +430,7 @@ const useSkill = (skill: SkillAsset) => {
 .compact-card:hover,
 .skill-card:hover,
 .asset-row:hover {
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
@@ -460,7 +445,7 @@ const useSkill = (skill: SkillAsset) => {
   min-height: 280px;
   flex-direction: column;
   padding: 18px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   background: white;
   transition: all 0.2s ease;
@@ -487,14 +472,14 @@ const useSkill = (skill: SkillAsset) => {
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  color: #1d4ed8;
-  background: #eff6ff;
+  color: var(--primary-hover);
+  background: var(--primary-soft);
   font-size: 12px;
   font-weight: 700;
 }
 
 .agent-count {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -502,7 +487,7 @@ const useSkill = (skill: SkillAsset) => {
 .asset-row h3,
 .detail-drawer h2 {
   margin: 0;
-  color: #0f172a;
+  color: var(--text-strong);
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -515,7 +500,7 @@ const useSkill = (skill: SkillAsset) => {
 .asset-row p,
 .detail-section p,
 .drawer-intro {
-  color: #64748b;
+  color: var(--text-secondary);
   line-height: 1.65;
 }
 
@@ -529,7 +514,7 @@ const useSkill = (skill: SkillAsset) => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -544,8 +529,8 @@ const useSkill = (skill: SkillAsset) => {
 .tag-row span {
   padding: 5px 8px;
   border-radius: 7px;
-  color: #475569;
-  background: #f1f5f9;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
   font-size: 12px;
 }
 
@@ -569,16 +554,16 @@ const useSkill = (skill: SkillAsset) => {
 }
 
 .ghost-btn {
-  color: #475569;
+  color: var(--text-secondary);
   background: white;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
 }
 
 .primary-btn,
 .drawer-primary {
   color: white;
-  background: #2563eb;
-  border: 1px solid #2563eb;
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
 }
 
 .asset-list {
@@ -593,7 +578,7 @@ const useSkill = (skill: SkillAsset) => {
   gap: 14px;
   align-items: center;
   padding: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   background: white;
 }
@@ -604,8 +589,8 @@ const useSkill = (skill: SkillAsset) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2563eb;
-  background: #eff6ff;
+  color: var(--primary-color);
+  background: var(--primary-soft);
   border-radius: 10px;
 }
 
@@ -619,7 +604,7 @@ const useSkill = (skill: SkillAsset) => {
 }
 
 .row-heading span {
-  color: #1d4ed8;
+  color: var(--primary-hover);
   font-size: 12px;
   font-weight: 700;
 }
@@ -632,7 +617,7 @@ const useSkill = (skill: SkillAsset) => {
 .row-meta {
   gap: 12px;
   flex-wrap: wrap;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -661,9 +646,9 @@ const useSkill = (skill: SkillAsset) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #64748b;
+  color: var(--text-secondary);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .detail-drawer h2 {
@@ -679,12 +664,12 @@ const useSkill = (skill: SkillAsset) => {
 
 .detail-section {
   padding: 16px 0;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .detail-section h3 {
   margin: 0 0 8px;
-  color: #0f172a;
+  color: var(--text-strong);
   font-size: 14px;
 }
 
@@ -693,8 +678,7 @@ const useSkill = (skill: SkillAsset) => {
   font-size: 14px;
 }
 
-.inline-list,
-.template-links {
+.inline-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -704,27 +688,8 @@ const useSkill = (skill: SkillAsset) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
-}
-
-.template-link {
-  padding: 12px;
-  border-radius: 10px;
-  background: #f8fafc;
-}
-
-.template-link strong {
-  display: block;
-  color: #1e293b;
-  font-size: 14px;
-}
-
-.template-link span {
-  display: block;
-  margin-top: 4px;
-  color: #64748b;
-  font-size: 12px;
 }
 
 .drawer-primary {

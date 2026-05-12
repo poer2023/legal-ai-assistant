@@ -41,7 +41,7 @@ const searchQuery = ref('');
 }
 
 .search-icon {
-  color: #94a3b8;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
@@ -51,16 +51,16 @@ const searchQuery = ref('');
   outline: none;
   padding: 0 12px;
   font-size: 15px;
-  color: #334155;
+  color: var(--text-main);
   background: transparent;
 }
 
 .search-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .search-btn {
-  background: #3366ff;
+  background: var(--primary-color);
   color: white;
   padding: 0 24px;
   height: 40px;
@@ -73,7 +73,7 @@ const searchQuery = ref('');
 }
 
 .search-btn:hover {
-  background: #254eda;
+  background: var(--primary-hover);
 }
 
 @media (max-width: 768px) {

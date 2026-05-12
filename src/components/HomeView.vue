@@ -2,9 +2,8 @@
 import { nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ChatInput from './ChatInput.vue';
-import QuickActions from './QuickActions.vue';
 
-type ComposerAction = 'skill' | 'template';
+type ComposerAction = 'skill' | 'template' | 'use-skill';
 type ChatInputController = InstanceType<typeof ChatInput> & {
   createSkillFromModal: (skillName?: string) => void;
   createTemplateFromDropdown: () => void;
@@ -18,7 +17,7 @@ const handledComposerAction = ref('');
 
 const getComposerAction = (): ComposerAction | null => {
   const action = route.query.composerAction;
-  return action === 'skill' || action === 'template' ? action : null;
+  return action === 'skill' || action === 'template' || action === 'use-skill' ? action : null;
 };
 
 const clearComposerActionQuery = () => {
@@ -26,6 +25,7 @@ const clearComposerActionQuery = () => {
   delete nextQuery.composerAction;
   delete nextQuery.composerSource;
   delete nextQuery.composerTick;
+  delete nextQuery.skillName;
   void router.replace({ name: 'home', query: nextQuery });
 };
 
@@ -35,7 +35,6 @@ const handleComposerSubmit = (value: string) => {
   void router.push({
     name: 'chat',
     query: {
-      mock: 'docx',
       prompt: value.trim(),
     },
   });
@@ -58,6 +57,11 @@ const triggerComposerAction = async () => {
 
   if (action === 'skill') {
     composer.createSkillFromModal();
+  } else if (action === 'use-skill') {
+    const skillName = typeof route.query.skillName === 'string' ? route.query.skillName : '';
+    if (skillName) {
+      composer.createSkillFromModal(skillName);
+    }
   } else {
     composer.createTemplateFromDropdown();
   }
@@ -92,9 +96,6 @@ watch(
         <ChatInput ref="chatInputRef" v-model="inputValue" @submit="handleComposerSubmit" />
       </div>
 
-      <div class="apps-section">
-        <QuickActions />
-      </div>
     </div>
   </div>
 </template>
@@ -106,14 +107,14 @@ watch(
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  padding: 40px;
-  background: #f8fafc;
+  justify-content: flex-start;
+  padding: clamp(96px, calc(38.2vh - 132px), 240px) 40px 40px;
+  background: var(--bg-color);
 }
 
 .content-wrapper {
   width: 100%;
-  max-width: 1200px;
+  max-width: 850px;
   margin: 0 auto;
 }
 
@@ -129,7 +130,7 @@ watch(
   gap: 18px;
   font-size: 30px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-main);
   letter-spacing: 0;
   margin: 0;
   line-height: 1.25;
@@ -138,21 +139,17 @@ watch(
 .title-divider {
   width: 1px;
   height: 30px;
-  background: #cbd5e1;
+  background: var(--border-color);
 }
 
 .assistant-title {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .chat-area {
   width: 100%;
   margin: 0 auto 26px;
   position: relative;
-}
-
-.apps-section {
-  margin-top: 0;
 }
 
 @media (max-width: 768px) {

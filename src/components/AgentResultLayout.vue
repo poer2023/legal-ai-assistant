@@ -282,19 +282,19 @@ const handleOutlineClick = (id: string) => {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #f5f6fa;
+  background: var(--surface-muted);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 /* --- Header --- */
 .page-header {
   height: 64px;
-  background: #fff;
+  background: var(--card-bg);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 20px;
-  border-bottom: 1px solid #e1e4e8;
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   z-index: 10;
 }
@@ -309,16 +309,16 @@ const handleOutlineClick = (id: string) => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 1px solid #ebedf0;
-  background: #fff;
-  color: #586069;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: all 0.2s;
 }
-.back-circle-btn:hover { background: #f3f4f6; }
+.back-circle-btn:hover { background: var(--surface-soft); }
 
 .header-info-group {
   display: flex;
@@ -332,7 +332,7 @@ const handleOutlineClick = (id: string) => {
   border-radius: 6px;
   font-weight: 500;
 }
-.badge-default { background: #eaf2ff; color: #2563eb; }
+.badge-default { background: var(--primary-soft); color: var(--primary-color); }
 
 .header-content {
     display: flex;
@@ -343,13 +343,13 @@ const handleOutlineClick = (id: string) => {
 .page-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1f2328;
+  color: var(--text-strong);
   margin: 0;
 }
 
 .save-status {
     font-size: 12px;
-    color: #9ca3af;
+    color: var(--text-muted);
 }
 
 .header-actions {
@@ -362,14 +362,14 @@ const handleOutlineClick = (id: string) => {
 .icon-action-btn {
     border: none;
     background: transparent;
-    color: #6b7280;
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 4px;
     border-radius: 4px;
     display: flex;
     align-items: center;
 }
-.icon-action-btn:hover { background: #f3f4f6; color: #374151; }
+.icon-action-btn:hover { background: var(--surface-soft); color: var(--text-main); }
 .icon-action-btn.disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* --- Header Right / Toolbar --- */
@@ -388,7 +388,7 @@ const handleOutlineClick = (id: string) => {
 .divider-vertical {
     width: 1px;
     height: 20px;
-    background: #e1e4e8;
+    background: var(--border-color);
     margin: 0 12px;
 }
 
@@ -400,11 +400,11 @@ const handleOutlineClick = (id: string) => {
     justify-content: center;
     border: none;
     background: transparent;
-    color: #586069;
+    color: var(--text-secondary);
     border-radius: 4px;
     cursor: pointer;
 }
-.tool-btn-icon:hover { background: #f3f4f6; color: #2563eb; }
+.tool-btn-icon:hover { background: var(--surface-soft); color: var(--primary-color); }
 
 .action-buttons {
     display: flex;
@@ -414,7 +414,7 @@ const handleOutlineClick = (id: string) => {
 }
 
 .primary-btn {
-    background: #5b73e8; /* Per stylesheet approximate */
+    background: var(--primary-color); /* Per stylesheet approximate */
     color: white;
     border: none;
     padding: 6px 16px;
@@ -426,12 +426,12 @@ const handleOutlineClick = (id: string) => {
     align-items: center;
     gap: 6px;
 }
-.primary-btn:hover { background: #4a63d8; }
+.primary-btn:hover { background: var(--primary-hover); }
 
 .secondary-btn {
-    background: #fff;
-    border: 1px solid #e1e4e8;
-    color: #333;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-main);
     padding: 6px 16px;
     border-radius: 6px;
     font-size: 13px;
@@ -441,7 +441,7 @@ const handleOutlineClick = (id: string) => {
     align-items: center;
     gap: 6px;
 }
-.secondary-btn:hover { background: #f8f9fa; }
+.secondary-btn:hover { background: var(--surface-muted); }
 
 
 /* --- Main Body --- */
@@ -454,9 +454,9 @@ const handleOutlineClick = (id: string) => {
 /* Left Sidebar */
 .left-sidebar {
     width: 240px;
-    background: #f9fafb; /* Slightly darker than main bg or white? Image looks like sidebar is white or very light gray */
-    background: #fff;
-    border-right: 1px solid #e1e4e8;
+    background: var(--surface-muted); /* Slightly darker than main bg or white? Image looks like sidebar is white or very light gray */
+    background: var(--card-bg);
+    border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     padding: 20px;
@@ -467,7 +467,7 @@ const handleOutlineClick = (id: string) => {
     font-size: 18px;
     font-weight: 700;
     margin-bottom: 20px;
-    color: #111827;
+    color: var(--text-strong);
 }
 
 .outline-list {
@@ -478,13 +478,13 @@ const handleOutlineClick = (id: string) => {
 
 .outline-item {
     font-size: 13px;
-    color: #4b5563;
+    color: var(--text-secondary);
     cursor: pointer;
     padding: 4px 0;
     line-height: 1.5;
 }
-.outline-item:hover { color: #2563eb; }
-.level-1 { font-weight: 500; color: #374151; }
+.outline-item:hover { color: var(--primary-color); }
+.level-1 { font-weight: 500; color: var(--text-main); }
 .level-2 { padding-left: 12px; font-size: 12px; }
 
 /* Center Content */
@@ -494,14 +494,14 @@ const handleOutlineClick = (id: string) => {
     padding: 30px 40px;
     display: flex;
     justify-content: center;
-    background: #f5f7fa;
+    background: var(--surface-muted);
 }
 
 /* Right Sidebar */
 .right-sidebar {
     width: 280px;
-    background: #fff;
-    border-left: 1px solid #e1e4e8;
+    background: var(--card-bg);
+    border-left: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     padding: 20px;
@@ -532,22 +532,22 @@ const handleOutlineClick = (id: string) => {
     justify-content: center;
     flex-shrink: 0;
 }
-.icon-box.blue { background: #eff6ff; color: #2563eb; }
-.icon-box.purple { background: #f3e8ff; color: #9333ea; }
-.icon-box.green { background: #f0fdf4; color: #16a34a; }
-.icon-box.orange-simple { background: none; color: #ea580c; font-weight: 800; font-size: 12px; border: 1px solid #ffedd5; width: 28px; height: 18px; border-radius: 4px; padding: 0 4px; width: auto; justify-content: center; display: inline-flex; }
+.icon-box.blue { background: var(--primary-soft); color: var(--primary-color); }
+.icon-box.purple { background: var(--skill-soft); color: var(--skill-color); }
+.icon-box.green { background: var(--diff-added-soft); color: var(--diff-added); }
+.icon-box.orange-simple { background: none; color: var(--warning-color); font-weight: 800; font-size: 12px; border: 1px solid var(--warning-soft); width: 28px; height: 18px; border-radius: 4px; padding: 0 4px; width: auto; justify-content: center; display: inline-flex; }
 
 
 .text-group h3 {
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: #1f2328;
+    color: var(--text-strong);
 }
 .text-group p {
     margin: 2px 0 0 0;
     font-size: 11px;
-    color: #6b7280;
+    color: var(--text-secondary);
 }
 
 .tool-grid {
@@ -561,16 +561,16 @@ const handleOutlineClick = (id: string) => {
 
 .tool-chip {
     flex: 1;
-    background: #f3f4f6;
+    background: var(--surface-soft);
     border: none;
     padding: 6px;
     border-radius: 4px;
     font-size: 12px;
-    color: #4b5563;
+    color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.2s;
 }
-.tool-chip:hover { background: #e5e7eb; color: #111827; }
+.tool-chip:hover { background: var(--border-color); color: var(--text-strong); }
 
 .multimodal-grid {
     display: grid;
@@ -588,13 +588,13 @@ const handleOutlineClick = (id: string) => {
     border-radius: 8px;
     cursor: pointer;
     font-size: 12px;
-    color: #4b5563;
+    color: var(--text-secondary);
 }
-.mm-item.blue-bg { background: #eff6ff; color: #1e40af; }
-.mm-item.purple-bg { background: #f3e8ff; color: #6b21a8; }
-.mm-item.blue-light-bg { background: #e0f2fe; color: #0369a1; }
-.mm-item.indigo-bg { background: #eef2ff; color: #3730a3; }
-.mm-item.orange-bg { background: #ffedd5; color: #9a3412; }
+.mm-item.blue-bg { background: var(--primary-soft); color: var(--primary-hover); }
+.mm-item.purple-bg { background: var(--skill-soft); color: var(--skill-color); }
+.mm-item.blue-light-bg { background: var(--primary-soft); color: var(--primary-hover); }
+.mm-item.indigo-bg { background: var(--primary-soft); color: var(--skill-color); }
+.mm-item.orange-bg { background: var(--warning-soft); color: var(--warning-color); }
 
 .mm-text-icon { font-size: 16px; font-weight: bold; }
 
@@ -603,20 +603,20 @@ const handleOutlineClick = (id: string) => {
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    background: #f9fafb;
-    border: 1px solid #f3f4f6;
+    background: var(--surface-muted);
+    border: 1px solid var(--surface-soft);
     padding: 10px;
     border-radius: 8px;
     cursor: pointer;
 }
-.tool-chip-square.blue { background: #eff6ff; border-color: #dbeafe; color: #1d4ed8; }
-.tool-chip-square.orange { background: #fff7ed; border-color: #ffedd5; color: #c2410c; }
-.tool-chip-square.green { background: #f0fdf4; border-color: #dcfce7; color: #15803d; }
+.tool-chip-square.blue { background: var(--primary-soft); border-color: var(--primary-soft-strong); color: var(--primary-hover); }
+.tool-chip-square.orange { background: var(--warning-soft); border-color: var(--warning-soft); color: var(--warning-color); }
+.tool-chip-square.green { background: var(--diff-added-soft); border-color: var(--diff-added-soft); color: var(--diff-added); }
 .tool-chip-square span { font-size: 11px; }
 .icon-wrap { font-size: 16px; margin-bottom: 2px; }
 
 .ppt-promo-card {
-    background: #eff6ff;
+    background: var(--primary-soft);
     border-radius: 8px;
     padding: 12px;
     display: flex;
@@ -631,18 +631,18 @@ const handleOutlineClick = (id: string) => {
 .blue-text {
     font-size: 12px;
     font-weight: 600;
-    color: #2563eb;
+    color: var(--primary-color);
     white-space: nowrap;
 }
 .sub {
     font-size: 11px;
-    color: #6b7280;
+    color: var(--text-secondary);
     transform: scale(0.9);
     transform-origin: left;
 }
 
 .ppt-gen-btn {
-    background: linear-gradient(90deg, #818cf8 0%, #60a5fa 100%);
+    background: linear-gradient(90deg, var(--focus-ring) 0%, var(--focus-ring) 100%);
     color: white;
     border: none;
     padding: 10px;
@@ -656,7 +656,7 @@ const handleOutlineClick = (id: string) => {
 
 .tiny-note {
     font-size: 10px;
-    color: #9ca3af;
+    color: var(--text-muted);
     text-align: center;
     margin: 4px 0 0 0;
 }

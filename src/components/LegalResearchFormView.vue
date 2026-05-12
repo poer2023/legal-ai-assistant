@@ -256,9 +256,9 @@ const handleKnowledgeSelect = () => {
               <div class="upload-box" @click="handleFileUpload">
                 <div class="upload-icon">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <polyline points="17,8 12,3 7,8" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <line x1="12" y1="3" x2="12" y2="15" stroke="#2563eb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <polyline points="17,8 12,3 7,8" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <line x1="12" y1="3" x2="12" y2="15" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </div>
                 <div class="upload-title">点击上传文献原文</div>
@@ -268,9 +268,9 @@ const handleKnowledgeSelect = () => {
               <div class="upload-box" @click="handleKnowledgeSelect">
                 <div class="upload-icon knowledge">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <polyline points="3.27,6.96 12,12.01 20.73,6.96" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <line x1="12" y1="22.08" x2="12" y2="12" stroke="#d97706" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke="var(--warning-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <polyline points="3.27,6.96 12,12.01 20.73,6.96" stroke="var(--warning-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <line x1="12" y1="22.08" x2="12" y2="12" stroke="var(--warning-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                   </svg>
                 </div>
                 <div class="upload-title">从知识库中选择文档</div>
@@ -382,14 +382,14 @@ const handleKnowledgeSelect = () => {
 .research-form-page {
   display: flex;
   height: 100%;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 /* Template Sidebar */
 .template-sidebar {
   width: 200px;
   background: white;
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid var(--border-color);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -401,17 +401,17 @@ const handleKnowledgeSelect = () => {
   align-items: center;
   gap: 4px;
   padding: 8px 12px;
-  background: #eff6ff;
+  background: var(--primary-soft);
   border: none;
   border-radius: 6px;
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .back-btn:hover {
-  background: #dbeafe;
+  background: var(--primary-soft-strong);
 }
 
 .search-box {
@@ -419,13 +419,13 @@ const handleKnowledgeSelect = () => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
 
 .search-icon {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .search-input {
@@ -434,11 +434,11 @@ const handleKnowledgeSelect = () => {
   background: transparent;
   outline: none;
   font-size: 12px;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .search-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .template-section {
@@ -449,7 +449,7 @@ const handleKnowledgeSelect = () => {
 
 .section-title {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
   padding: 8px 0 4px 0;
 }
 
@@ -460,18 +460,18 @@ const handleKnowledgeSelect = () => {
   padding: 10px 12px;
   border-radius: 6px;
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .template-item:hover {
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 .template-item.active {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
   font-weight: 500;
 }
 
@@ -496,24 +496,24 @@ const handleKnowledgeSelect = () => {
 .form-icon {
   width: 40px;
   height: 40px;
-  background: #eff6ff;
+  background: var(--primary-soft);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .form-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
 }
 
 .form-subtitle {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin: 4px 0 0 0;
 }
 
@@ -531,17 +531,17 @@ const handleKnowledgeSelect = () => {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #334155;
+  color: var(--text-main);
   margin-bottom: 8px;
 }
 
 .required {
-  color: #ef4444;
+  color: var(--diff-removed);
   margin-right: 2px;
 }
 
 .label-hint {
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 12px;
   margin-left: 4px;
   cursor: help;
@@ -550,30 +550,30 @@ const handleKnowledgeSelect = () => {
 .form-input {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
-  color: #334155;
+  color: var(--text-main);
   outline: none;
   transition: all 0.2s;
 }
 
 .form-input:focus {
-  border-color: #2563eb;
+  border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .form-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .form-textarea {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
-  color: #334155;
+  color: var(--text-main);
   outline: none;
   resize: none;
   font-family: inherit;
@@ -582,12 +582,12 @@ const handleKnowledgeSelect = () => {
 }
 
 .form-textarea:focus {
-  border-color: #2563eb;
+  border-color: var(--primary-color);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .form-textarea::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .char-count {
@@ -595,7 +595,7 @@ const handleKnowledgeSelect = () => {
   right: 12px;
   bottom: -20px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .textarea-count {
@@ -635,11 +635,11 @@ const handleKnowledgeSelect = () => {
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   background: white;
   font-size: 14px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -650,14 +650,14 @@ const handleKnowledgeSelect = () => {
 }
 
 .option-btn:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
+  border-color: var(--border-color);
+  background: var(--bg-color);
 }
 
 .option-btn.active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #2563eb;
+  border-color: var(--primary-color);
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 .option-icon {
@@ -666,7 +666,7 @@ const handleKnowledgeSelect = () => {
 
 .option-code {
   font-weight: 600;
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .option-tag {
@@ -675,65 +675,65 @@ const handleKnowledgeSelect = () => {
   align-items: center;
   width: 24px;
   height: 24px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
 }
 
 .option-btn.active .option-tag {
-  background: #2563eb;
+  background: var(--primary-color);
   color: white;
 }
 
 .option-tag.academic {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 .option-btn.active .option-tag.academic {
-  background: #2563eb;
+  background: var(--primary-color);
   color: white;
 }
 
 .option-tag.practical {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--warning-soft);
+  color: var(--warning-color);
 }
 
 .option-btn.active .option-tag.practical {
-  background: #d97706;
+  background: var(--warning-color);
   color: white;
 }
 
 .option-tag.concise {
-  background: #f0fdf4;
-  color: #22c55e;
+  background: var(--diff-added-soft);
+  color: var(--diff-added);
 }
 
 .option-btn.active .option-tag.concise {
-  background: #22c55e;
+  background: var(--diff-added);
   color: white;
 }
 
 .option-tag.argument {
-  background: #fdf4ff;
-  color: #a855f7;
+  background: var(--skill-soft);
+  color: var(--skill-color);
 }
 
 .option-btn.active .option-tag.argument {
-  background: #a855f7;
+  background: var(--skill-color);
   color: white;
 }
 
 .option-tag.review {
-  background: #fff1f2;
-  color: #f43f5e;
+  background: var(--diff-removed-soft);
+  color: var(--diff-removed);
 }
 
 .option-btn.active .option-tag.review {
-  background: #f43f5e;
+  background: var(--diff-removed);
   color: white;
 }
 
@@ -747,7 +747,7 @@ const handleKnowledgeSelect = () => {
 .submit-btn {
   width: 200px;
   padding: 14px 48px;
-  background: #2563eb;
+  background: var(--primary-color);
   border: none;
   border-radius: 8px;
   color: white;
@@ -758,7 +758,7 @@ const handleKnowledgeSelect = () => {
 }
 
 .submit-btn:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 /* Upload Panel */
@@ -779,7 +779,7 @@ const handleKnowledgeSelect = () => {
   justify-content: center;
   padding: 32px 24px;
   background: white;
-  border: 1px dashed #e2e8f0;
+  border: 1px dashed var(--border-color);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s;
@@ -787,8 +787,8 @@ const handleKnowledgeSelect = () => {
 }
 
 .upload-box:hover {
-  border-color: #2563eb;
-  background: #f8fafc;
+  border-color: var(--primary-color);
+  background: var(--bg-color);
 }
 
 .upload-icon {
@@ -797,25 +797,25 @@ const handleKnowledgeSelect = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #eff6ff;
+  background: var(--primary-soft);
   border-radius: 12px;
   margin-bottom: 12px;
 }
 
 .upload-icon.knowledge {
-  background: #fef3c7;
+  background: var(--warning-soft);
 }
 
 .upload-title {
   font-size: 14px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--text-main);
   margin-bottom: 4px;
 }
 
 .upload-hint {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 /* Info Sidebar */
@@ -839,13 +839,13 @@ const handleKnowledgeSelect = () => {
 .info-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 8px 0;
 }
 
 .info-desc {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin: 0 0 20px 0;
 }
 
@@ -860,12 +860,12 @@ const handleKnowledgeSelect = () => {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   padding: 6px 0;
 }
 
 .bullet {
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 8px;
 }
 </style>

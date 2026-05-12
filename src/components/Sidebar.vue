@@ -2,27 +2,28 @@
 import { computed, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
-  Bot,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  FileText,
+  History,
   Home,
   Lock,
-  MessageSquare,
   Network,
   Plus,
   Scale,
   Sparkles,
-  GraduationCap,
   Users,
   User,
 } from 'lucide-vue-next';
 import legalLogo from '../assets/legal-logo.png';
 import KnowledgeSearchIcon from './icons/KnowledgeSearchIcon.vue';
+import { useChatHistory, type ChatHistoryItem } from '../stores/chatHistory';
 
 const router = useRouter();
 const route = useRoute();
+const { recentHistory } = useChatHistory();
 
 const isCollapsed = ref(false);
 const handleItemClick = (routeName: string) => {
@@ -35,9 +36,14 @@ const isActive = (routeName: string) => {
   return route.name === routeName;
 };
 
-const isSkillTemplateActive = computed(() => {
-  return ['skills', 'templates'].includes(String(route.name ?? ''));
-});
+const isHistoryActive = (item: ChatHistoryItem) => {
+  return route.name === 'chat'
+    && (
+      route.query.historyId === item.id
+      || route.query.prompt === item.prompt
+      || (item.mock && route.query.mock === item.mock)
+    );
+};
 
 const isKnowledgeActive = computed(() => {
   return ['knowledge'].includes(String(route.name ?? ''));
@@ -64,6 +70,22 @@ const handleKnowledgeClick = () => {
   toggleKnowledgeExpanded();
 };
 
+const handleHistoryClick = (item: ChatHistoryItem) => {
+  const query: Record<string, string> = {
+    prompt: item.prompt,
+    historyId: item.id,
+  };
+
+  if (item.mock) {
+    query.mock = item.mock;
+  }
+
+  router.push({
+    name: 'chat',
+    query,
+  });
+};
+
 const knowledgeItems = [
   { icon: Network, label: '团队知识库', routeName: 'knowledge', activeOnKnowledge: true },
   { icon: User, label: '个人知识库', routeName: 'knowledge', activeOnKnowledge: false },
@@ -87,12 +109,24 @@ const bottomItems = [
           <span class="logo-brand">涌见AI</span>
         </div>
       </div>
+
+      <button
+        class="sidebar-collapse"
+        type="button"
+        :aria-label="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        @click="toggleSidebarCollapsed"
+      >
+        <ChevronRight v-if="isCollapsed" :size="16" :stroke-width="2.4" />
+        <ChevronLeft v-else :size="16" :stroke-width="2.4" />
+      </button>
     </div>
 
     <nav class="sidebar-nav">
       <button
         class="nav-item"
         :class="{ active: isActive('home') }"
+        aria-label="首页"
         :title="isCollapsed ? '首页' : undefined"
         @click="handleItemClick('home')"
       >
@@ -102,17 +136,8 @@ const bottomItems = [
 
       <button
         class="nav-item"
-        :class="{ active: isActive('chat') }"
-        :title="isCollapsed ? '法律问答' : undefined"
-        @click="handleItemClick('chat')"
-      >
-        <MessageSquare :size="18" class="nav-icon" />
-        <span class="nav-label">法律问答</span>
-      </button>
-
-      <button
-        class="nav-item"
         :class="{ active: isActive('legal-search') }"
+        aria-label="法律搜索"
         :title="isCollapsed ? '法律搜索' : undefined"
         @click="handleItemClick('legal-search')"
       >
@@ -122,33 +147,24 @@ const bottomItems = [
 
       <button
         class="nav-item"
-        :class="{ active: isActive('search') }"
-        :title="isCollapsed ? '学术搜索' : undefined"
-        @click="handleItemClick('search')"
-      >
-        <GraduationCap :size="18" class="nav-icon" />
-        <span class="nav-label">学术搜索</span>
-      </button>
-
-      <button
-        class="nav-item"
-        :class="{ active: isActive('agents') }"
-        :title="isCollapsed ? '智能体' : undefined"
-        @click="handleItemClick('agents')"
-      >
-        <Bot :size="18" class="nav-icon" />
-        <span class="nav-label">智能体</span>
-        <span class="hot-badge-fire">🔥</span>
-      </button>
-
-      <button
-        class="nav-item"
-        :class="{ active: isSkillTemplateActive }"
+        :class="{ active: isActive('skills') }"
+        aria-label="技能"
         :title="isCollapsed ? '技能' : undefined"
         @click="handleItemClick('skills')"
       >
         <Sparkles :size="18" class="nav-icon" />
         <span class="nav-label">技能</span>
+      </button>
+
+      <button
+        class="nav-item"
+        :class="{ active: isActive('templates') }"
+        aria-label="模板"
+        :title="isCollapsed ? '模板' : undefined"
+        @click="handleItemClick('templates')"
+      >
+        <FileText :size="18" class="nav-icon" />
+        <span class="nav-label">模板</span>
       </button>
 
       <button
@@ -184,6 +200,26 @@ const bottomItems = [
           <ChevronDown :size="14" class="group-chevron" />
         </button>
       </div>
+
+      <section class="history-section" aria-label="历史会话">
+        <div
+          class="nav-item history-group-label"
+          :title="isCollapsed ? '历史会话' : undefined"
+        >
+          <History :size="18" class="nav-icon" />
+          <span class="nav-label">历史会话</span>
+        </div>
+        <button
+          v-for="item in recentHistory"
+          :key="item.id"
+          class="history-item"
+          :class="{ active: isHistoryActive(item) }"
+          :title="isCollapsed ? item.title : undefined"
+          @click="handleHistoryClick(item)"
+        >
+          <span class="history-title">{{ item.title }}</span>
+        </button>
+      </section>
     </nav>
 
     <div class="sidebar-footer">
@@ -192,6 +228,7 @@ const bottomItems = [
         :key="index"
         class="nav-item footer-item"
         :class="{ active: isActive(item.routeName) }"
+        :aria-label="item.label"
         :title="isCollapsed ? item.label : undefined"
         @click="handleItemClick(item.routeName)"
       >
@@ -200,16 +237,6 @@ const bottomItems = [
       </button>
     </div>
 
-    <button
-      class="sidebar-collapse"
-      type="button"
-      :aria-label="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
-      :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
-      @click="toggleSidebarCollapsed"
-    >
-      <ChevronRight v-if="isCollapsed" :size="17" :stroke-width="2.4" />
-      <ChevronLeft v-else :size="17" :stroke-width="2.4" />
-    </button>
   </aside>
 </template>
 
@@ -217,47 +244,63 @@ const bottomItems = [
 .sidebar {
   position: relative;
   width: 201px;
-  background: #dfeafb;
+  background: var(--sidebar-bg);
   height: 100vh;
   display: flex;
   flex-direction: column;
   padding: 15px 8px 14px;
   flex-shrink: 0;
-  border-right: 1px solid #c9dbf5;
+  border-right: 1px solid var(--sidebar-border);
   transition:
     width 0.2s ease,
     padding 0.2s ease;
 }
 
 .sidebar.collapsed {
-  width: 81px;
+  width: 64px;
   padding: 15px 8px 14px;
 }
 
 .sidebar-collapse {
-  position: absolute;
-  top: 49.4%;
-  right: -12px;
-  z-index: 5;
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #d6e4ff;
-  border-radius: 999px;
-  background: #ffffff;
-  color: #2d68ff;
-  box-shadow: 0 2px 7px rgba(50, 79, 145, 0.18);
+  flex-shrink: 0;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 18%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card-bg) 64%, transparent);
+  color: var(--text-secondary);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.sidebar-collapse:hover,
+.sidebar-collapse:focus-visible {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 .sidebar-header {
-  margin-bottom: 33px;
-  padding: 0 12px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 0 4px 0 10px;
 }
 
 .sidebar.collapsed .sidebar-header {
   padding: 0;
+  min-height: 72px;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 .logo-area {
@@ -273,11 +316,16 @@ const bottomItems = [
 
 .logo-icon {
   position: relative;
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.sidebar.collapsed .logo-icon {
+  width: 32px;
+  height: 32px;
 }
 
 .logo-icon img {
@@ -300,14 +348,14 @@ const bottomItems = [
 .logo-brand {
   font-size: 19px;
   font-weight: 700;
-  color: #2453c7;
+  color: var(--sidebar-active-text);
   letter-spacing: 0;
 }
 
 .logo-subtitle {
   font-size: 12px;
   font-weight: 700;
-  color: #1e40af;
+  color: var(--primary-color);
 }
 
 .nav-item {
@@ -316,10 +364,10 @@ const bottomItems = [
   align-items: center;
   padding: 9px 12px;
   border-radius: 8px;
-  color: #444c5f;
+  color: var(--text-sidebar);
   cursor: pointer;
   transition: all 0.2s ease;
-  margin-bottom: 7px;
+  margin-bottom: 3px;
   font-size: 16px;
   position: relative;
   font-weight: 500;
@@ -333,8 +381,8 @@ const bottomItems = [
 }
 
 .nav-item:hover {
-  background-color: rgba(255, 255, 255, 0.46);
-  color: #1e40af;
+  background-color: var(--sidebar-hover-bg);
+  color: var(--primary-color);
 }
 
 .nav-item:focus,
@@ -343,13 +391,13 @@ const bottomItems = [
 }
 
 .nav-item.active {
-  background-color: rgba(238, 246, 255, 0.82);
-  color: #2453c7;
+  background-color: var(--sidebar-active-bg);
+  color: var(--sidebar-active-text);
   font-weight: 600;
 }
 
 .nav-item.parent-active {
-  color: #444c5f;
+  color: var(--text-sidebar);
   background: transparent;
 }
 
@@ -380,7 +428,7 @@ const bottomItems = [
 
 .submenu-arrow {
   margin-left: auto;
-  color: #48566e;
+  color: var(--text-secondary);
 }
 
 .hot-badge-fire {
@@ -393,7 +441,7 @@ const bottomItems = [
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin: -1px 0 7px 18px;
+  margin: -1px 0 4px 18px;
 }
 
 .submenu-item {
@@ -404,7 +452,7 @@ const bottomItems = [
   gap: 10px;
   padding: 0 9px;
   border-radius: 8px;
-  color: #3f485b;
+  color: var(--text-sidebar);
   font-size: 14px;
   font-weight: 500;
   text-align: left;
@@ -412,8 +460,8 @@ const bottomItems = [
 
 .submenu-item:hover,
 .submenu-item.active {
-  color: #2453c7;
-  background: #eef6ff;
+  color: var(--sidebar-active-text);
+  background: var(--primary-soft);
 }
 
 .submenu-item.active {
@@ -430,11 +478,11 @@ const bottomItems = [
 }
 
 .group-plus {
-  color: #2453c7;
+  color: var(--primary-color);
 }
 
 .group-chevron {
-  color: #4b5567;
+  color: var(--text-secondary);
 }
 
 .sidebar-nav {
@@ -448,8 +496,60 @@ const bottomItems = [
   border-top: 0;
 }
 
+.history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 8px;
+  margin-top: 0;
+  border-bottom: 0;
+}
+
+.history-group-label {
+  cursor: default;
+  margin-bottom: 4px;
+}
+
+.history-group-label:hover {
+  background: transparent;
+  color: var(--text-sidebar);
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 10px 5px 40px;
+  border-radius: 8px;
+  color: var(--text-sidebar);
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.history-item:hover,
+.history-item.active {
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-active-text);
+}
+
+.history-title {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.sidebar.collapsed .history-item {
+  display: none;
+}
+
 .footer-item {
-  color: #2f384d;
+  color: var(--text-sidebar);
   font-size: 16px;
   margin-bottom: 4px;
 }
@@ -468,6 +568,48 @@ const bottomItems = [
 }
 
 .sidebar-nav:hover::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--border-color);
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 64px;
+    padding: 15px 8px 14px;
+  }
+
+  .sidebar-header {
+    min-height: 72px;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 0;
+  }
+
+  .logo-area {
+    justify-content: center;
+    gap: 0;
+  }
+
+  .logo-text,
+  .nav-label,
+  .submenu-arrow,
+  .hot-badge-fire,
+  .knowledge-submenu,
+  .history-item {
+    display: none;
+  }
+
+  .nav-item {
+    justify-content: center;
+    padding: 9px 0;
+  }
+
+  .nav-icon {
+    margin-right: 0;
+  }
+
+  .history-group-label {
+    margin-bottom: 0;
+  }
 }
 </style>

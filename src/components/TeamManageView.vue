@@ -5,6 +5,7 @@ import {
   Bot,
   ClipboardList,
   LayoutList,
+  Palette,
   Smartphone,
   Users,
   UsersRound,
@@ -19,6 +20,7 @@ const menuItems = [
   { icon: UsersRound, label: '小组管理', routeName: 'team-groups', path: '/team/group' },
   { icon: Bot, label: '智能体管理', routeName: 'team-agents', path: '/team/agent' },
   { icon: ClipboardList, label: '咨询运营分析', routeName: 'team-consulting-analysis', path: '/team/consulting-analysis' },
+  { icon: Palette, label: '主题切换', routeName: 'team-theme', path: '/team/theme' },
   { icon: Smartphone, label: '小程序管理', routeName: 'team-miniprogram', path: '/team/miniprogram' },
 ];
 
@@ -76,15 +78,15 @@ const handleMenuClick = (routeName: string) => {
   display: flex;
   height: 100%;
   min-height: 0;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .team-side-menu {
   width: 256px;
   height: 100%;
   padding: 16px;
-  border-right: 1px solid rgba(229, 231, 235, 0.7);
-  background: rgba(255, 255, 255, 0.82);
+  border-right: 1px solid var(--sidebar-border);
+  background: var(--team-menu-bg);
   backdrop-filter: blur(8px);
   flex-shrink: 0;
 }
@@ -105,7 +107,7 @@ const handleMenuClick = (routeName: string) => {
   gap: 12px;
   padding: 0 16px;
   border-radius: 8px;
-  color: #334155;
+  color: var(--text-sidebar);
   font-size: 15px;
   font-weight: 500;
   text-align: left;
@@ -113,13 +115,13 @@ const handleMenuClick = (routeName: string) => {
 }
 
 .team-menu-item:hover {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 .team-menu-item.active {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--primary-soft);
+  color: var(--primary-color);
   font-weight: 650;
 }
 
@@ -157,8 +159,8 @@ const handleMenuClick = (routeName: string) => {
     gap: 8px;
     overflow-x: auto;
     padding: 6px 8px;
-    border-top: 1px solid rgba(229, 231, 235, 0.7);
-    background: #fff;
+    border-top: 1px solid var(--sidebar-border);
+    background: var(--team-menu-bg);
   }
 
   .mobile-menu-item {
@@ -170,14 +172,14 @@ const handleMenuClick = (routeName: string) => {
     justify-content: center;
     gap: 4px;
     border-radius: 8px;
-    color: #334155;
+    color: var(--text-sidebar);
     font-size: 12px;
     white-space: nowrap;
   }
 
   .mobile-menu-item.active {
-    color: #1d4ed8;
-    background: #eff6ff;
+    color: var(--primary-color);
+    background: var(--primary-soft);
   }
 }
 </style>

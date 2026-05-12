@@ -297,8 +297,8 @@ saveHistory();
 <style scoped>
 /* Custom Badge for warning style */
 :deep(.badge-warning) {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--warning-soft);
+  color: var(--warning-color);
 }
 
 /* Base Layout */
@@ -332,13 +332,13 @@ saveHistory();
 .page-footer {
   text-align: center;
   padding-top: 24px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--surface-soft);
   margin-top: auto;
 }
 
 .page-number {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 /* Document Header */
@@ -346,20 +346,20 @@ saveHistory();
   text-align: center;
   margin-bottom: 32px;
   padding-bottom: 24px;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 2px solid var(--border-color);
 }
 
 .doc-title {
   font-size: 32px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 16px 0;
   letter-spacing: 2px;
 }
 
 .doc-meta {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-secondary);
   line-height: 1.8;
 }
 
@@ -375,13 +375,13 @@ saveHistory();
 .party-label {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin-bottom: 8px;
 }
 
 .party-details p {
   font-size: 14px;
-  color: #374151;
+  color: var(--text-main);
   margin: 4px 0;
   line-height: 1.6;
 }
@@ -395,13 +395,13 @@ saveHistory();
 .section-title {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 12px 0;
 }
 
 .section-content {
   font-size: 14px;
-  color: #374151;
+  color: var(--text-main);
   line-height: 1.8;
   text-align: justify;
 }
@@ -421,7 +421,7 @@ saveHistory();
 
 .footer-line {
   font-size: 16px;
-  color: #111827;
+  color: var(--text-strong);
   margin-bottom: 8px;
 }
 
@@ -437,7 +437,7 @@ saveHistory();
 
 .signature-line {
   font-size: 16px;
-  color: #111827;
+  color: var(--text-strong);
   margin-bottom: 16px;
 }
 </style>

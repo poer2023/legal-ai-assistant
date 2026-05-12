@@ -59,12 +59,12 @@ import QuickActions from './QuickActions.vue';
 .main-title {
   font-size: 28px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   letter-spacing: 0.5px;
 }
 
 .highlight {
-  color: #3b82f6;
+  color: var(--primary-color);
   font-weight: 700;
 }
 

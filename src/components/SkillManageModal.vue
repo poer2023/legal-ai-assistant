@@ -18,16 +18,23 @@ import {
 } from 'lucide-vue-next';
 import {
   addPersonalSkill,
-  isPersonalSkill,
   isSkillAvailable,
   officialRecommendedSkills,
   personalSkills,
   publishSkillToTeamMarket,
   removePersonalSkill,
   teamMarketSkills,
+  upsertCustomSkill,
   type SkillCatalogItem,
   type SkillFile,
 } from '../data/skillCatalog';
+import { createSkillWithSkillCreator } from '../services/skillCreator';
+
+const props = withDefaults(defineProps<{
+  startInCreate?: boolean;
+}>(), {
+  startInCreate: false,
+});
 
 const emit = defineEmits<{
   (event: 'close'): void;
@@ -37,6 +44,7 @@ const emit = defineEmits<{
 
 const selectedSkill = ref<SkillCatalogItem | null>(null);
 const activeListPage = ref<'personal' | 'team-market' | 'recommended'>('personal');
+const isCreateMode = ref(false);
 const activeFileId = ref('');
 const expandedTreeKeys = ref<Record<string, boolean>>({});
 const editMode = ref(false);
@@ -44,6 +52,13 @@ const editBuffer = ref('');
 const fileDrafts = ref<Record<string, string>>({});
 const statusMessage = ref('');
 const openCardMenuId = ref<string | null>(null);
+const createBrief = ref('');
+const createScenario = ref('合同 / 交易文件');
+const createSource = ref('上传或粘贴项目材料');
+const createOutput = ref('Word 文书初稿');
+const createScope = ref<'personal' | 'team'>('personal');
+const createError = ref('');
+const isGeneratingDraft = ref(false);
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
 type TreeFolder = {
@@ -191,6 +206,7 @@ const resetDetailState = (skill: SkillCatalogItem) => {
 const setListPage = (page: 'personal' | 'team-market' | 'recommended') => {
   activeListPage.value = page;
   selectedSkill.value = null;
+  isCreateMode.value = false;
   activeFileId.value = '';
   editMode.value = false;
   editBuffer.value = '';
@@ -212,6 +228,14 @@ const closeModal = () => {
 };
 
 const createSkill = () => {
+  isCreateMode.value = true;
+  selectedSkill.value = null;
+  editMode.value = false;
+  editBuffer.value = '';
+  createError.value = '';
+};
+
+const requestCreateSkill = () => {
   emit('create');
 };
 
@@ -226,6 +250,7 @@ const openSkill = (skill: SkillCatalogItem) => {
 
 const backToList = () => {
   selectedSkill.value = null;
+  isCreateMode.value = false;
   activeFileId.value = '';
   editMode.value = false;
   editBuffer.value = '';
@@ -297,7 +322,7 @@ const editSkill = (skill: SkillCatalogItem) => {
   openSkill(skill);
 };
 
-const isSkillAdded = (skill: SkillCatalogItem) => isPersonalSkill(skill.id);
+const isSkillAdded = (skill: SkillCatalogItem) => isSkillAvailable(skill.id);
 
 const addSkill = (skill: SkillCatalogItem) => {
   const didAdd = addPersonalSkill(skill.id);
@@ -331,6 +356,21 @@ const saveEdit = () => {
     ...fileDrafts.value,
     [currentFileKey.value]: editBuffer.value,
   };
+
+  if (selectedSkill.value?.source === 'custom') {
+    const updatedFiles = selectedSkill.value.files.map((file) =>
+      file.id === activeFile.value?.id ? { ...file, content: editBuffer.value } : file
+    );
+    const updatedSkill = upsertCustomSkill({
+      ...selectedSkill.value,
+      files: updatedFiles,
+      status: 'active',
+    });
+    if (updatedSkill) {
+      selectedSkill.value = updatedSkill;
+    }
+  }
+
   editMode.value = false;
   setStatus('当前文件已保存');
 };
@@ -341,8 +381,50 @@ const cancelEdit = () => {
   setStatus('已取消编辑');
 };
 
+const saveGeneratedSkill = (skill: SkillCatalogItem) => {
+  const savedSkill = upsertCustomSkill({
+    ...skill,
+    scope: createScope.value,
+    status: 'active',
+  });
+  if (!savedSkill) return;
+
+  activeListPage.value = savedSkill.scope === 'team' ? 'team-market' : 'personal';
+  isCreateMode.value = false;
+  openSkill(savedSkill);
+  setStatus(`${savedSkill.name} 已创建`);
+};
+
+const generateDraft = async () => {
+  const brief = createBrief.value.trim();
+  if (!brief) {
+    createError.value = '请先输入技能需求';
+    return;
+  }
+
+  isGeneratingDraft.value = true;
+  createError.value = '';
+
+  try {
+    const draft = await createSkillWithSkillCreator(brief, {
+      scenario: createScenario.value,
+      source: createSource.value,
+      output: createOutput.value,
+      scope: createScope.value === 'team' ? '团队共享' : '仅个人使用',
+    });
+    saveGeneratedSkill(draft);
+  } catch (error) {
+    createError.value = error instanceof Error ? error.message : '技能生成失败';
+  } finally {
+    isGeneratingDraft.value = false;
+  }
+};
+
 onMounted(() => {
   document.addEventListener('click', closeCardMenuOnOutsideClick);
+  if (props.startInCreate) {
+    createSkill();
+  }
 });
 
 onBeforeUnmount(() => {
@@ -368,13 +450,17 @@ onBeforeUnmount(() => {
 
       <header v-if="!selectedSkill" class="modal-header">
         <h2 id="skill-modal-title">
-          <button v-if="activeListPage !== 'personal'" class="list-back-btn" type="button" @click="backToDefaultList">
+          <button v-if="isCreateMode" class="list-back-btn" type="button" @click="backToList">
+            <ChevronRight :size="16" class="back-chevron" />
+            <span>创建技能</span>
+          </button>
+          <button v-else-if="activeListPage !== 'personal'" class="list-back-btn" type="button" @click="backToDefaultList">
             <ChevronRight :size="16" class="back-chevron" />
             <span>{{ activeListTitle }}</span>
           </button>
           <span v-else>{{ activeListTitle }}</span>
         </h2>
-        <div class="modal-toolbar">
+        <div v-if="!isCreateMode" class="modal-toolbar">
           <p class="modal-subtitle">
             <span>{{ activeListSubtitle }}</span>
             <Info :size="17" :stroke-width="2" />
@@ -408,7 +494,7 @@ onBeforeUnmount(() => {
             <button
               class="modal-tab"
               type="button"
-              @click="createSkill"
+              @click.stop="requestCreateSkill"
             >
               创建技能
             </button>
@@ -416,15 +502,76 @@ onBeforeUnmount(() => {
         </div>
       </header>
 
-      <div v-if="!selectedSkill" class="skill-card-grid">
+      <section v-if="isCreateMode" class="create-skill-panel" aria-label="创建技能">
+        <div class="create-form-grid">
+          <label class="create-field create-field-wide">
+            <span>技能需求</span>
+            <textarea
+              v-model="createBrief"
+              placeholder="例如：创建一个买方并购协议审查技能，重点识别交易结构、陈述保证、交割条件、赔偿责任和目标公司风险。"
+            ></textarea>
+          </label>
+
+          <label class="create-field">
+            <span>工作场景</span>
+            <select v-model="createScenario">
+              <option>合同 / 交易文件</option>
+              <option>尽职调查</option>
+              <option>咨询意见</option>
+              <option>投融资 / 并购</option>
+              <option>基金 / 合规</option>
+            </select>
+          </label>
+
+          <label class="create-field">
+            <span>输入来源</span>
+            <select v-model="createSource">
+              <option>上传或粘贴项目材料</option>
+              <option>团队知识库</option>
+              <option>现有模板 / 技能</option>
+              <option>纯文字描述规则</option>
+            </select>
+          </label>
+
+          <label class="create-field">
+            <span>稳定输出</span>
+            <select v-model="createOutput">
+              <option>Word 文书初稿</option>
+              <option>审查清单</option>
+              <option>风险矩阵 / 问题表</option>
+              <option>工作步骤 / 操作规程</option>
+              <option>模板 / 条款库</option>
+            </select>
+          </label>
+
+          <label class="create-field">
+            <span>保存范围</span>
+            <select v-model="createScope">
+              <option value="personal">我的技能</option>
+              <option value="team">团队共享</option>
+            </select>
+          </label>
+        </div>
+
+        <p v-if="createError" class="create-error">{{ createError }}</p>
+
+        <div class="create-actions">
+          <button class="edit-cancel-btn" type="button" @click="backToList">取消</button>
+          <button class="edit-save-btn" type="button" :disabled="isGeneratingDraft" @click="generateDraft">
+            {{ isGeneratingDraft ? '生成中...' : '生成并保存技能' }}
+          </button>
+        </div>
+      </section>
+
+      <div v-if="!selectedSkill && !isCreateMode" class="skill-card-grid">
         <article
           v-for="skill in visibleListSkills"
           :key="skill.id"
           class="managed-skill-card"
           :class="{ 'recommendation-card': activeListPage !== 'personal', 'menu-open': openCardMenuId === skill.id }"
           tabindex="0"
-          @click="openSkill(skill)"
-          @keydown.enter.prevent="openSkill(skill)"
+          @click="useSkill(skill.name)"
+          @keydown.enter.prevent="useSkill(skill.name)"
         >
           <button
             v-if="activeListPage === 'personal'"
@@ -629,7 +776,7 @@ onBeforeUnmount(() => {
   overflow: auto;
   padding: 24px 32px 28px;
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
 }
 
@@ -654,16 +801,16 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  color: #111827;
+  color: var(--text-strong);
 }
 
 .modal-close-btn:hover {
-  background: #f3f4f6;
+  background: var(--surface-soft);
 }
 
 .modal-header h2 {
   margin: 0 0 20px;
-  color: #141414;
+  color: var(--text-strong);
   font-size: 18px;
   font-weight: 700;
   line-height: 1.2;
@@ -682,7 +829,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   margin: 0;
-  color: #171717;
+  color: var(--text-strong);
   font-size: 14px;
   font-weight: 400;
   line-height: 1.35;
@@ -690,12 +837,12 @@ onBeforeUnmount(() => {
 
 .modal-subtitle svg {
   flex-shrink: 0;
-  color: #8c8c8c;
+  color: var(--text-muted);
 }
 
 .modal-status {
   margin-left: auto;
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 13px;
   font-weight: 650;
   white-space: nowrap;
@@ -715,37 +862,114 @@ onBeforeUnmount(() => {
   gap: 8px;
   padding: 0 14px;
   border-radius: 10px;
-  color: #111827;
-  background: #f4f4f4;
+  color: var(--text-strong);
+  background: var(--surface-soft);
   font-size: 14px;
   font-weight: 650;
   line-height: 1;
 }
 
 .modal-tab.active {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--primary-hover);
+  background: var(--primary-soft-strong);
 }
 
 .modal-tab:hover {
-  background: #e9e9e9;
+  background: var(--surface-soft);
 }
 
 .modal-tab.active:hover {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--primary-hover);
+  background: var(--primary-soft-strong);
 }
 
 .list-back-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #111827;
+  color: var(--text-strong);
   font: inherit;
 }
 
 .list-back-btn:hover {
-  color: #2563eb;
+  color: var(--primary-color);
+}
+
+.create-skill-panel {
+  margin-top: 8px;
+  padding: 22px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.create-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.create-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.create-field-wide {
+  grid-column: 1 / -1;
+}
+
+.create-field textarea,
+.create-field select {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  color: var(--text-main);
+  background: var(--card-bg);
+  font: inherit;
+  font-weight: 400;
+}
+
+.create-field textarea {
+  min-height: 132px;
+  resize: vertical;
+  padding: 12px;
+  line-height: 1.55;
+}
+
+.create-field select {
+  height: 40px;
+  padding: 0 12px;
+}
+
+.create-field textarea:focus,
+.create-field select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.create-error {
+  margin: 14px 0 0;
+  color: var(--danger-color, #dc2626);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.create-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.create-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .skill-card-grid {
@@ -759,15 +983,15 @@ onBeforeUnmount(() => {
   position: relative;
   min-height: 108px;
   padding: 20px 48px 18px 20px;
-  border: 1px solid #dedede;
+  border: 1px solid var(--border-color);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--card-bg);
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
 
 .managed-skill-card:hover {
-  border-color: #c6d3e6;
+  border-color: var(--primary-border);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
   transform: translateY(-1px);
 }
@@ -782,7 +1006,7 @@ onBeforeUnmount(() => {
 
 .managed-skill-card h3 {
   margin: 0 0 12px;
-  color: #151515;
+  color: var(--text-strong);
   font-size: 16px;
   font-weight: 650;
   line-height: 1.15;
@@ -793,7 +1017,7 @@ onBeforeUnmount(() => {
   display: -webkit-box;
   margin: 0;
   overflow: hidden;
-  color: #707070;
+  color: var(--text-secondary);
   font-size: 13.5px;
   font-weight: 400;
   line-height: 1.4;
@@ -811,11 +1035,11 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #707070;
+  color: var(--text-secondary);
 }
 
 .card-more-btn:hover {
-  background: #f5f5f5;
+  background: var(--surface-soft);
 }
 
 .add-skill-btn {
@@ -830,20 +1054,20 @@ onBeforeUnmount(() => {
   gap: 5px;
   padding: 0 12px;
   border-radius: 9px;
-  color: #ffffff;
-  background: #2563eb;
+  color: var(--on-primary);
+  background: var(--primary-color);
   font-size: 13px;
   font-weight: 650;
   line-height: 1;
 }
 
 .add-skill-btn:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .add-skill-btn:disabled {
-  color: #64748b;
-  background: #e2e8f0;
+  color: var(--text-secondary);
+  background: var(--border-color);
   cursor: default;
 }
 
@@ -854,9 +1078,9 @@ onBeforeUnmount(() => {
   z-index: 40;
   width: 176px;
   padding: 8px;
-  border: 1px solid #dbe4f0;
+  border: 1px solid var(--border-color);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
 }
 
@@ -868,7 +1092,7 @@ onBeforeUnmount(() => {
   gap: 10px;
   padding: 0 10px;
   border-radius: 10px;
-  color: #1f2937;
+  color: var(--text-main);
   font-size: 13px;
   font-weight: 650;
   text-align: left;
@@ -876,23 +1100,23 @@ onBeforeUnmount(() => {
 
 .card-action-menu button svg {
   flex-shrink: 0;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .card-action-menu button:hover {
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 .card-action-menu button.danger {
-  color: #dc2626;
+  color: var(--diff-removed);
 }
 
 .card-action-menu button.danger svg {
-  color: #dc2626;
+  color: var(--diff-removed);
 }
 
 .card-action-menu button.danger:hover {
-  background: #fef2f2;
+  background: var(--diff-removed-soft);
 }
 
 .modal-close-btn:focus-visible,
@@ -910,7 +1134,7 @@ onBeforeUnmount(() => {
 .tree-heading:focus-visible,
 .tree-child:focus-visible,
 .tree-file:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -932,14 +1156,14 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #171717;
+  color: var(--text-strong);
   font-size: 18px;
   font-weight: 650;
   line-height: 1;
 }
 
 .detail-title-btn:hover {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .back-chevron {
@@ -953,7 +1177,7 @@ onBeforeUnmount(() => {
 }
 
 .detail-status {
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
@@ -962,26 +1186,26 @@ onBeforeUnmount(() => {
 .use-skill-btn {
   height: 34px;
   padding: 0 16px;
-  border: 1px solid #dedede;
+  border: 1px solid var(--border-color);
   border-radius: 10px;
-  color: #171717;
+  color: var(--text-strong);
   font-size: 15px;
   font-weight: 650;
 }
 
 .use-skill-btn:hover,
 .detail-icon-btn:hover {
-  background: #f5f5f5;
+  background: var(--surface-soft);
 }
 
 .add-detail-btn {
-  color: #ffffff;
-  border-color: #2563eb;
-  background: #2563eb;
+  color: var(--on-primary);
+  border-color: var(--primary-color);
+  background: var(--primary-color);
 }
 
 .add-detail-btn:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .edit-cancel-btn,
@@ -995,22 +1219,22 @@ onBeforeUnmount(() => {
 }
 
 .edit-cancel-btn {
-  border: 1px solid #dedede;
-  color: #333333;
-  background: #ffffff;
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  background: var(--card-bg);
 }
 
 .edit-cancel-btn:hover {
-  background: #f5f5f5;
+  background: var(--surface-soft);
 }
 
 .edit-save-btn {
-  color: #ffffff;
-  background: #2563eb;
+  color: var(--on-primary);
+  background: var(--primary-color);
 }
 
 .edit-save-btn:hover {
-  background: #1d4ed8;
+  background: var(--primary-hover);
 }
 
 .detail-icon-btn {
@@ -1020,7 +1244,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #171717;
+  color: var(--text-strong);
 }
 
 .skill-detail-shell {
@@ -1030,16 +1254,16 @@ onBeforeUnmount(() => {
   grid-template-columns: 220px minmax(0, 1fr);
   margin: 0 24px 24px;
   overflow: hidden;
-  border: 1px solid #dedede;
+  border: 1px solid var(--border-color);
   border-radius: 16px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .detail-tree {
   min-height: 0;
   overflow: auto;
   padding: 18px 18px 24px;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid var(--border-color);
 }
 
 .tree-group + .tree-group {
@@ -1056,7 +1280,7 @@ onBeforeUnmount(() => {
   min-height: 30px;
   padding: 0 6px;
   border-radius: 8px;
-  color: #333333;
+  color: var(--text-main);
   font-size: 15px;
   line-height: 1;
   text-align: left;
@@ -1066,18 +1290,18 @@ onBeforeUnmount(() => {
 .tree-file {
   width: calc(100% - 22px);
   margin-left: 22px;
-  color: #525252;
+  color: var(--text-secondary);
 }
 
 .tree-heading:hover,
 .tree-child:hover,
 .tree-file:hover {
-  background: #f5f7fb;
+  background: var(--bg-color);
 }
 
 .tree-file.active {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
   font-weight: 650;
 }
 
@@ -1109,7 +1333,7 @@ onBeforeUnmount(() => {
 .tree-child svg,
 .tree-heading svg {
   flex-shrink: 0;
-  color: #707070;
+  color: var(--text-secondary);
 }
 
 .detail-doc {
@@ -1128,7 +1352,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
   padding: 0 12px 0 18px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .doc-path {
@@ -1139,7 +1363,7 @@ onBeforeUnmount(() => {
   height: 34px;
   padding: 0 10px;
   overflow: hidden;
-  color: #171717;
+  color: var(--text-strong);
   font-size: 17px;
   font-weight: 600;
   line-height: 1;
@@ -1148,14 +1372,14 @@ onBeforeUnmount(() => {
 }
 
 .doc-path-parent {
-  color: #8c8c8c;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
 .doc-path-name {
   min-width: 0;
   overflow: hidden;
-  color: #171717;
+  color: var(--text-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1171,7 +1395,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: auto;
   padding: 0;
-  color: #252525;
+  color: var(--text-strong);
 }
 
 .doc-pre,
@@ -1183,8 +1407,8 @@ onBeforeUnmount(() => {
   padding: 34px 28px 46px;
   border: 0;
   outline: none;
-  background: #ffffff;
-  color: #252525;
+  background: var(--card-bg);
+  color: var(--text-strong);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   font-size: 14px;
   line-height: 1.72;
@@ -1205,14 +1429,14 @@ onBeforeUnmount(() => {
   height: 100%;
   min-height: 100%;
   border-radius: 0;
-  box-shadow: inset 0 0 0 2px #dbeafe;
+  box-shadow: inset 0 0 0 2px var(--primary-soft-strong);
 }
 
 .doc-content hr {
   height: 1px;
   margin: 0 0 34px;
   border: 0;
-  background: #dedede;
+  background: var(--border-color);
 }
 
 .doc-content h4 {
@@ -1231,7 +1455,7 @@ onBeforeUnmount(() => {
 
 .doc-content p {
   margin: 0 0 18px;
-  color: #252525;
+  color: var(--text-strong);
   font-size: 16px;
   line-height: 1.65;
 }
@@ -1239,8 +1463,8 @@ onBeforeUnmount(() => {
 .doc-content code {
   padding: 2px 8px;
   border-radius: 5px;
-  background: #f5f5f5;
-  color: #333333;
+  background: var(--surface-soft);
+  color: var(--text-main);
   font-family: inherit;
 }
 
@@ -1337,7 +1561,7 @@ onBeforeUnmount(() => {
   .detail-tree {
     max-height: 180px;
     border-right: 0;
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 1px solid var(--border-color);
   }
 
   .doc-content {

@@ -112,7 +112,7 @@ const manageTemplates = () => {
 
 <style scoped>
 .template-dropdown-content {
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .template-search {
@@ -122,10 +122,10 @@ const manageTemplates = () => {
   gap: 8px;
   margin-bottom: 8px;
   padding: 0 9px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  color: #64748b;
-  background: #f8fafc;
+  color: var(--text-secondary);
+  background: var(--bg-color);
 }
 
 .template-search input {
@@ -134,7 +134,7 @@ const manageTemplates = () => {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #1e293b;
+  color: var(--text-main);
   font-size: 13px;
 }
 
@@ -153,7 +153,7 @@ const manageTemplates = () => {
 }
 
 .template-item:hover {
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .template-main {
@@ -164,13 +164,13 @@ const manageTemplates = () => {
   align-items: flex-start;
   gap: 4px;
   padding: 8px 10px;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .template-name {
   width: 100%;
   overflow: hidden;
-  color: #334155;
+  color: var(--text-main);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.25;
@@ -181,7 +181,7 @@ const manageTemplates = () => {
 .template-desc {
   width: 100%;
   overflow: hidden;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -190,14 +190,14 @@ const manageTemplates = () => {
 
 .empty-tip {
   margin: 8px 10px 10px;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
 .template-divider {
   height: 1px;
   margin: 7px 2px;
-  background: #eef2f7;
+  background: var(--border-soft);
 }
 
 .template-footer-row {
@@ -208,7 +208,7 @@ const manageTemplates = () => {
   gap: 10px;
   padding: 0 10px;
   border-radius: 8px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   line-height: 1;
@@ -216,18 +216,18 @@ const manageTemplates = () => {
 }
 
 .template-footer-row:hover {
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .template-row-icon {
   flex-shrink: 0;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .template-search:focus-within,
 .template-item:focus-visible,
 .template-footer-row:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 </style>

@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import HomeView from '../components/HomeView.vue';
 import AgentsView from '../components/AgentsView.vue';
 import SkillTemplateView from '../components/SkillTemplateView.vue';
+import TemplatesView from '../components/TemplatesView.vue';
 import LegalSearchView from '../components/LegalSearchView.vue';
 import LegalSearchResultsView from '../components/LegalSearchResultsView.vue';
 import LegalDocumentDetailView from '../components/LegalDocumentDetailView.vue';
@@ -33,6 +34,7 @@ import TeamManageView from '../components/TeamManageView.vue';
 import TeamOverviewView from '../components/TeamOverviewView.vue';
 import TeamSectionShellView from '../components/team/TeamSectionShellView.vue';
 import TeamConsultingOpsView from '../components/team/TeamConsultingOpsView.vue';
+import TeamThemeView from '../components/team/TeamThemeView.vue';
 import ProfileView from '../components/ProfileView.vue';
 import GuideView from '../components/GuideView.vue';
 import InvestigationAgentDemoView from '../components/InvestigationAgentDemoView.vue';
@@ -76,8 +78,8 @@ const routes = [
   {
     path: '/templates',
     name: 'templates',
-    redirect: { name: 'skills' },
-    meta: { title: '技能库' }
+    component: TemplatesView,
+    meta: { title: '模板库' }
   },
   {
     path: '/create/policy_advisory_report',
@@ -364,6 +366,7 @@ const routes = [
       { path: 'agent', alias: 'agents', name: 'team-agents', component: TeamSectionShellView, props: { section: 'agents' }, meta: { title: '智能体管理' } },
       { path: 'consulting-ops', name: 'team-consulting-ops', component: TeamConsultingOpsView, meta: { title: '咨询运营分析' } },
       { path: 'consulting-analysis', name: 'team-consulting-analysis', component: TeamConsultingOpsView, meta: { title: '咨询运营分析' } },
+      { path: 'theme', name: 'team-theme', component: TeamThemeView, meta: { title: '主题切换' } },
       { path: 'miniprogram', name: 'team-miniprogram', component: TeamSectionShellView, props: { section: 'miniprogram' }, meta: { title: '小程序管理' } },
     ]
   },

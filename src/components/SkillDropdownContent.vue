@@ -4,14 +4,9 @@ import {
   MessageCirclePlus,
   SlidersHorizontal,
 } from 'lucide-vue-next';
-import type { SkillCatalogItem } from '../data/skillCatalog';
-import { availableSkills } from '../data/skillCatalog';
-import { getTemplatesForSkill, type SkillTemplateOption } from '../data/legalAssets';
+import { availableSkills, type SkillCatalogItem } from '../data/skillCatalog';
 
-export type SkillDropdownSelection = string | {
-  skillName: string;
-  template: SkillTemplateOption;
-};
+export type SkillDropdownSelection = string;
 
 const props = withDefaults(defineProps<{
   inlineQuery?: string;
@@ -30,31 +25,16 @@ const emit = defineEmits<{
 
 const hiddenDefaultSkillIds = new Set(['docx', 'pdf', 'xlsx']);
 
-const templateMap = computed(() => {
-  return new Map(availableSkills.value.map((skill) => [skill.id, getTemplatesForSkill(skill)]));
-});
-
-const templatesForSkill = (skill: SkillCatalogItem) => templateMap.value.get(skill.id) ?? [];
-
 const filteredSkills = computed(() => {
   const keyword = props.inlineQuery.trim().toLowerCase();
 
   if (!keyword) return availableSkills.value.filter((skill) => !hiddenDefaultSkillIds.has(skill.id));
 
   return availableSkills.value.filter((skill) => {
-    const templates = templatesForSkill(skill);
     const searchable = [
       skill.name,
       skill.id,
       skill.description,
-      ...templates.flatMap((template) => [
-        template.name,
-        template.docType,
-        template.source,
-        template.preview,
-        ...template.requiredFields,
-        ...template.tags,
-      ]),
     ]
       .join(' ')
       .toLowerCase();
@@ -91,15 +71,12 @@ const manageSkills = () => {
         <div class="skill-main">
           <span class="skill-heading">
             <span class="skill-name">{{ skill.name }}</span>
-            <span v-if="templatesForSkill(skill).length" class="format-count">
-              模板×{{ templatesForSkill(skill).length }}
-            </span>
           </span>
           <span class="skill-desc">{{ skill.description }}</span>
         </div>
       </article>
 
-      <p v-if="filteredSkills.length === 0" class="empty-tip">没有匹配的技能或格式模板</p>
+      <p v-if="filteredSkills.length === 0" class="empty-tip">没有匹配的技能</p>
     </section>
 
     <div v-if="showManage" class="skill-divider" aria-hidden="true"></div>
@@ -124,7 +101,7 @@ const manageSkills = () => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .skill-dropdown-content.inline-layout {
@@ -149,7 +126,7 @@ const manageSkills = () => {
 
 .skill-list::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #cbd5e1;
+  background: var(--border-color);
 }
 
 .skill-item {
@@ -162,12 +139,12 @@ const manageSkills = () => {
   padding: 7px 10px;
   border-radius: 8px;
   text-align: left;
-  color: #475569;
+  color: var(--text-secondary);
   transition: background-color 0.15s;
 }
 
 .skill-item:hover {
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .skill-main {
@@ -191,7 +168,7 @@ const manageSkills = () => {
 .skill-name {
   min-width: 0;
   overflow: hidden;
-  color: #334155;
+  color: var(--text-main);
   font-size: 14px;
   font-weight: 500;
   line-height: 1.25;
@@ -200,21 +177,10 @@ const manageSkills = () => {
   white-space: nowrap;
 }
 
-.format-count {
-  flex-shrink: 0;
-  padding: 2px 6px;
-  border-radius: 999px;
-  color: #2563eb;
-  background: #eff6ff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
 .skill-desc {
   width: 100%;
   overflow: hidden;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 400;
   line-height: 1.35;
@@ -224,7 +190,7 @@ const manageSkills = () => {
 
 .empty-tip {
   margin: 8px 10px 10px;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -232,14 +198,14 @@ const manageSkills = () => {
   flex-shrink: 0;
   height: 1px;
   margin: 7px 2px;
-  background: #eef2f7;
+  background: var(--border-soft);
 }
 
 .skill-footer-actions {
   position: static;
   flex-shrink: 0;
   padding-top: 2px;
-  background: #ffffff;
+  background: var(--card-bg);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -253,7 +219,7 @@ const manageSkills = () => {
   min-height: 38px;
   padding: 0 10px;
   border-radius: 8px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   line-height: 1;
@@ -261,18 +227,18 @@ const manageSkills = () => {
 }
 
 .skill-footer-row:hover {
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .skill-row-icon {
   flex-shrink: 0;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .skill-item:focus-visible,
 .skill-main:focus-visible,
 .skill-footer-row:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 

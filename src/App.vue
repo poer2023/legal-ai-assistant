@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
+import { useChatHistory } from './stores/chatHistory'
+import { loadCustomSkills } from './data/skillCatalog'
 
 const route = useRoute()
 const isFullScreen = computed(() => route.meta.fullScreen === true)
+const { loadHistory } = useChatHistory()
+
+onMounted(() => {
+  void loadHistory()
+  void loadCustomSkills()
+})
 </script>
 
 <template>

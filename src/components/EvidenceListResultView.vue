@@ -178,8 +178,8 @@ const redo = () => {};
 
 <style scoped>
 :deep(.badge-blue) {
-    background: #ecf5ff;
-    color: #409eff;
+    background: var(--primary-soft);
+    color: var(--primary-color);
 }
 
 /* Base Layout */
@@ -212,13 +212,13 @@ const redo = () => {};
 .page-footer {
   text-align: center;
   padding-top: 24px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--surface-soft);
   margin-top: auto;
 }
 
 .page-number {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 /* Document Header */
@@ -230,14 +230,14 @@ const redo = () => {};
 .doc-title {
   font-size: 28px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-strong);
   letter-spacing: 4px;
   margin: 0 0 16px 0;
 }
 
 .doc-meta {
     font-size: 14px;
-    color: #606266;
+    color: var(--text-secondary);
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -252,24 +252,24 @@ const redo = () => {};
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
-  border: 2px solid #303133; /* Thicker outer border */
+  border: 2px solid var(--text-main); /* Thicker outer border */
 }
 
 .evidence-table th,
 .evidence-table td {
-  border: 1px solid #606266;
+  border: 1px solid var(--text-secondary);
   padding: 12px 10px;
   text-align: left;
   vertical-align: middle;
-  color: #303133;
+  color: var(--text-main);
 }
 
 .evidence-table th {
-  background: #f5f7fa;
+  background: var(--surface-muted);
   font-weight: 600;
   text-align: center;
-  color: #111827;
-  border-bottom: 2px solid #303133;
+  color: var(--text-strong);
+  border-bottom: 2px solid var(--text-main);
 }
 
 .evidence-row {

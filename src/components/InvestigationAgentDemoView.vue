@@ -405,9 +405,9 @@ const exportMockReport = () => {
   min-height: 100%;
   padding: 28px 28px 44px;
   background:
-    linear-gradient(180deg, #f6f9fe 0, #f8fafc 210px),
-    #f8fafc;
-  color: #162033;
+    linear-gradient(180deg, var(--bg-color) 0, var(--bg-color) 210px),
+    var(--bg-color);
+  color: var(--text-main);
 }
 
 .page-header,
@@ -446,15 +446,15 @@ const exportMockReport = () => {
 .plain-button,
 .secondary-button,
 .source-button {
-  border: 1px solid #d7e3f1;
-  background: #ffffff;
-  color: #26384f;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-main);
 }
 
 .back-button {
   min-height: 40px;
   padding: 0 13px 0 10px;
-  color: #334155;
+  color: var(--text-main);
 }
 
 .title-row {
@@ -471,9 +471,9 @@ const exportMockReport = () => {
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: linear-gradient(180deg, #ffffff 0%, #f5f9ff 100%);
-  color: #2563eb;
-  border: 1px solid #dbe8f7;
+  background: linear-gradient(180deg, var(--card-bg) 0%, var(--bg-color) 100%);
+  color: var(--primary-color);
+  border: 1px solid var(--border-color);
   box-shadow: 0 7px 18px rgba(37, 99, 235, 0.11);
 }
 
@@ -482,7 +482,7 @@ const exportMockReport = () => {
 .result-block h3,
 .finding-item h4 {
   margin: 0;
-  color: #0f172a;
+  color: var(--text-strong);
 }
 
 .title-row h1 {
@@ -495,7 +495,7 @@ const exportMockReport = () => {
 
 .panel-heading p {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -507,9 +507,9 @@ const exportMockReport = () => {
 
 .panel {
   padding: 20px 20px 18px;
-  border: 1px solid #dbe5f1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.055);
 }
 
@@ -530,7 +530,7 @@ const exportMockReport = () => {
 .section-label {
   display: block;
   margin-bottom: 4px;
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -551,7 +551,7 @@ const exportMockReport = () => {
 
 label,
 legend {
-  color: #334155;
+  color: var(--text-main);
   font-size: 13px;
   font-weight: 700;
 }
@@ -559,10 +559,10 @@ legend {
 input,
 textarea {
   width: 100%;
-  border: 1px solid #d4e0ee;
+  border: 1px solid var(--border-color);
   border-radius: 7px;
-  background: #ffffff;
-  color: #172033;
+  background: var(--card-bg);
+  color: var(--text-main);
   font: inherit;
   font-size: 14px;
 }
@@ -583,7 +583,7 @@ input:focus-visible,
 textarea:focus-visible,
 button:focus-visible,
 #result-title:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
@@ -600,13 +600,13 @@ button:focus-visible,
   gap: 7px;
   padding: 8px 10px;
   border-radius: 7px;
-  background: #f7f9fc;
-  color: #506176;
+  background: var(--bg-color);
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
 .compact-list svg {
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .chip-group {
@@ -624,16 +624,16 @@ button:focus-visible,
 .chip {
   min-height: 36px;
   padding: 0 11px;
-  border: 1px solid #d7e3f1;
-  background: #ffffff;
-  color: #334155;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-main);
 }
 
 .chip.selected,
 .source-button.selected {
-  border-color: #93c5fd;
-  background: #f5f9ff;
-  color: #1d4ed8;
+  border-color: var(--primary-border);
+  background: var(--bg-color);
+  color: var(--primary-hover);
   box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.1);
 }
 
@@ -655,15 +655,15 @@ button:focus-visible,
   align-items: center;
   gap: 10px;
   padding: 0 12px;
-  border: 1px dashed #b7c8dd;
+  border: 1px dashed var(--border-color);
   border-radius: 7px;
-  background: #f8fbff;
-  color: #334155;
+  background: var(--card-bg);
+  color: var(--text-main);
   cursor: pointer;
 }
 
 .file-row small {
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .file-row input {
@@ -676,16 +676,16 @@ button:focus-visible,
 
 .validation-message {
   min-height: 18px;
-  color: #b91c1c;
+  color: var(--diff-removed);
   font-size: 12px;
 }
 
 .primary-button {
   min-height: 40px;
   padding: 0 17px;
-  border: 1px solid #2563eb;
-  background: #2563eb;
-  color: #ffffff;
+  border: 1px solid var(--primary-color);
+  background: var(--primary-color);
+  color: var(--on-primary);
   box-shadow: 0 7px 16px rgba(37, 99, 235, 0.2);
 }
 
@@ -696,13 +696,13 @@ button:focus-visible,
 }
 
 .primary-button:disabled {
-  border-color: #94a3b8;
-  background: #94a3b8;
+  border-color: var(--text-muted);
+  background: var(--text-muted);
   cursor: not-allowed;
 }
 
 .progress-value {
-  color: #1d4ed8;
+  color: var(--primary-hover);
   font-size: 20px;
   font-weight: 800;
 }
@@ -711,13 +711,13 @@ button:focus-visible,
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e8eef6;
+  background: var(--surface-soft);
 }
 
 .progress-fill {
   height: 100%;
   border-radius: inherit;
-  background: #2563eb;
+  background: var(--primary-color);
   transition: width 0.22s ease;
 }
 
@@ -736,9 +736,9 @@ button:focus-visible,
   align-items: center;
   gap: 8px;
   padding: 10px;
-  border: 1px solid #e3ebf5;
+  border: 1px solid var(--border-color);
   border-radius: 7px;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -746,23 +746,23 @@ button:focus-visible,
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: #cbd5e1;
+  background: var(--border-color);
   flex-shrink: 0;
 }
 
 .step-list li.active {
-  border-color: #93c5fd;
-  background: #f5f9ff;
-  color: #1d4ed8;
+  border-color: var(--primary-border);
+  background: var(--bg-color);
+  color: var(--primary-hover);
   font-weight: 700;
 }
 
 .step-list li.active span {
-  background: #2563eb;
+  background: var(--primary-color);
 }
 
 .step-list li.done span {
-  background: #16a34a;
+  background: var(--diff-added);
 }
 
 .metric-grid {
@@ -774,26 +774,26 @@ button:focus-visible,
 .metric-card {
   min-height: 94px;
   padding: 14px;
-  border: 1px solid #e3ebf5;
+  border: 1px solid var(--border-color);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--card-bg);
 }
 
 .metric-card span {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
 .metric-card strong {
   display: block;
   margin: 8px 0;
-  color: #0f172a;
+  color: var(--text-strong);
   font-size: 24px;
   line-height: 1;
 }
 
 .metric-card p {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.4;
 }
@@ -812,7 +812,7 @@ button:focus-visible,
   display: flex;
   gap: 12px;
   padding: 13px 0;
-  border-top: 1px solid #edf2f7;
+  border-top: 1px solid var(--border-soft);
 }
 
 .finding-item h4 {
@@ -821,13 +821,13 @@ button:focus-visible,
 
 .finding-item p {
   margin: 6px 0;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.55;
 }
 
 .finding-item small {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -854,9 +854,9 @@ button:focus-visible,
   align-items: center;
   gap: 8px;
   padding: 10px;
-  border: 1px solid #edf2f7;
+  border: 1px solid var(--border-soft);
   border-radius: 7px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -869,7 +869,7 @@ button:focus-visible,
 
 .relation-item small {
   grid-column: 1 / -1;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .table-wrap {
@@ -885,44 +885,44 @@ table {
 th,
 td {
   padding: 11px 12px;
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid var(--border-soft);
   text-align: left;
   font-size: 13px;
   line-height: 1.45;
 }
 
 th {
-  background: #f8fafc;
-  color: #334155;
+  background: var(--bg-color);
+  color: var(--text-main);
   font-weight: 800;
 }
 
 td {
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .tone-critical {
-  border-color: #fecaca;
-  background: #fff1f2;
-  color: #be123c;
+  border-color: var(--diff-removed-border);
+  background: var(--diff-removed-soft);
+  color: var(--diff-removed);
 }
 
 .tone-warning {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #b45309;
+  border-color: var(--warning-border);
+  background: var(--warning-soft);
+  color: var(--warning-color);
 }
 
 .tone-good {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-  color: #047857;
+  border-color: var(--diff-added-border);
+  background: var(--diff-added-soft);
+  color: var(--diff-added);
 }
 
 .tone-info {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--primary-hover);
 }
 
 .back-button:hover,
@@ -930,13 +930,13 @@ td {
 .secondary-button:hover,
 .chip:hover,
 .source-button:hover {
-  border-color: #93c5fd;
-  color: #1d4ed8;
-  background: #f8fbff;
+  border-color: var(--primary-border);
+  color: var(--primary-hover);
+  background: var(--card-bg);
 }
 
 .primary-button:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: var(--primary-hover);
   transform: translateY(-1px);
 }
 

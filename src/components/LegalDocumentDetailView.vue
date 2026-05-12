@@ -315,7 +315,7 @@ const highlightText = () => {
        const parent = currentNode.parentElement;
        if (parent) {
          parent.scrollIntoView({ behavior: 'smooth', block: 'center' });
-         parent.style.backgroundColor = '#fef08a'; 
+         parent.style.backgroundColor = 'var(--warning-border)'; 
          parent.style.transition = 'background-color 1s';
          setTimeout(() => {
             parent.style.backgroundColor = 'transparent';
@@ -532,7 +532,7 @@ const addToKnowledgeBase = () => alert('已添加到知识库');
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: #f5f5f5;
+  background: var(--surface-soft);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   overflow: hidden;
 }
@@ -544,7 +544,7 @@ const addToKnowledgeBase = () => alert('已添加到知识库');
   align-items: center;
   padding: 12px 24px;
   background: white;
-  border-bottom: 1px solid #e5e5e5;
+  border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   z-index: 100;
 }
@@ -561,22 +561,22 @@ const addToKnowledgeBase = () => alert('已添加到知识库');
   gap: 8px;
   padding: 8px 16px;
   background: none;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
-  color: #333;
+  color: var(--text-main);
   cursor: pointer;
   transition: all 0.2s;
 }
 
-.back-btn:hover { background: #f5f5f5; border-color: #ccc; }
+.back-btn:hover { background: var(--surface-soft); border-color: var(--border-color); }
 
 .action-btn-primary {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background: #1a73e8;
+  background: var(--primary-color);
   color: white;
   border: none;
   border-radius: 6px;
@@ -585,7 +585,7 @@ const addToKnowledgeBase = () => alert('已添加到知识库');
   cursor: pointer;
   transition: all 0.2s;
 }
-.action-btn-primary:hover { background: #1557b0; }
+.action-btn-primary:hover { background: var(--primary-hover); }
 
 .action-btn-secondary {
   display: flex;
@@ -593,15 +593,15 @@ const addToKnowledgeBase = () => alert('已添加到知识库');
   gap: 6px;
   padding: 8px 16px;
   background: white;
-  color: #333;
-  border: 1px solid #ddd;
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
 }
-.action-btn-secondary:hover { background: #f5f5f5; }
+.action-btn-secondary:hover { background: var(--surface-soft); }
 
 
 .main-container {
@@ -614,7 +614,7 @@ const addToKnowledgeBase = () => alert('已添加到知识库');
 .document-sidebar {
     width: 260px;
     background: white;
-    border-right: 1px solid #e5e5e5;
+    border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     overflow-y: auto;
@@ -622,20 +622,20 @@ const addToKnowledgeBase = () => alert('已添加到知识库');
 
 .sidebar-header {
     padding: 16px 20px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-soft);
 }
-.sidebar-header h3 { font-size: 16px; font-weight: 600; color: #333; margin: 0; }
+.sidebar-header h3 { font-size: 16px; font-weight: 600; color: var(--text-main); margin: 0; }
 
 .sidebar-nav { padding: 10px 0; }
 .nav-item {
     padding: 10px 20px;
     cursor: pointer;
     font-size: 14px;
-    color: #666;
+    color: var(--text-secondary);
     border-left: 3px solid transparent;
 }
-.nav-item:hover { background: #f9f9f9; color: #333; }
-.nav-item.active { background: #e8f0fe; color: #1a73e8; border-left-color: #1a73e8; font-weight: 500; }
+.nav-item:hover { background: var(--surface-muted); color: var(--text-main); }
+.nav-item.active { background: var(--primary-soft); color: var(--primary-color); border-left-color: var(--primary-color); font-weight: 500; }
 
 /* Main Content */
 .document-content {
@@ -648,7 +648,7 @@ const addToKnowledgeBase = () => alert('已添加到知识库');
 .document-header { 
     margin-bottom: 40px; 
     padding-bottom: 20px; 
-    border-bottom: 1px solid #eee; 
+    border-bottom: 1px solid var(--border-soft); 
     max-width: 900px;
     margin-left: auto;
     margin-right: auto;
@@ -659,41 +659,41 @@ const addToKnowledgeBase = () => alert('已添加到知识库');
     margin: 0 auto;
 }
 
-.document-title { font-size: 24px; font-weight: 700; color: #333; margin-bottom: 20px; line-height: 1.4; text-align: center; }
+.document-title { font-size: 24px; font-weight: 700; color: var(--text-main); margin-bottom: 20px; line-height: 1.4; text-align: center; }
 
 .document-meta {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    background: #f8f9fa;
+    background: var(--surface-muted);
     padding: 15px;
     border-radius: 8px;
 }
 .meta-row { display: flex; gap: 40px; justify-content: center; }
 .meta-item { display: flex; gap: 8px; font-size: 13px; }
-.meta-label { color: #666; }
-.meta-value { color: #333; font-weight: 500; }
+.meta-label { color: var(--text-secondary); }
+.meta-value { color: var(--text-main); font-weight: 500; }
 
 .doc-section { margin-bottom: 40px; }
 .section-title {
     font-size: 18px;
     font-weight: 600;
-    color: #333;
+    color: var(--text-main);
     margin-bottom: 16px;
     padding-left: 10px;
-    border-left: 4px solid #1a73e8;
+    border-left: 4px solid var(--primary-color);
 }
 
 .articles-list { display: flex; flex-direction: column; gap: 16px; }
-.article-item { background: #fff; }
-.article-number { font-size: 15px; font-weight: 600; color: #333; margin: 0 0 8px 0; }
-.article-content p { font-size: 15px; line-height: 1.8; color: #333; margin: 0 0 8px 0; text-align: justify; }
+.article-item { background: var(--card-bg); }
+.article-number { font-size: 15px; font-weight: 600; color: var(--text-main); margin: 0 0 8px 0; }
+.article-content p { font-size: 15px; line-height: 1.8; color: var(--text-main); margin: 0 0 8px 0; text-align: justify; }
 
-.parties-info { background: #f8f9fa; padding: 15px; border-radius: 8px; }
+.parties-info { background: var(--surface-muted); padding: 15px; border-radius: 8px; }
 .party-card { margin-bottom: 10px; font-size: 14px; line-height: 1.6; }
 
 .related-laws { display: flex; flex-direction: column; gap: 12px; }
-.law-card { background: #f8f9fa; padding: 12px; border-radius: 6px; }
-.law-name { font-size: 14px; font-weight: 600; margin: 0 0 4px 0; color: #333; }
-.law-content { font-size: 13px; color: #666; margin: 0; }
+.law-card { background: var(--surface-muted); padding: 12px; border-radius: 6px; }
+.law-name { font-size: 14px; font-weight: 600; margin: 0 0 4px 0; color: var(--text-main); }
+.law-content { font-size: 13px; color: var(--text-secondary); margin: 0; }
 </style>

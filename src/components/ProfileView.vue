@@ -50,7 +50,7 @@ const accountRows = [
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f6f8fc;
+  background: var(--bg-color);
 }
 
 .profile-main {
@@ -65,14 +65,14 @@ const accountRows = [
 
 .profile-header h1 {
   margin: 0 0 8px;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 28px;
   font-weight: 700;
 }
 
 .profile-header p {
   margin: 0;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -86,16 +86,16 @@ const accountRows = [
   grid-template-columns: 128px minmax(0, 1fr) 40px;
   align-items: center;
   min-height: 70px;
-  border-bottom: 1px solid #e6ebf2;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .info-label {
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
 .info-value {
-  color: #111827;
+  color: var(--text-strong);
   font-size: 15px;
   font-weight: 500;
   word-break: break-word;
@@ -106,7 +106,7 @@ const accountRows = [
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .icon-action::before {
@@ -118,7 +118,7 @@ const accountRows = [
 }
 
 .icon-action:hover {
-  background: #eef2f7;
+  background: var(--border-soft);
 }
 
 .profile-links {
@@ -136,7 +136,7 @@ const accountRows = [
   display: inline-flex;
   align-items: center;
   border-radius: 8px;
-  color: #4b5563;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
 }
@@ -146,19 +146,19 @@ const accountRows = [
 }
 
 .profile-link.active {
-  color: #2563eb;
+  color: var(--primary-color);
   font-weight: 600;
 }
 
 .more-entry {
   margin-left: auto;
   padding: 0 12px;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .profile-link:hover,
 .more-entry:hover {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 @media (max-width: 720px) {

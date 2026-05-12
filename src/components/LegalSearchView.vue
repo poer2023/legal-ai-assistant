@@ -118,7 +118,7 @@ const handleSearch = () => {
   min-height: 100%;
   display: flex;
   justify-content: center;
-  background: #f6f8ff;
+  background: var(--bg-color);
 }
 
 .content-wrapper {
@@ -139,7 +139,7 @@ const handleSearch = () => {
 .tab-item {
   position: relative;
   padding: 0 0 12px;
-  color: #3f4754;
+  color: var(--text-main);
   font-size: 24px;
   font-weight: 700;
   line-height: 1.35;
@@ -147,7 +147,7 @@ const handleSearch = () => {
 }
 
 .tab-item.active {
-  color: #1f5cff;
+  color: var(--primary-color);
 }
 
 .tab-item.active::after {
@@ -158,7 +158,7 @@ const handleSearch = () => {
   bottom: 0;
   height: 3px;
   border-radius: 999px;
-  background: #1f5cff;
+  background: var(--primary-color);
 }
 
 .search-container {
@@ -167,19 +167,19 @@ const handleSearch = () => {
   height: 76px;
   display: flex;
   align-items: center;
-  background: #ffffff;
-  border: 1px solid #a9ceff;
+  background: var(--card-bg);
+  border: 1px solid var(--primary-border);
   border-radius: 11px;
   padding: 0 24px 0 26px;
   box-shadow: none;
 }
 
 .search-container.focused {
-  border-color: #1f5cff;
+  border-color: var(--primary-color);
 }
 
 .search-container.regulation-mode {
-  border-color: #1f5cff;
+  border-color: var(--primary-color);
 }
 
 .field-select-wrap {
@@ -196,18 +196,18 @@ const handleSearch = () => {
   align-items: center;
   gap: 13px;
   padding: 0 10px;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 16px;
   font-weight: 400;
   line-height: 1;
 }
 
 .search-container.dropdown-open .selector-label {
-  color: #b9bec8;
+  color: var(--text-muted);
 }
 
 .selector-chevron {
-  color: #c5cad3;
+  color: var(--text-muted);
 }
 
 .field-dropdown {
@@ -219,7 +219,7 @@ const handleSearch = () => {
   padding: 4px;
   border: 1px solid rgba(229, 232, 238, 0.9);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 16px 30px rgba(30, 41, 59, 0.14);
 }
 
@@ -230,7 +230,7 @@ const handleSearch = () => {
   align-items: center;
   padding: 0 10px;
   border-radius: 4px;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 15px;
   font-weight: 400;
   line-height: 1;
@@ -238,8 +238,8 @@ const handleSearch = () => {
 }
 
 .field-option.active {
-  background: #e4f3ff;
-  color: #111827;
+  background: var(--primary-soft);
+  color: var(--text-strong);
   font-weight: 700;
 }
 
@@ -252,12 +252,12 @@ const handleSearch = () => {
   background: transparent;
   font-size: 16px;
   font-weight: 400;
-  color: #1e293b;
+  color: var(--text-main);
   line-height: 74px;
 }
 
 .search-input::placeholder {
-  color: #a0a7b7;
+  color: var(--text-muted);
 }
 
 .search-btn {
@@ -268,13 +268,13 @@ const handleSearch = () => {
   justify-content: center;
   flex: 0 0 36px;
   border-radius: 9px;
-  background: #bcc2cd;
-  color: #ffffff;
+  background: var(--border-color);
+  color: var(--on-primary);
 }
 
 .search-btn:disabled {
-  background: #bcc2cd;
-  color: #ffffff;
+  background: var(--border-color);
+  color: var(--on-primary);
   cursor: not-allowed;
 }
 

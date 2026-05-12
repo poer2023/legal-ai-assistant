@@ -36,7 +36,7 @@ withDefaults(defineProps<{
 }
 
 .agent-icon-word {
-  background: #eaf4ff;
+  background: var(--primary-soft);
 }
 
 .agent-icon-word .agent-icon-glyph {
@@ -45,9 +45,9 @@ withDefaults(defineProps<{
   width: 20px;
   height: 25px;
   border-radius: 3px;
-  background: linear-gradient(180deg, #12a9f4 0%, #0c73d9 100%);
+  background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-color) 100%);
   box-shadow:
-    -7px 7px 0 -1px #0d52b7,
+    -7px 7px 0 -1px var(--primary-hover),
     5px -5px 0 -2px rgba(255, 255, 255, 0.75);
 }
 
@@ -57,14 +57,14 @@ withDefaults(defineProps<{
   width: 15px;
   height: 16px;
   border-radius: 3px;
-  background: #0b55c7;
+  background: var(--primary-hover);
   box-shadow: 0 4px 8px rgba(14, 90, 200, 0.28);
 }
 
 .agent-icon-word .agent-icon-glyph::after {
   left: -2px;
   top: 8px;
-  color: #ffffff;
+  color: var(--on-primary);
   content: "W";
   font-size: 10px;
   font-weight: 900;
@@ -72,7 +72,7 @@ withDefaults(defineProps<{
 }
 
 .agent-icon-writing {
-  background: linear-gradient(135deg, #496bea 0%, #3564e7 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-color) 100%);
   box-shadow: inset 0 -1px 0 rgba(18, 42, 118, 0.16);
 }
 
@@ -82,8 +82,8 @@ withDefaults(defineProps<{
   width: 21px;
   height: 26px;
   border-radius: 4px;
-  background: #fffaf0;
-  box-shadow: 5px 1px 0 -1px #d8e8ff;
+  background: var(--warning-soft);
+  box-shadow: 5px 1px 0 -1px var(--primary-border);
 }
 
 .agent-icon-writing .agent-icon-glyph::before {
@@ -92,11 +92,11 @@ withDefaults(defineProps<{
   width: 4px;
   height: 4px;
   border-radius: 999px;
-  background: #f97316;
+  background: var(--warning-color);
   box-shadow:
-    0 8px 0 #60a5fa,
-    8px 0 0 #f97316,
-    8px 8px 0 #60a5fa;
+    0 8px 0 var(--focus-ring),
+    8px 0 0 var(--warning-color),
+    8px 8px 0 var(--focus-ring);
 }
 
 .agent-icon-writing .agent-icon-glyph::after {
@@ -105,13 +105,13 @@ withDefaults(defineProps<{
   width: 8px;
   height: 22px;
   border-radius: 5px;
-  background: linear-gradient(180deg, #ffd84d 0 32%, #ffffff 32% 50%, #60a5fa 50% 100%);
+  background: linear-gradient(180deg, var(--warning-border) 0 32%, var(--card-bg) 32% 50%, var(--focus-ring) 50% 100%);
   transform: rotate(28deg);
   box-shadow: 0 3px 7px rgba(30, 64, 175, 0.25);
 }
 
 .agent-icon-pencil {
-  background: #ffe86a;
+  background: var(--warning-border);
 }
 
 .agent-icon-pencil .agent-icon-glyph {
@@ -120,7 +120,7 @@ withDefaults(defineProps<{
   width: 28px;
   height: 12px;
   border-radius: 7px;
-  background: linear-gradient(90deg, #6bb7ff 0 58%, #ffffff 58% 72%, #f59e0b 72% 100%);
+  background: linear-gradient(90deg, var(--focus-ring) 0 58%, var(--card-bg) 58% 72%, var(--warning-color) 72% 100%);
   transform: rotate(45deg);
   box-shadow: 0 7px 12px rgba(176, 126, 0, 0.2);
 }
@@ -132,7 +132,7 @@ withDefaults(defineProps<{
   height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-left: 9px solid #475569;
+  border-left: 9px solid var(--text-secondary);
 }
 
 .agent-icon-pencil .agent-icon-glyph::after {
@@ -141,11 +141,11 @@ withDefaults(defineProps<{
   width: 5px;
   height: 12px;
   border-radius: 6px 0 0 6px;
-  background: #93c5fd;
+  background: var(--primary-border);
 }
 
 .agent-icon-grid {
-  background: #eff6ff;
+  background: var(--primary-soft);
 }
 
 .agent-icon-grid .agent-icon-glyph {
@@ -154,20 +154,20 @@ withDefaults(defineProps<{
   width: 8px;
   height: 8px;
   border-radius: 3px;
-  background: linear-gradient(135deg, #7dd3fc, #4f46e5);
+  background: linear-gradient(135deg, var(--focus-ring), var(--skill-color));
   box-shadow:
-    12px 0 0 #7dd3fc,
-    24px 0 0 #60a5fa,
-    0 12px 0 #93c5fd,
-    12px 12px 0 #818cf8,
-    24px 12px 0 #4f46e5,
-    0 24px 0 #bfdbfe,
-    12px 24px 0 #60a5fa,
-    24px 24px 0 #818cf8;
+    12px 0 0 var(--focus-ring),
+    24px 0 0 var(--focus-ring),
+    0 12px 0 var(--primary-border),
+    12px 12px 0 var(--focus-ring),
+    24px 12px 0 var(--skill-color),
+    0 24px 0 var(--primary-border),
+    12px 24px 0 var(--focus-ring),
+    24px 24px 0 var(--focus-ring);
 }
 
 .agent-icon-network {
-  background: linear-gradient(135deg, #ccfbf1 0%, #d1fae5 100%);
+  background: linear-gradient(135deg, var(--diff-added-soft) 0%, var(--diff-added-soft) 100%);
 }
 
 .agent-icon-network .agent-icon-glyph {
@@ -176,7 +176,7 @@ withDefaults(defineProps<{
   width: 24px;
   height: 25px;
   border-radius: 8px 8px 11px 11px;
-  background: linear-gradient(180deg, #2dd4bf 0%, #059669 100%);
+  background: linear-gradient(180deg, var(--diff-added) 0%, var(--diff-added) 100%);
   box-shadow: 0 8px 14px rgba(5, 150, 105, 0.24);
   clip-path: polygon(50% 0, 88% 14%, 88% 52%, 50% 100%, 12% 52%, 12% 14%);
 }
@@ -187,10 +187,10 @@ withDefaults(defineProps<{
   width: 5px;
   height: 5px;
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow:
-    8px -3px 0 #ffffff,
-    10px 9px 0 #a7f3d0;
+    8px -3px 0 var(--card-bg),
+    10px 9px 0 var(--diff-added-border);
 }
 
 .agent-icon-network .agent-icon-glyph::after {
@@ -204,7 +204,7 @@ withDefaults(defineProps<{
 }
 
 .agent-icon-flow {
-  background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%);
+  background: linear-gradient(135deg, var(--warning-soft) 0%, var(--warning-soft) 100%);
 }
 
 .agent-icon-flow .agent-icon-glyph {
@@ -213,7 +213,7 @@ withDefaults(defineProps<{
   width: 30px;
   height: 6px;
   border-radius: 999px;
-  background: linear-gradient(90deg, #f97316 0%, #d97706 100%);
+  background: linear-gradient(90deg, var(--warning-color) 0%, var(--warning-color) 100%);
   box-shadow: 0 8px 14px rgba(217, 119, 6, 0.22);
 }
 
@@ -223,10 +223,10 @@ withDefaults(defineProps<{
   width: 9px;
   height: 9px;
   border-radius: 999px;
-  background: #fb923c;
+  background: var(--warning-color);
   box-shadow:
-    10px 10px 0 #d97706,
-    21px 0 0 #fbbf24;
+    10px 10px 0 var(--warning-color),
+    21px 0 0 var(--warning-color);
 }
 
 .agent-icon-flow .agent-icon-glyph::after {
@@ -234,13 +234,13 @@ withDefaults(defineProps<{
   top: -4px;
   width: 10px;
   height: 10px;
-  border-top: 4px solid #d97706;
-  border-right: 4px solid #d97706;
+  border-top: 4px solid var(--warning-color);
+  border-right: 4px solid var(--warning-color);
   transform: rotate(45deg);
 }
 
 .agent-icon-equity {
-  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+  background: linear-gradient(135deg, var(--skill-soft) 0%, var(--skill-soft) 100%);
 }
 
 .agent-icon-equity .agent-icon-glyph {
@@ -249,12 +249,12 @@ withDefaults(defineProps<{
   width: 8px;
   height: 8px;
   border-radius: 3px;
-  background: #7c3aed;
+  background: var(--skill-color);
   box-shadow:
-    -11px 15px 0 #a78bfa,
-    11px 15px 0 #6d28d9,
-    -11px 28px 0 #c4b5fd,
-    11px 28px 0 #8b5cf6;
+    -11px 15px 0 var(--skill-color),
+    11px 15px 0 var(--skill-color),
+    -11px 28px 0 var(--skill-soft),
+    11px 28px 0 var(--skill-color);
 }
 
 .agent-icon-equity .agent-icon-glyph::before {
@@ -262,9 +262,9 @@ withDefaults(defineProps<{
   top: 8px;
   width: 22px;
   height: 22px;
-  border-left: 2px solid #a78bfa;
-  border-right: 2px solid #a78bfa;
-  border-top: 2px solid #a78bfa;
+  border-left: 2px solid var(--skill-color);
+  border-right: 2px solid var(--skill-color);
+  border-top: 2px solid var(--skill-color);
 }
 
 .agent-icon-equity .agent-icon-glyph::after {
@@ -272,11 +272,11 @@ withDefaults(defineProps<{
   top: 23px;
   width: 22px;
   height: 2px;
-  background: #c4b5fd;
+  background: var(--skill-soft);
 }
 
 .agent-icon-review {
-  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  background: linear-gradient(135deg, var(--diff-added-soft) 0%, var(--diff-added-soft) 100%);
 }
 
 .agent-icon-review .agent-icon-glyph {
@@ -285,10 +285,10 @@ withDefaults(defineProps<{
   width: 22px;
   height: 28px;
   border-radius: 5px;
-  background: linear-gradient(180deg, #ffffff 0%, #dcfce7 100%);
+  background: linear-gradient(180deg, var(--card-bg) 0%, var(--diff-added-soft) 100%);
   box-shadow:
     0 8px 14px rgba(22, 163, 74, 0.18),
-    inset 0 0 0 2px #22c55e;
+    inset 0 0 0 2px var(--diff-added);
 }
 
 .agent-icon-review .agent-icon-glyph::before {
@@ -297,10 +297,10 @@ withDefaults(defineProps<{
   width: 10px;
   height: 2px;
   border-radius: 999px;
-  background: #86efac;
+  background: var(--diff-added-border);
   box-shadow:
-    0 6px 0 #bbf7d0,
-    0 12px 0 #bbf7d0;
+    0 6px 0 var(--diff-added-border),
+    0 12px 0 var(--diff-added-border);
 }
 
 .agent-icon-review .agent-icon-glyph::after {
@@ -308,8 +308,8 @@ withDefaults(defineProps<{
   bottom: 3px;
   width: 14px;
   height: 8px;
-  border-left: 4px solid #16a34a;
-  border-bottom: 4px solid #16a34a;
+  border-left: 4px solid var(--diff-added);
+  border-bottom: 4px solid var(--diff-added);
   transform: rotate(-45deg);
 }
 </style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Component } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   AlertCircle,
   Brain,
@@ -33,7 +33,10 @@ import SkillManageModal from './SkillManageModal.vue';
 import TemplateDropdownContent from './TemplateDropdownContent.vue';
 import TemplateManageModal from './TemplateManageModal.vue';
 import { defaultTemplateAssets, type TemplateAsset } from '../data/legalAssets';
+import { getSkillByNameOrId, markSkillUsed } from '../data/skillCatalog';
 import { docxLegalResearchMock } from '../data/docxLegalResearchMock';
+import { streamOpenRouterMessage } from '../services/openrouterChat';
+import { useChatHistory } from '../stores/chatHistory';
 
 type SearchMode = {
   id: string;
@@ -46,7 +49,36 @@ type PromptPart = {
   value: string;
 };
 
+type InlineSegment = {
+  type: 'text' | 'strong' | 'code' | 'source';
+  value: string;
+};
+
+type LiveAnswerTextBlock = {
+  type: 'heading' | 'paragraph';
+  text: string;
+  segments: InlineSegment[];
+};
+
+type LiveAnswerListBlock = {
+  type: 'ordered-list' | 'unordered-list';
+  items: Array<{
+    text: string;
+    segments: InlineSegment[];
+  }>;
+};
+
+type LiveAnswerBlock = LiveAnswerTextBlock | LiveAnswerListBlock;
+
 const route = useRoute();
+const router = useRouter();
+const {
+  addMockConversation,
+  findHistoryItem,
+  getCachedConversation,
+  loadHistory,
+  updateConversationAnswer,
+} = useChatHistory();
 const inputValue = ref('');
 const showActionMenu = ref(false);
 const showSkillMenu = ref(false);
@@ -57,8 +89,20 @@ const showSourceNotice = ref(true);
 const hasCompletedMock = ref(false);
 const isReferenceDrawerOpen = ref(false);
 const isDocxPreviewOpen = ref(false);
+const isProcessExpanded = ref(false);
+const isThinkingExpanded = ref(true);
+const activeReferenceId = ref<number | null>(null);
+const expandedReferenceIds = ref<Set<number>>(new Set());
 const completedQuestion = ref('');
 const selectedTemplate = ref<TemplateAsset | null>(null);
+const generatedAnswer = ref('');
+const answerModel = ref('');
+const answerError = ref('');
+const answerNotice = ref('');
+const isGeneratingAnswer = ref(false);
+const isRenderingAnswer = ref(false);
+const handledRoutePromptKey = ref('');
+const activeHistoryId = ref('');
 const selectedDialogMode = ref('research');
 const enabledSearchModes = ref<Set<string>>(new Set(['legal']));
 const templateCreatorPrompt = '请使用 /template-creator 帮我创建一个可复用的写作模板，我的需求/源文件如下：';
@@ -67,6 +111,9 @@ const createSkillPrompt = (skillName: string) =>
   `请使用 /${skillName} 帮我完成以下任务，我的需求如下：`;
 const createTemplatePrompt = (template: TemplateAsset) =>
   `请使用 模板：${template.name} 帮我按照这个模板完成写作，我的需求/源文件如下：`;
+let answerRenderQueue = '';
+let answerRenderTimer: ReturnType<typeof window.setInterval> | null = null;
+let answerDrainResolver: (() => void) | null = null;
 
 const dialogModes = [
   { id: 'consult', label: '咨询模式', icon: MessageCircle },
@@ -84,14 +131,232 @@ const uploadActions = [
   { id: 'image', label: '上传图片', icon: ImageIcon },
 ];
 
+const createInlineSegments = (text: string): InlineSegment[] => {
+  const segments: InlineSegment[] = [];
+  const pattern = /(\*\*([^*]+)\*\*|__([^_]+)__|`([^`]+)`|\[(\d+)\])/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'text', value: text.slice(lastIndex, match.index) });
+    }
+
+    if (match[2]) {
+      segments.push({ type: 'strong', value: match[2] });
+    } else if (match[3]) {
+      segments.push({ type: 'strong', value: match[3] });
+    } else if (match[4]) {
+      segments.push({ type: 'code', value: match[4] });
+    } else if (match[5]) {
+      segments.push({ type: 'source', value: match[5] });
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push({ type: 'text', value: text.slice(lastIndex) });
+  }
+
+  return segments.length ? segments : [{ type: 'text', value: text }];
+};
+
+const createTextBlock = (type: LiveAnswerTextBlock['type'], text: string): LiveAnswerTextBlock => ({
+  type,
+  text,
+  segments: createInlineSegments(text),
+});
+
+const parseLiveAnswerBlocks = (text: string): LiveAnswerBlock[] => {
+  const blocks: LiveAnswerBlock[] = [];
+  const paragraphLines: string[] = [];
+  let activeList: LiveAnswerListBlock | null = null;
+
+  const flushParagraph = () => {
+    const paragraph = paragraphLines.join('\n').trim();
+    paragraphLines.length = 0;
+
+    if (paragraph) {
+      blocks.push(createTextBlock('paragraph', paragraph));
+    }
+  };
+
+  const flushList = () => {
+    if (activeList?.items.length) {
+      blocks.push(activeList);
+    }
+
+    activeList = null;
+  };
+
+  for (const rawLine of text.replace(/\r\n/g, '\n').split('\n')) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      flushParagraph();
+      continue;
+    }
+
+    const headingMatch = line.match(/^#{1,4}\s+(.+)$/);
+    if (headingMatch) {
+      const headingText = headingMatch[1]?.trim();
+      if (!headingText) continue;
+
+      flushParagraph();
+      flushList();
+      blocks.push(createTextBlock('heading', headingText));
+      continue;
+    }
+
+    const orderedMatch = line.match(/^(\d+)[.)、]\s+(.+)$/);
+    const unorderedMatch = line.match(/^[-*•]\s+(.+)$/);
+    const listKind = orderedMatch ? 'ordered-list' : unorderedMatch ? 'unordered-list' : null;
+    const listText = orderedMatch?.[2] ?? unorderedMatch?.[1];
+
+    if (listKind && listText) {
+      flushParagraph();
+
+      if (!activeList || activeList.type !== listKind) {
+        flushList();
+        activeList = { type: listKind, items: [] };
+      }
+
+      activeList.items.push({
+        text: listText.trim(),
+        segments: createInlineSegments(listText.trim()),
+      });
+      continue;
+    }
+
+    flushList();
+    paragraphLines.push(line);
+  }
+
+  flushParagraph();
+  flushList();
+
+  return blocks;
+};
+
+const extractSelectedSkillsFromPrompt = (prompt: string) => {
+  const matches = Array.from(prompt.matchAll(/\/([^\s/，。；,.;:：]+)/g));
+  const seen = new Set<string>();
+
+  return matches.reduce<NonNullable<ReturnType<typeof getSkillByNameOrId>>[]>((skills, match) => {
+    const skill = getSkillByNameOrId(match[1] ?? '');
+    if (!skill || seen.has(skill.id)) return skills;
+    seen.add(skill.id);
+    skills.push(skill);
+    return skills;
+  }, []);
+};
+
+const getLiveAnswerListItems = (block: LiveAnswerBlock) => {
+  return block.type === 'ordered-list' || block.type === 'unordered-list'
+    ? block.items
+    : [];
+};
+
+const stopAnswerRenderer = () => {
+  if (answerRenderTimer) {
+    window.clearInterval(answerRenderTimer);
+  }
+
+  answerRenderTimer = null;
+};
+
+const resolveAnswerDrain = () => {
+  if (!answerDrainResolver) return;
+
+  const resolve = answerDrainResolver;
+  answerDrainResolver = null;
+  resolve();
+};
+
+const drainAnswerQueue = () => {
+  if (!answerRenderQueue) {
+    stopAnswerRenderer();
+
+    if (!isGeneratingAnswer.value) {
+      isRenderingAnswer.value = false;
+      resolveAnswerDrain();
+    }
+
+    return;
+  }
+
+  const chunkSize = answerRenderQueue.length > 120
+    ? 10
+    : answerRenderQueue.length > 48
+      ? 6
+      : 2;
+  generatedAnswer.value += answerRenderQueue.slice(0, chunkSize);
+  answerRenderQueue = answerRenderQueue.slice(chunkSize);
+};
+
+const queueAnswerToken = (token: string) => {
+  if (!token) return;
+
+  answerRenderQueue += token;
+  isRenderingAnswer.value = true;
+
+  if (!answerRenderTimer) {
+    answerRenderTimer = window.setInterval(drainAnswerQueue, 22);
+  }
+};
+
+const waitForAnswerDrain = () => {
+  if (!answerRenderQueue && !answerRenderTimer) {
+    isRenderingAnswer.value = false;
+    return Promise.resolve();
+  }
+
+  return new Promise<void>((resolve) => {
+    answerDrainResolver = resolve;
+    drainAnswerQueue();
+  });
+};
+
 const isResearchMode = computed(() => selectedDialogMode.value === 'research');
 const hasComposerContent = computed(() => inputValue.value.length > 0 || Boolean(selectedTemplate.value));
 const reportMock = docxLegalResearchMock;
 const hasSidePanel = computed(() => isReferenceDrawerOpen.value || isDocxPreviewOpen.value);
+const isLiveConversation = computed(() =>
+  isGeneratingAnswer.value
+  || Boolean(generatedAnswer.value)
+  || Boolean(answerError.value)
+  || Boolean(answerNotice.value)
+);
 
-const headerTitle = computed(() => hasCompletedMock.value ? reportMock.title : '新提问');
-const headerTime = computed(() => hasCompletedMock.value ? reportMock.createdAt : currentTime.value);
+const liveHeaderTitle = computed(() => {
+  const normalized = completedQuestion.value.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '法律咨询';
+  return normalized.length > 22 ? `${normalized.slice(0, 22)}...` : normalized;
+});
+const headerTitle = computed(() => {
+  if (!hasCompletedMock.value) return '新提问';
+  return isLiveConversation.value ? liveHeaderTitle.value : reportMock.title;
+});
+const headerTime = computed(() => {
+  if (!hasCompletedMock.value) return currentTime.value;
+  return isLiveConversation.value ? currentTime.value : reportMock.createdAt;
+});
 const completedQuestionParts = computed(() => tokenizePromptText(completedQuestion.value));
+const liveAnswerBlocks = computed(() => parseLiveAnswerBlocks(generatedAnswer.value));
+const processToolCount = computed(() =>
+  reportMock.timeline.reduce((count, node) => count + (node.tools?.length ?? 0), 0)
+);
+const processSummaryText = computed(() =>
+  `已完成 ${reportMock.timeline.length} 个处理阶段、${processToolCount.value} 项工具动作，采用 ${reportMock.references.length} 条参考来源。`
+);
+const answerStatusLabel = computed(() => {
+  if ((isGeneratingAnswer.value && generatedAnswer.value) || isRenderingAnswer.value) return '正在流式生成';
+  if (isGeneratingAnswer.value) return '正在生成回答';
+  if (answerError.value) return '调用异常';
+  if (answerNotice.value) return '暂无缓存';
+  return '已完成回答';
+});
 
 const placeholderText = computed(() => {
   return isResearchMode.value
@@ -177,10 +442,6 @@ const triggerTemplateAction = (template: TemplateAsset) => {
   appendPromptToInput(createTemplatePrompt(template));
 };
 
-const renderMockText = (text: string) => {
-  return text.replace(/\[(\d+)\]/g, '<sup class="source-index">$1</sup>');
-};
-
 const tokenizePromptText = (text: string): PromptPart[] => {
   const parts: PromptPart[] = [];
   const tokenPattern = /(\/[A-Za-z][\w-]*|模板：[^\s，。；;,.、]+)/g;
@@ -207,47 +468,264 @@ const tokenizePromptText = (text: string): PromptPart[] => {
   return parts.length ? parts : [{ type: 'text', value: text }];
 };
 
-const submitComposer = () => {
-  if (!hasComposerContent.value) return;
+const syncConversationRoute = (historyId: string, prompt: string) => {
+  if (route.name !== 'chat') return;
 
-  completedQuestion.value = inputValue.value.trim() || reportMock.userPrompt;
+  const normalizedPrompt = prompt.trim();
+  if (!historyId || !normalizedPrompt) return;
+  if (route.query.historyId === historyId && route.query.prompt === normalizedPrompt) return;
+
+  handledRoutePromptKey.value = `${historyId}:${normalizedPrompt}`;
+  void router.replace({
+    name: 'chat',
+    query: {
+      ...route.query,
+      prompt: normalizedPrompt,
+      historyId,
+    },
+  });
+};
+
+const hydrateCachedConversation = (prompt: string, historyId?: string) => {
+  const cached = getCachedConversation(historyId, prompt);
+  if (!cached?.answer) return false;
+
+  beginConversation(cached.prompt, false, cached.id, !historyId);
+  isDocxPreviewOpen.value = false;
+  answerModel.value = cached.answer.model || '';
+  generatedAnswer.value = cached.answer.content;
+  answerError.value = '';
+  answerNotice.value = '';
+  isGeneratingAnswer.value = false;
+  isRenderingAnswer.value = false;
+  return true;
+};
+
+const hydrateMissingCachedConversation = (prompt: string, historyId?: string) => {
+  if (!historyId) return false;
+
+  const historyItem = findHistoryItem(historyId, prompt);
+  const nextPrompt = historyItem?.prompt || prompt;
+  beginConversation(nextPrompt, false, historyId);
+  isDocxPreviewOpen.value = false;
+  generatedAnswer.value = '';
+  answerModel.value = '';
+  answerError.value = '';
+  answerNotice.value = '这条历史暂未保存回答内容。新提问生成成功后会自动缓存，之后点击历史或刷新会直接加载结果。';
+  isGeneratingAnswer.value = false;
+  isRenderingAnswer.value = false;
+  return true;
+};
+
+const beginConversation = (
+  prompt: string,
+  shouldRecord = true,
+  historyId?: string,
+  shouldSyncRoute = false,
+) => {
+  stopAnswerRenderer();
+  answerRenderQueue = '';
+  isRenderingAnswer.value = false;
+  resolveAnswerDrain();
+  completedQuestion.value = prompt;
   hasCompletedMock.value = true;
   isReferenceDrawerOpen.value = false;
-  isDocxPreviewOpen.value = true;
+  isProcessExpanded.value = false;
+  isThinkingExpanded.value = true;
+  activeReferenceId.value = null;
+  expandedReferenceIds.value = new Set();
+  generatedAnswer.value = '';
+  answerModel.value = '';
+  answerError.value = '';
+  answerNotice.value = '';
+  isGeneratingAnswer.value = false;
   inputValue.value = '';
   selectedTemplate.value = null;
   showSourceNotice.value = false;
   closeDropdown();
+
+  const historyItem = shouldRecord || !historyId
+    ? addMockConversation(prompt)
+    : findHistoryItem(historyId, prompt);
+
+  activeHistoryId.value = historyItem?.id ?? historyId ?? '';
+
+  if (shouldSyncRoute && historyItem) {
+    syncConversationRoute(historyItem.id, historyItem.prompt);
+  }
+
+  return historyItem;
+};
+
+const completeMockConversation = (
+  prompt: string,
+  shouldRecord = true,
+  historyId?: string,
+) => {
+  beginConversation(prompt, shouldRecord, historyId, shouldRecord || !historyId);
+  isDocxPreviewOpen.value = true;
+};
+
+const completeLiveConversation = async (
+  prompt: string,
+  shouldRecord = true,
+  historyId?: string,
+) => {
+  const selectedSkills = extractSelectedSkillsFromPrompt(prompt);
+  if (!selectedSkills.length) {
+    if (hydrateCachedConversation(prompt, historyId)) return;
+    if (hydrateMissingCachedConversation(prompt, historyId)) return;
+  }
+
+  const templateName = selectedTemplate.value?.name;
+  const historyItem = beginConversation(prompt, shouldRecord, historyId, shouldRecord || !historyId);
+  isDocxPreviewOpen.value = false;
+  isGeneratingAnswer.value = true;
+
+  try {
+    selectedSkills.forEach((skill) => markSkillUsed(skill.id));
+    const result = await streamOpenRouterMessage(
+      prompt,
+      {
+        mode: selectedDialogMode.value,
+        thinkingMode: selectedThinkingMode.value,
+        searchModes: Array.from(enabledSearchModes.value),
+        templateName,
+        selectedSkills: selectedSkills.map((skill) => ({
+          id: skill.id,
+          name: skill.name,
+          description: skill.description,
+          files: skill.files.map((file) => ({
+            path: file.path,
+            content: file.content,
+          })),
+        })),
+      },
+      {
+        onMeta(model) {
+          answerModel.value = model;
+        },
+        onToken(_token, fullContent) {
+          const renderedLength = generatedAnswer.value.length + answerRenderQueue.length;
+          queueAnswerToken(fullContent.slice(renderedLength));
+        },
+      },
+    );
+
+    answerModel.value = result.model || answerModel.value;
+    isGeneratingAnswer.value = false;
+    await waitForAnswerDrain();
+
+    if (generatedAnswer.value !== result.content) {
+      generatedAnswer.value = result.content;
+    }
+
+    const cachedItem = updateConversationAnswer(activeHistoryId.value || historyItem?.id, prompt, {
+      content: result.content,
+      model: answerModel.value || result.model,
+      cachedAt: new Date().toISOString(),
+    });
+
+    if (cachedItem) {
+      activeHistoryId.value = cachedItem.id;
+      syncConversationRoute(cachedItem.id, cachedItem.prompt);
+    }
+  } catch (error) {
+    isGeneratingAnswer.value = false;
+    await waitForAnswerDrain();
+    answerError.value = error instanceof Error ? error.message : 'DeepSeek 调用失败';
+  } finally {
+    isGeneratingAnswer.value = false;
+  }
+};
+
+const submitComposer = () => {
+  if (!hasComposerContent.value) return;
+
+  void completeLiveConversation(inputValue.value.trim() || reportMock.userPrompt);
 };
 
 const submitSharedComposer = (value: string) => {
   const nextValue = value.trim();
   if (!nextValue) return;
 
-  completedQuestion.value = nextValue;
-  hasCompletedMock.value = true;
-  isReferenceDrawerOpen.value = false;
-  isDocxPreviewOpen.value = true;
-  inputValue.value = '';
-  selectedTemplate.value = null;
-  showSourceNotice.value = false;
-  closeDropdown();
+  void completeLiveConversation(nextValue);
 };
 
-const openDocxMock = (prompt?: string) => {
-  completedQuestion.value = prompt?.trim() || reportMock.userPrompt;
-  hasCompletedMock.value = true;
-  isReferenceDrawerOpen.value = false;
-  isDocxPreviewOpen.value = true;
-  inputValue.value = '';
-  selectedTemplate.value = null;
-  showSourceNotice.value = false;
+const openDocxMock = (prompt?: string, historyId?: string) => {
+  const nextPrompt = prompt?.trim() || reportMock.userPrompt;
+  completeMockConversation(nextPrompt, !historyId, historyId);
+};
+
+const openRoutePrompt = async () => {
+  await loadHistory();
+
+  if (route.query.mock === 'docx') {
+    openDocxMock(
+      typeof route.query.prompt === 'string' ? route.query.prompt : undefined,
+      typeof route.query.historyId === 'string' ? route.query.historyId : undefined,
+    );
+    return;
+  }
+
+  const prompt = typeof route.query.prompt === 'string' ? route.query.prompt.trim() : '';
+  if (!prompt) return;
+
+  const historyId = typeof route.query.historyId === 'string' ? route.query.historyId : undefined;
+  const routeKey = `${String(historyId ?? '')}:${prompt}`;
+  if (handledRoutePromptKey.value === routeKey) return;
+  handledRoutePromptKey.value = routeKey;
+  void completeLiveConversation(prompt, typeof historyId !== 'string', historyId);
+};
+
+const scrollReferenceIntoView = (referenceId: number) => {
+  const sourceElement = document.querySelector<HTMLElement>(`[data-source-id="${referenceId}"]`);
+  sourceElement?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+};
+
+const revealReference = async (referenceId: number) => {
+  if (!reportMock.references.some((source) => source.id === referenceId)) return;
+
+  activeReferenceId.value = referenceId;
+  expandedReferenceIds.value = new Set([...expandedReferenceIds.value, referenceId]);
+  isReferenceDrawerOpen.value = true;
+  isDocxPreviewOpen.value = false;
+
+  await nextTick();
+  scrollReferenceIntoView(referenceId);
+};
+
+const openReferenceFromCitation = (referenceId: string | number) => {
+  const numericId = Number(referenceId);
+  if (!Number.isFinite(numericId)) return;
+  void revealReference(numericId);
+};
+
+const isReferenceExpanded = (referenceId: number) => {
+  return expandedReferenceIds.value.has(referenceId);
+};
+
+const toggleReferenceDetail = (referenceId: number) => {
+  activeReferenceId.value = referenceId;
+  const nextExpanded = new Set(expandedReferenceIds.value);
+
+  if (nextExpanded.has(referenceId)) {
+    nextExpanded.delete(referenceId);
+  } else {
+    nextExpanded.add(referenceId);
+  }
+
+  expandedReferenceIds.value = nextExpanded;
 };
 
 const toggleReferenceDrawer = () => {
   isReferenceDrawerOpen.value = !isReferenceDrawerOpen.value;
   if (isReferenceDrawerOpen.value) {
     isDocxPreviewOpen.value = false;
+    const referenceId = activeReferenceId.value;
+    if (referenceId) {
+      void nextTick(() => scrollReferenceIntoView(referenceId));
+    }
   }
 };
 
@@ -322,12 +800,11 @@ const closeDropdown = () => {
 
 onMounted(() => {
   document.addEventListener('click', closeDropdown);
-  if (route.query.mock === 'docx') {
-    openDocxMock(typeof route.query.prompt === 'string' ? route.query.prompt : undefined);
-  }
+  void openRoutePrompt();
 });
 
 onBeforeUnmount(() => {
+  stopAnswerRenderer();
   document.removeEventListener('click', closeDropdown);
   document.body.classList.remove('docx-preview-mode');
 });
@@ -335,6 +812,13 @@ onBeforeUnmount(() => {
 watch(isDocxPreviewOpen, (isOpen) => {
   document.body.classList.toggle('docx-preview-mode', isOpen);
 });
+
+watch(
+  () => [route.query.mock, route.query.prompt, route.query.historyId],
+  () => {
+    void openRoutePrompt();
+  },
+);
 </script>
 
 <template>
@@ -361,8 +845,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
       <section
         v-else
         class="answer-conversation"
-        :class="{ 'with-source-drawer': isReferenceDrawerOpen }"
-        aria-label="docx 技能回答结果"
+        :class="{ 'with-source-drawer': isReferenceDrawerOpen && !isLiveConversation }"
+        aria-label="AI 回答结果"
       >
         <div class="answer-scroll">
           <div class="user-message">
@@ -390,10 +874,11 @@ watch(isDocxPreviewOpen, (isOpen) => {
           <article class="answer-card">
             <header class="answer-card-header">
               <button class="answer-status-button" type="button">
-                已完成回答
+                {{ answerStatusLabel }}
                 <ChevronDown :size="14" />
               </button>
               <button
+                v-if="!isLiveConversation"
                 class="reference-button"
                 :class="{ active: isReferenceDrawerOpen }"
                 type="button"
@@ -406,64 +891,165 @@ watch(isDocxPreviewOpen, (isOpen) => {
             </header>
 
             <div class="answer-content">
-              <section class="process-summary" aria-label="生成过程摘要">
-                <div class="reasoning-timeline compact">
+              <section v-if="isLiveConversation" class="live-answer-section" aria-label="DeepSeek 生成结果">
+                <p v-if="answerModel" class="live-model">DeepSeek · {{ answerModel }}</p>
+                <div v-if="isGeneratingAnswer && !generatedAnswer" class="live-loading">
+                  <Brain :size="17" />
+                  <span>正在调用 DeepSeek 生成回答...</span>
+                </div>
+                <div v-if="generatedAnswer" class="live-answer-text">
+                  <template v-for="(block, blockIndex) in liveAnswerBlocks" :key="`${block.type}-${blockIndex}`">
+                    <h3 v-if="block.type === 'heading'" class="live-answer-heading">
+                      <template
+                        v-for="(segment, segmentIndex) in block.segments"
+                        :key="`${blockIndex}-${segment.type}-${segmentIndex}`"
+                      >
+                        <strong v-if="segment.type === 'strong'" class="live-answer-strong">{{ segment.value }}</strong>
+                        <code v-else-if="segment.type === 'code'" class="live-answer-code">{{ segment.value }}</code>
+                        <span v-else-if="segment.type === 'source'" class="live-source-token">[{{ segment.value }}]</span>
+                        <span v-else>{{ segment.value }}</span>
+                      </template>
+                    </h3>
+
+                    <p v-else-if="block.type === 'paragraph'" class="live-answer-paragraph">
+                      <template
+                        v-for="(segment, segmentIndex) in block.segments"
+                        :key="`${blockIndex}-${segment.type}-${segmentIndex}`"
+                      >
+                        <strong v-if="segment.type === 'strong'" class="live-answer-strong">{{ segment.value }}</strong>
+                        <code v-else-if="segment.type === 'code'" class="live-answer-code">{{ segment.value }}</code>
+                        <span v-else-if="segment.type === 'source'" class="live-source-token">[{{ segment.value }}]</span>
+                        <span v-else>{{ segment.value }}</span>
+                      </template>
+                    </p>
+
+                    <ol v-else-if="block.type === 'ordered-list'" class="live-answer-list ordered">
+                      <li v-for="(item, itemIndex) in getLiveAnswerListItems(block)" :key="`${blockIndex}-item-${itemIndex}`">
+                        <template
+                          v-for="(segment, segmentIndex) in item.segments"
+                          :key="`${blockIndex}-${itemIndex}-${segment.type}-${segmentIndex}`"
+                        >
+                          <strong v-if="segment.type === 'strong'" class="live-answer-strong">{{ segment.value }}</strong>
+                          <code v-else-if="segment.type === 'code'" class="live-answer-code">{{ segment.value }}</code>
+                          <span v-else-if="segment.type === 'source'" class="live-source-token">[{{ segment.value }}]</span>
+                          <span v-else>{{ segment.value }}</span>
+                        </template>
+                      </li>
+                    </ol>
+
+                    <ul v-else class="live-answer-list">
+                      <li v-for="(item, itemIndex) in getLiveAnswerListItems(block)" :key="`${blockIndex}-item-${itemIndex}`">
+                        <template
+                          v-for="(segment, segmentIndex) in item.segments"
+                          :key="`${blockIndex}-${itemIndex}-${segment.type}-${segmentIndex}`"
+                        >
+                          <strong v-if="segment.type === 'strong'" class="live-answer-strong">{{ segment.value }}</strong>
+                          <code v-else-if="segment.type === 'code'" class="live-answer-code">{{ segment.value }}</code>
+                          <span v-else-if="segment.type === 'source'" class="live-source-token">[{{ segment.value }}]</span>
+                          <span v-else>{{ segment.value }}</span>
+                        </template>
+                      </li>
+                    </ul>
+                  </template>
+                  <span v-if="isGeneratingAnswer" class="live-answer-cursor" aria-hidden="true"></span>
+                </div>
+                <p v-if="answerNotice" class="live-notice">{{ answerNotice }}</p>
+                <p v-if="answerError" class="live-error">{{ answerError }}</p>
+              </section>
+
+              <template v-else>
+                <section class="process-summary" aria-label="生成过程与深度思考">
+                  <div class="disclosure-block process-disclosure" :class="{ expanded: isProcessExpanded }">
+                    <button
+                      type="button"
+                      class="disclosure-header"
+                      :aria-expanded="isProcessExpanded"
+                      @click="isProcessExpanded = !isProcessExpanded"
+                    >
+                      <span class="disclosure-copy">
+                        <strong>生成过程</strong>
+                        <span>{{ processSummaryText }}</span>
+                      </span>
+                      <ChevronDown :size="16" class="disclosure-icon" />
+                    </button>
+
+                    <div v-if="isProcessExpanded" class="disclosure-body">
+                      <div class="reasoning-timeline compact">
+                        <div
+                          v-for="(node, nodeIndex) in reportMock.timeline"
+                          :key="nodeIndex"
+                          class="timeline-node"
+                          :class="{ last: nodeIndex === reportMock.timeline.length - 1 }"
+                        >
+                          <p>{{ node.text }}</p>
+                          <div v-for="tool in node.tools" :key="`${nodeIndex}-${tool.name}-${tool.query}`" class="tool-step">
+                            <strong>{{ tool.name }}</strong>
+                            <span>{{ tool.query }}</span>
+                            <small>{{ tool.meta }}</small>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="disclosure-block thinking-disclosure" :class="{ expanded: isThinkingExpanded }">
+                    <button
+                      type="button"
+                      class="disclosure-header"
+                      :aria-expanded="isThinkingExpanded"
+                      @click="isThinkingExpanded = !isThinkingExpanded"
+                    >
+                      <span class="disclosure-copy">
+                        <strong>深度思考</strong>
+                        <span>展开查看本次起草的内部分析依据和取舍逻辑。</span>
+                      </span>
+                      <ChevronDown :size="16" class="disclosure-icon" />
+                    </button>
+
+                    <div v-if="isThinkingExpanded" class="disclosure-body">
+                      <div class="reasoning-timeline compact">
+                        <div class="timeline-node last thinking-node">
+                          <p v-for="paragraph in reportMock.thinking" :key="paragraph">{{ paragraph }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="docx-result-summary" aria-label="保密协议生成结果">
+                  <p>
+                    已按“保密协议 / 保密承诺函”模板生成一份专业保密协议正文，内容覆盖保密信息范围、使用限制、例外披露、保密期限、返还销毁和违约责任。
+                  </p>
+                  <p>
+                    协议已整理为可导出的 `.docx` 文件，右侧默认打开文件预览；需要核对依据时，可再查看本次生成的参考来源。
+                  </p>
+
                   <div
-                    v-for="(node, nodeIndex) in reportMock.timeline"
-                    :key="nodeIndex"
-                    class="timeline-node"
-                    :class="{ last: nodeIndex === reportMock.timeline.length - 1 }"
+                    class="docx-file-card"
+                    role="button"
+                    tabindex="0"
+                    @click="openDocxPreview"
+                    @keydown.enter="openDocxPreview"
+                    @keydown.space.prevent="openDocxPreview"
                   >
-                    <p>{{ node.text }}</p>
-                    <div v-for="tool in node.tools" :key="`${nodeIndex}-${tool.name}-${tool.query}`" class="tool-step">
-                      <strong>{{ tool.name }}</strong>
-                      <span>{{ tool.query }}</span>
-                      <small>{{ tool.meta }}</small>
+                    <div class="docx-file-icon">
+                      <FileText :size="30" />
+                      <span>DOCX</span>
+                    </div>
+                    <div class="docx-file-main">
+                      <div class="docx-file-heading">
+                        <div>
+                          <p class="docx-file-kicker">保密协议</p>
+                          <h2>保密协议（NDA）.docx</h2>
+                        </div>
+                        <span class="docx-file-status">已生成</span>
+                      </div>
+
+                      <p class="docx-file-desc">{{ reportMock.summary }}</p>
                     </div>
                   </div>
-                </div>
-
-                <div class="reasoning-timeline compact">
-                  <div class="timeline-node last thinking-node">
-                    <p class="thinking-title">深度思考</p>
-                    <p v-for="paragraph in reportMock.thinking" :key="paragraph">{{ paragraph }}</p>
-                  </div>
-                </div>
-              </section>
-
-              <section class="docx-result-summary" aria-label="docx 生成结果">
-                <p>
-                  已按“法律研究报告”模板生成一份婚姻家事方向的 Word 文档，内容覆盖共同财产分割、共同债务、子女抚养、家务补偿及离婚救济等核心问题。
-                </p>
-                <p>
-                  报告已整理为可导出的 `.docx` 文件，右侧默认打开文件预览；需要核对依据时，可再查看本次生成的参考来源。
-                </p>
-
-                <div
-                  class="docx-file-card"
-                  role="button"
-                  tabindex="0"
-                  @click="openDocxPreview"
-                  @keydown.enter="openDocxPreview"
-                  @keydown.space.prevent="openDocxPreview"
-                >
-                  <div class="docx-file-icon">
-                    <FileText :size="30" />
-                    <span>DOCX</span>
-                  </div>
-                  <div class="docx-file-main">
-                    <div class="docx-file-heading">
-                      <div>
-                        <p class="docx-file-kicker">法律研究报告</p>
-                      <h2>婚姻家事纠纷法律研究报告.docx</h2>
-                    </div>
-                    <span class="docx-file-status">已生成</span>
-                  </div>
-
-                  <p class="docx-file-desc">{{ reportMock.summary }}</p>
-                  </div>
-                </div>
-              </section>
+                </section>
+              </template>
             </div>
 
             <div class="answer-actions">
@@ -476,18 +1062,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
         </div>
       </section>
 
-      <footer class="composer-wrap" :class="{ 'with-source-drawer': isReferenceDrawerOpen }">
-        <div class="composer-top-actions">
-          <button class="ghost-action">
-            <MessageSquareText :size="15" />
-            新提问
-          </button>
-          <button class="ghost-action">
-            <BookOpen :size="15" />
-            提问记录
-          </button>
-        </div>
-
+      <footer class="composer-wrap" :class="{ 'with-source-drawer': isReferenceDrawerOpen && !isLiveConversation }">
         <ChatInput v-model="inputValue" @submit="submitSharedComposer" />
 
         <p class="ai-note">回复的内容由AI生成，非人工编辑；其内容准确性和完整性无法保证，不代表我们的态度和观点。</p>
@@ -506,7 +1081,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
       @create="createTemplateFromDropdown"
       @select="triggerTemplateAction"
     />
-    <aside v-if="hasCompletedMock && isReferenceDrawerOpen" class="source-drawer" aria-label="参考来源">
+    <aside v-if="hasCompletedMock && isReferenceDrawerOpen && !isLiveConversation" class="source-drawer" aria-label="参考来源">
       <header class="source-drawer-header">
         <div>
           <strong>参考来源</strong>
@@ -518,15 +1093,41 @@ watch(isDocxPreviewOpen, (isOpen) => {
       </header>
 
       <div class="source-list">
-        <article v-for="source in reportMock.references" :key="source.id" class="source-card">
+        <article
+          v-for="source in reportMock.references"
+          :key="source.id"
+          class="source-card"
+          :class="{ active: activeReferenceId === source.id, expanded: isReferenceExpanded(source.id) }"
+          :data-source-id="source.id"
+          role="button"
+          tabindex="0"
+          @click="toggleReferenceDetail(source.id)"
+          @keydown.enter="toggleReferenceDetail(source.id)"
+          @keydown.space.prevent="toggleReferenceDetail(source.id)"
+        >
           <div class="source-card-title">
             <Share2 :size="16" />
             <strong>{{ source.type }}</strong>
+            <span v-if="source.status" class="source-status">{{ source.status }}</span>
+            <ChevronDown :size="15" class="source-card-arrow" />
           </div>
           <h4>{{ source.id }}.{{ source.title }}</h4>
           <p class="source-origin">{{ source.source }}</p>
           <p>{{ source.excerpt }}</p>
-          <button type="button" class="source-kb-button">
+          <div v-if="isReferenceExpanded(source.id)" class="source-detail" @click.stop>
+            <dl>
+              <div v-if="source.locator">
+                <dt>引用位置</dt>
+                <dd>{{ source.locator }}</dd>
+              </div>
+              <div v-if="source.hitReason">
+                <dt>命中理由</dt>
+                <dd>{{ source.hitReason }}</dd>
+              </div>
+            </dl>
+            <blockquote v-if="source.quote">{{ source.quote }}</blockquote>
+          </div>
+          <button type="button" class="source-kb-button" @click.stop>
             <Zap :size="13" />
             加入知识库
           </button>
@@ -534,14 +1135,14 @@ watch(isDocxPreviewOpen, (isOpen) => {
       </div>
     </aside>
 
-    <aside v-if="hasCompletedMock && isDocxPreviewOpen" class="docx-preview-panel" aria-label="DOCX 文件预览">
+    <aside v-if="hasCompletedMock && isDocxPreviewOpen && !isLiveConversation" class="docx-preview-panel" aria-label="DOCX 文件预览">
       <header class="docx-preview-header">
         <div class="docx-preview-title">
           <span class="docx-preview-icon">
             <FileText :size="18" />
           </span>
           <div>
-            <strong>婚姻家事纠纷法律研究报告.docx</strong>
+            <strong>保密协议（NDA）.docx</strong>
             <span>DOCX 预览</span>
           </div>
         </div>
@@ -553,12 +1154,12 @@ watch(isDocxPreviewOpen, (isOpen) => {
       <div class="docx-preview-scroll">
         <article class="docx-preview-page">
           <div class="docx-preview-cover">
-            <p>法律研究报告</p>
+            <p>保密协议</p>
             <h1>{{ reportMock.title }}</h1>
             <dl>
               <div>
-                <dt>报告用途</dt>
-                <dd>内部研判 / 客户沟通 / 离婚谈判准备</dd>
+                <dt>文件用途</dt>
+                <dd>商务合作 / 尽职调查 / 项目谈判前资料交换</dd>
               </div>
               <div>
                 <dt>生成时间</dt>
@@ -572,14 +1173,50 @@ watch(isDocxPreviewOpen, (isOpen) => {
             <p
               v-for="paragraph in section.paragraphs"
               :key="paragraph"
-              v-html="renderMockText(paragraph)"
-            ></p>
+            >
+              <template
+                v-for="(segment, segmentIndex) in createInlineSegments(paragraph)"
+                :key="`${paragraph}-${segment.type}-${segmentIndex}`"
+              >
+                <button
+                  v-if="segment.type === 'source'"
+                  type="button"
+                  class="source-index"
+                  :class="{ active: Number(segment.value) === activeReferenceId }"
+                  :aria-label="`查看参考来源 ${segment.value}`"
+                  @click="openReferenceFromCitation(segment.value)"
+                >
+                  {{ segment.value }}
+                </button>
+                <strong v-else-if="segment.type === 'strong'">{{ segment.value }}</strong>
+                <code v-else-if="segment.type === 'code'">{{ segment.value }}</code>
+                <span v-else>{{ segment.value }}</span>
+              </template>
+            </p>
             <ul v-if="section.bullets">
               <li
                 v-for="bullet in section.bullets"
                 :key="bullet"
-                v-html="renderMockText(bullet)"
-              ></li>
+              >
+                <template
+                  v-for="(segment, segmentIndex) in createInlineSegments(bullet)"
+                  :key="`${bullet}-${segment.type}-${segmentIndex}`"
+                >
+                  <button
+                    v-if="segment.type === 'source'"
+                    type="button"
+                    class="source-index"
+                    :class="{ active: Number(segment.value) === activeReferenceId }"
+                    :aria-label="`查看参考来源 ${segment.value}`"
+                    @click="openReferenceFromCitation(segment.value)"
+                  >
+                    {{ segment.value }}
+                  </button>
+                  <strong v-else-if="segment.type === 'strong'">{{ segment.value }}</strong>
+                  <code v-else-if="segment.type === 'code'">{{ segment.value }}</code>
+                  <span v-else>{{ segment.value }}</span>
+                </template>
+              </li>
             </ul>
           </section>
         </article>
@@ -590,17 +1227,14 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 <style scoped>
 .chat-page {
-  --line: #d9e0ee;
-  --line-soft: #e9edf5;
-  --paper: #ffffff;
-  --text-main: #2d3445;
-  --text-muted: #8a93a6;
-  --text-strong: #2a5bd7;
+  --line: var(--border-color);
+  --line-soft: var(--border-soft);
+  --paper: var(--card-bg);
   display: flex;
   width: 100%;
   min-height: 100%;
   height: 100%;
-  background: #f6f8fc;
+  background: var(--card-bg);
   overflow: hidden;
 }
 
@@ -610,13 +1244,13 @@ watch(isDocxPreviewOpen, (isOpen) => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f7f9fd;
+  background: var(--card-bg);
 }
 
 .chat-page.preview-split .chat-main {
   flex: 0 0 50%;
   width: 50%;
-  border-right: 1px solid #dbe5f4;
+  border-right: 1px solid var(--border-color);
 }
 
 .chat-page.preview-split .chat-header {
@@ -635,15 +1269,15 @@ watch(isDocxPreviewOpen, (isOpen) => {
   gap: 12px;
   padding: 0 24px;
   border-bottom: 1px solid var(--line);
-  background: rgba(247, 249, 253, 0.94);
+  background: color-mix(in srgb, var(--bg-color) 94%, transparent);
 }
 
 .header-title-icon {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: #eef4ff;
-  color: #2a5bd7;
+  background: var(--primary-soft);
+  color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -674,8 +1308,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   height: 34px;
   padding: 0 12px;
   border-radius: 8px;
-  color: #a0a8b8;
-  background: #edf1f7;
+  color: var(--text-muted);
+  background: var(--surface-soft);
   cursor: not-allowed;
 }
 
@@ -689,13 +1323,25 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 .composer-wrap {
-  padding: 0 28px 16px;
+  padding: 0 96px 16px;
   flex-shrink: 0;
   transition: margin-right 0.2s ease;
 }
 
 .chat-page.preview-split .composer-wrap {
   padding: 0 clamp(16px, 4vw, 54px) 14px;
+}
+
+.composer-wrap :deep(.chat-input-container),
+.ai-note {
+  width: min(850px, 100%);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.chat-page.preview-split .composer-wrap :deep(.chat-input-container),
+.chat-page.preview-split .ai-note {
+  width: min(620px, 100%);
 }
 
 .chat-page.preview-split .composer-wrap :deep(.chat-input-container) {
@@ -710,32 +1356,9 @@ watch(isDocxPreviewOpen, (isOpen) => {
   margin-right: clamp(0px, calc(100vw - 1180px), 560px);
 }
 
-.composer-top-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.ghost-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 8px;
-  color: #64748b;
-  background: transparent;
-}
-
-.ghost-action:hover {
-  background: #eef2f7;
-  color: #2a5bd7;
-}
-
 .composer {
   position: relative;
-  border: 1px solid #6aa1ff;
+  border: 1px solid var(--focus-ring);
   border-radius: 16px;
   background: var(--paper);
   min-height: 172px;
@@ -752,12 +1375,12 @@ watch(isDocxPreviewOpen, (isOpen) => {
   outline: 0;
   font-size: 15px;
   line-height: 1.7;
-  color: #2d3445;
+  color: var(--text-main);
   background: transparent;
 }
 
 .composer-textarea::placeholder {
-  color: #9aa4b6;
+  color: var(--text-muted);
 }
 
 .source-notice-bubble {
@@ -770,9 +1393,9 @@ watch(isDocxPreviewOpen, (isOpen) => {
   gap: 12px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: #fff7ed;
-  border: 1px solid #fed7aa;
-  color: #9a3412;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
+  color: var(--warning-color);
   font-size: 13px;
 }
 
@@ -787,7 +1410,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 .source-notice-close {
-  color: #9a3412;
+  color: var(--warning-color);
 }
 
 .selected-template-chip {
@@ -799,8 +1422,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   margin: 0 0 10px;
   padding: 7px 9px;
   border-radius: 8px;
-  color: #047857;
-  background: #ecfdf5;
+  color: var(--diff-added);
+  background: var(--diff-added-soft);
   font-size: 13px;
   font-weight: 650;
 }
@@ -819,11 +1442,11 @@ watch(isDocxPreviewOpen, (isOpen) => {
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  color: #047857;
+  color: var(--diff-added);
 }
 
 .selected-template-chip button:hover {
-  background: #d1fae5;
+  background: var(--diff-added-soft);
 }
 
 .composer-toolbar {
@@ -854,15 +1477,15 @@ watch(isDocxPreviewOpen, (isOpen) => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #64748b;
-  background: #f1f5f9;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
   transition: all 0.2s;
 }
 
 .plus-button:hover,
 .plus-button[aria-expanded="true"] {
-  background: #e0edff;
-  color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 .text-tool-button {
@@ -872,7 +1495,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
   gap: 8px;
   padding: 0 9px;
   border-radius: 8px;
-  color: #5f6368;
+  color: var(--text-secondary);
   background: transparent;
   font-size: 15px;
   font-weight: 700;
@@ -882,8 +1505,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .text-tool-button:hover,
 .text-tool-button[aria-expanded="true"] {
-  background: #eef2f7;
-  color: #475569;
+  background: var(--border-soft);
+  color: var(--text-secondary);
 }
 
 .text-tool-icon {
@@ -896,7 +1519,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 .icon-button:focus-visible,
 .send-button:focus-visible,
 .action-menu-item:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -929,7 +1552,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .action-group {
   padding: 4px 0 8px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .action-group:last-child {
@@ -939,7 +1562,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .action-group-title {
   margin: 4px 8px 6px;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-size: 12px;
   line-height: 1;
   font-weight: 700;
@@ -953,7 +1576,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
   gap: 10px;
   border-radius: 8px;
   padding: 0 10px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 500;
   text-align: left;
@@ -961,21 +1584,21 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 .action-menu-item:hover {
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .action-menu-item.selected {
-  color: #2563eb;
-  background: #eff6ff;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .action-icon {
-  color: #64748b;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
 .action-menu-item.selected .action-icon {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .check-icon {
@@ -990,37 +1613,37 @@ watch(isDocxPreviewOpen, (isOpen) => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #8a93a6;
+  color: var(--text-muted);
 }
 
 .icon-button:hover {
-  background: #f1f5f9;
-  color: #475569;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
 }
 
 .send-button {
   color: white;
-  background: #c7d1df;
+  background: var(--border-color);
   cursor: not-allowed;
 }
 
 .send-button.ready {
-  background: #2563eb;
+  background: var(--primary-color);
   cursor: pointer;
 }
 
 .ai-note {
-  margin: 10px 0 0;
+  margin: 10px auto 0;
   text-align: center;
   font-size: 12px;
-  color: #9aa4b6;
+  color: var(--text-muted);
 }
 
 .answer-conversation {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #f7f9fd;
+  background: var(--card-bg);
 }
 
 .answer-conversation.with-source-drawer .answer-scroll {
@@ -1041,6 +1664,10 @@ watch(isDocxPreviewOpen, (isOpen) => {
   width: min(100%, 620px);
 }
 
+.chat-page.preview-split .user-message {
+  width: min(100%, 620px);
+}
+
 .chat-page.preview-split .answer-card-header {
   padding: 14px 18px 8px;
 }
@@ -1050,8 +1677,11 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 .user-message {
+  width: min(850px, 100%);
   display: flex;
   justify-content: flex-end;
+  margin-left: auto;
+  margin-right: auto;
   margin-bottom: 12px;
 }
 
@@ -1059,8 +1689,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   max-width: 520px;
   padding: 14px 16px 10px;
   border-radius: 12px 12px 2px 12px;
-  background: #dbeafe;
-  color: #273344;
+  background: var(--primary-soft-strong);
+  color: var(--text-main);
 }
 
 .question-bubble p {
@@ -1077,8 +1707,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   margin: 0 4px;
   padding: 0 6px;
   border-radius: 4px;
-  background: #f2f2f2;
-  color: #5f6368;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
   font-family: inherit;
   font-size: inherit;
   font-weight: 500;
@@ -1087,8 +1717,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 .question-inline-code.template-inline-code {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--diff-added-soft);
+  color: var(--diff-added);
 }
 
 .question-actions,
@@ -1104,21 +1734,21 @@ watch(isDocxPreviewOpen, (isOpen) => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #6b7280;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
 .question-actions button:hover,
 .answer-actions button:hover {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .answer-card {
   width: min(850px, 100%);
   margin: 0 auto;
   border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 10px 28px rgba(51, 79, 120, 0.06);
+  background: transparent;
+  box-shadow: none;
 }
 
 .answer-card-header {
@@ -1131,7 +1761,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
   gap: 16px;
   padding: 18px 24px 10px;
   border-radius: 12px 12px 0 0;
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--card-bg) 96%, transparent);
   backdrop-filter: blur(8px);
 }
 
@@ -1142,7 +1772,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
   gap: 7px;
   height: 32px;
   border-radius: 8px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 14px;
   font-weight: 700;
 }
@@ -1153,29 +1783,235 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .reference-button {
   padding: 0 10px;
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 .reference-button.active,
 .reference-button:hover {
-  color: #245ad8;
-  background: #eaf2ff;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .answer-content {
   padding: 4px 32px 22px;
-  color: #263142;
+  color: var(--text-main);
   font-size: 15px;
   line-height: 1.86;
 }
 
 .process-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   margin-bottom: 26px;
+}
+
+.disclosure-block {
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 56%, transparent);
+}
+
+.disclosure-block.expanded {
+  background: color-mix(in srgb, var(--card-bg) 88%, transparent);
+}
+
+.disclosure-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--text-main);
+}
+
+.disclosure-header:hover {
+  background: color-mix(in srgb, var(--primary-soft) 42%, transparent);
+}
+
+.disclosure-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.disclosure-copy strong {
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.disclosure-copy span {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.disclosure-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.18s ease;
+}
+
+.disclosure-block.expanded .disclosure-icon {
+  transform: rotate(180deg);
+}
+
+.disclosure-body {
+  padding: 0 14px 14px;
+}
+
+.disclosure-body .reasoning-timeline {
+  margin-top: 2px;
 }
 
 .docx-result-summary p {
   margin: 0 0 10px;
-  color: #3f4a5f;
+  color: var(--text-secondary);
+}
+
+.live-answer-section {
+  min-height: 180px;
+  padding: 4px 0 8px;
+  font-family: inherit;
+}
+
+.live-model {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.live-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.live-loading svg {
+  color: var(--primary-color);
+}
+
+.live-answer-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.86;
+}
+
+.live-answer-heading {
+  margin: 10px 0 0;
+  color: var(--text-strong);
+  font-size: 15.5px;
+  font-weight: 750;
+  line-height: 1.65;
+}
+
+.live-answer-heading:first-child {
+  margin-top: 0;
+}
+
+.live-answer-paragraph {
+  margin: 0;
+  color: var(--text-main);
+  font: inherit;
+  white-space: pre-line;
+}
+
+.live-answer-list {
+  margin: 0;
+  padding-left: 1.35em;
+  color: var(--text-main);
+}
+
+.live-answer-list li {
+  margin: 0 0 6px;
+  padding-left: 2px;
+  line-height: 1.86;
+}
+
+.live-answer-list li:last-child {
+  margin-bottom: 0;
+}
+
+.live-answer-strong {
+  color: var(--text-strong);
+  font-weight: 750;
+}
+
+.live-answer-code {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  margin: 0 2px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.94em;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.live-source-token {
+  color: var(--text-muted);
+  font-size: 0.9em;
+}
+
+.live-answer-cursor {
+  width: 7px;
+  height: 1.24em;
+  display: inline-block;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: var(--primary-color);
+  animation: live-cursor-blink 0.9s steps(2, start) infinite;
+}
+
+@keyframes live-cursor-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+
+  46%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.live-notice {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.live-error {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--danger-border, #fecaca);
+  border-radius: 8px;
+  background: var(--danger-soft, #fef2f2);
+  color: var(--danger-text, #b91c1c);
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .docx-file-card {
@@ -1184,21 +2020,21 @@ watch(isDocxPreviewOpen, (isOpen) => {
   gap: 22px;
   margin-top: 18px;
   padding: 22px;
-  border: 1px solid #dbe7fb;
+  border: 1px solid var(--primary-border);
   border-radius: 10px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f7fbff 100%);
+  background: linear-gradient(180deg, var(--card-bg) 0%, var(--card-bg) 100%);
   color: inherit;
   cursor: pointer;
   text-align: left;
 }
 
 .docx-file-card:hover {
-  border-color: #aacbff;
+  border-color: var(--primary-border);
   box-shadow: 0 8px 22px rgba(37, 99, 235, 0.08);
 }
 
 .docx-file-card:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 
@@ -1210,8 +2046,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   justify-content: center;
   gap: 8px;
   border-radius: 10px;
-  color: #245ad8;
-  background: #eaf2ff;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .docx-file-icon span {
@@ -1233,7 +2069,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .docx-file-kicker {
   margin: 0 0 4px !important;
-  color: #245ad8 !important;
+  color: var(--primary-color) !important;
   font-size: 13px;
   font-weight: 850;
   line-height: 1.35;
@@ -1241,7 +2077,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .docx-file-heading h2 {
   margin: 0;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 24px;
   font-weight: 900;
   line-height: 1.35;
@@ -1254,15 +2090,15 @@ watch(isDocxPreviewOpen, (isOpen) => {
   align-items: center;
   padding: 0 9px;
   border-radius: 999px;
-  color: #047857;
-  background: #ecfdf5;
+  color: var(--diff-added);
+  background: var(--diff-added-soft);
   font-size: 12px;
   font-weight: 850;
 }
 
 .docx-file-desc {
   margin: 11px 0 0 !important;
-  color: #4b5563 !important;
+  color: var(--text-secondary) !important;
   font-size: 17px;
   line-height: 1.7;
 }
@@ -1326,7 +2162,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .mock-block h2 {
   margin: 0 0 12px;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 16px;
   font-weight: 850;
 }
@@ -1347,7 +2183,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
   top: 8px;
   bottom: 8px;
   width: 1px;
-  background: #e1e6ef;
+  background: var(--border-color);
 }
 
 .timeline-node {
@@ -1363,7 +2199,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
   width: 7px;
   height: 7px;
   border-radius: 999px;
-  background: #b8c1d1;
+  background: var(--border-color);
 }
 
 .timeline-node.last {
@@ -1372,7 +2208,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .timeline-node p {
   margin: 0 0 10px;
-  color: #5f6b7b;
+  color: var(--text-secondary);
 }
 
 .tool-step {
@@ -1387,7 +2223,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 .tool-step strong {
-  color: #1254d8;
+  color: var(--primary-color);
   font-size: 14px;
   font-weight: 850;
 }
@@ -1396,24 +2232,24 @@ watch(isDocxPreviewOpen, (isOpen) => {
   min-width: 0;
   padding: 3px 9px;
   border-radius: 7px;
-  color: #475569;
-  background: #f3f6fa;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
   font-size: 13px;
 }
 
 .tool-step small {
   grid-column: 1 / -1;
-  color: #8a94a6;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
 .thinking-node {
-  color: #5f6b7b;
+  color: var(--text-secondary);
 }
 
 .thinking-title {
   margin-bottom: 2px !important;
-  color: #4b5563 !important;
+  color: var(--text-secondary) !important;
 }
 
 .thinking-node p,
@@ -1422,27 +2258,27 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 .lead-copy {
-  color: #1f2937;
+  color: var(--text-main);
 }
 
 .report-cover {
   margin: 18px 0 26px;
   padding: 22px 24px;
-  border: 1px solid #e1e8f5;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  background: #fbfdff;
+  background: var(--card-bg);
 }
 
 .report-label {
   margin: 0 0 8px !important;
-  color: #245ad8;
+  color: var(--primary-color);
   font-size: 13px;
   font-weight: 850;
 }
 
 .report-cover h2 {
   margin: 0 0 10px;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 22px;
   line-height: 1.35;
 }
@@ -1456,14 +2292,14 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .report-cover dt {
   margin-bottom: 4px;
-  color: #7a8496;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 800;
 }
 
 .report-cover dd {
   margin: 0;
-  color: #334155;
+  color: var(--text-main);
   font-size: 13px;
   line-height: 1.55;
 }
@@ -1474,7 +2310,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .report-section h3 {
   margin: 0 0 12px;
-  color: #151a23;
+  color: var(--text-strong);
   font-size: 18px;
   font-weight: 900;
   line-height: 1.45;
@@ -1489,16 +2325,28 @@ watch(isDocxPreviewOpen, (isOpen) => {
   margin-bottom: 9px;
 }
 
-:deep(.source-index) {
+.source-index {
   display: inline-block;
-  margin: 0 1px;
-  color: #2a5bd7;
+  margin: 0 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: var(--primary-color);
   background: transparent;
   font-size: 0.72em;
   font-weight: 800;
   line-height: 1;
   text-indent: 0;
   vertical-align: super;
+  cursor: pointer;
+}
+
+.source-index:hover,
+.source-index:focus-visible,
+.source-index.active {
+  color: var(--primary-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .closing-copy {
@@ -1512,8 +2360,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   margin-left: 6px;
   padding: 0 7px;
   border-radius: 6px;
-  color: #8b95a6;
-  background: #eef1f5;
+  color: var(--text-muted);
+  background: var(--surface-soft);
   font-size: 12px;
   font-weight: 800;
 }
@@ -1530,8 +2378,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   z-index: 30;
   width: 344px;
   padding: 18px 16px;
-  border-left: 1px solid #dbe5f4;
-  background: #f7f9fc;
+  border-left: 1px solid var(--border-color);
+  background: var(--bg-color);
   box-shadow: -8px 0 18px rgba(64, 88, 128, 0.08);
   overflow-y: auto;
 }
@@ -1545,7 +2393,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
   justify-content: space-between;
   margin: -18px -16px 18px;
   padding: 18px 16px 12px;
-  background: #f7f9fc;
+  background: var(--bg-color);
 }
 
 .source-drawer-header div {
@@ -1555,7 +2403,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 .source-drawer-header strong {
-  color: #1f2937;
+  color: var(--text-main);
   font-size: 16px;
   font-weight: 850;
 }
@@ -1566,8 +2414,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   align-items: center;
   padding: 0 9px;
   border-radius: 8px;
-  background: #edf1f7;
-  color: #5f6b7a;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 800;
 }
@@ -1579,12 +2427,12 @@ watch(isDocxPreviewOpen, (isOpen) => {
   align-items: center;
   justify-content: center;
   border-radius: 7px;
-  color: #b7bec9;
+  color: var(--text-muted);
 }
 
 .source-drawer-header button:hover {
-  background: #eef3fb;
-  color: #667085;
+  background: var(--border-soft);
+  color: var(--text-secondary);
 }
 
 .source-list {
@@ -1595,9 +2443,28 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .source-card {
   padding: 17px 18px 18px;
+  border: 1px solid transparent;
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 2px 9px rgba(45, 70, 110, 0.06);
+  cursor: pointer;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+}
+
+.source-card:hover,
+.source-card:focus-visible {
+  border-color: var(--primary-border);
+  outline: none;
+  box-shadow: 0 8px 20px rgba(45, 70, 110, 0.10);
+}
+
+.source-card.active {
+  border-color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-soft) 34%, var(--card-bg));
+}
+
+.source-card.expanded {
+  box-shadow: 0 10px 24px rgba(45, 70, 110, 0.12);
 }
 
 .source-card-title {
@@ -1605,21 +2472,45 @@ watch(isDocxPreviewOpen, (isOpen) => {
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
-  color: #1f2937;
+  color: var(--text-main);
 }
 
 .source-card-title svg {
-  color: #2357d7;
+  color: var(--primary-color);
 }
 
 .source-card-title strong {
+  flex: 1 1 auto;
   font-size: 14px;
   font-weight: 900;
 }
 
+.source-status {
+  flex: 0 0 auto;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border-radius: 7px;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.source-card-arrow {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  transition: transform 0.18s ease;
+}
+
+.source-card.expanded .source-card-arrow {
+  transform: rotate(180deg);
+}
+
 .source-card h4 {
   margin: 0 0 8px;
-  color: #253041;
+  color: var(--text-main);
   font-size: 14px;
   font-weight: 850;
   line-height: 1.45;
@@ -1627,14 +2518,56 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .source-card p {
   margin: 0;
-  color: #5c6675;
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.7;
 }
 
 .source-origin {
   margin-bottom: 7px !important;
-  color: #7b8493 !important;
+  color: var(--text-muted) !important;
+}
+
+.source-detail {
+  margin-top: 13px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--surface-soft);
+  cursor: default;
+}
+
+.source-detail dl {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+
+.source-detail div {
+  display: grid;
+  gap: 3px;
+}
+
+.source-detail dt {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.source-detail dd {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.source-detail blockquote {
+  margin: 10px 0 0;
+  padding: 9px 10px;
+  border-left: 3px solid var(--primary-color);
+  color: var(--text-main);
+  background: var(--card-bg);
+  font-size: 13px;
+  line-height: 1.65;
 }
 
 .source-kb-button {
@@ -1644,16 +2577,16 @@ watch(isDocxPreviewOpen, (isOpen) => {
   height: 34px;
   margin-top: 14px;
   padding: 0 11px;
-  border: 1px solid #d6e5ff;
+  border: 1px solid var(--primary-border);
   border-radius: 8px;
-  color: #1f2937;
-  background: #ffffff;
+  color: var(--text-main);
+  background: var(--card-bg);
   font-size: 13px;
 }
 
 .source-kb-button:hover {
-  color: #245ad8;
-  border-color: #aacbff;
+  color: var(--primary-color);
+  border-color: var(--primary-border);
 }
 
 .docx-preview-panel {
@@ -1663,8 +2596,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid #dbe5f4;
-  background: #f5f7fb;
+  border-left: 1px solid var(--border-color);
+  background: var(--bg-color);
 }
 
 .docx-preview-header {
@@ -1675,7 +2608,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
   justify-content: space-between;
   gap: 14px;
   padding: 0 16px 0 18px;
-  border-bottom: 1px solid #e1e7f2;
+  border-bottom: 1px solid var(--border-color);
   background: rgba(248, 250, 253, 0.96);
   backdrop-filter: blur(10px);
 }
@@ -1695,8 +2628,8 @@ watch(isDocxPreviewOpen, (isOpen) => {
   align-items: center;
   justify-content: center;
   border-radius: 9px;
-  color: #245ad8;
-  background: #eaf2ff;
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .docx-preview-title div {
@@ -1708,7 +2641,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .docx-preview-title strong {
   overflow: hidden;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 14px;
   font-weight: 850;
   line-height: 1.25;
@@ -1717,7 +2650,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 }
 
 .docx-preview-title span {
-  color: #7b8494;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -1729,12 +2662,12 @@ watch(isDocxPreviewOpen, (isOpen) => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: #98a2b3;
+  color: var(--text-muted);
 }
 
 .docx-preview-header button:hover {
-  color: #475569;
-  background: #edf2f8;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
 }
 
 .docx-preview-scroll {
@@ -1748,28 +2681,28 @@ watch(isDocxPreviewOpen, (isOpen) => {
   width: 100%;
   min-height: calc(100vh - 104px);
   padding: 38px 42px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 4px;
-  background: #ffffff;
+  background: var(--card-bg);
   box-shadow: 0 16px 34px rgba(31, 57, 114, 0.10);
 }
 
 .docx-preview-cover {
   padding-bottom: 18px;
   margin-bottom: 24px;
-  border-bottom: 1px solid #dbe4f2;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .docx-preview-cover p {
   margin: 0 0 8px;
-  color: #245ad8;
+  color: var(--primary-color);
   font-size: 14px;
   font-weight: 850;
 }
 
 .docx-preview-cover h1 {
   margin: 0 0 18px;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 26px;
   line-height: 1.35;
   font-weight: 900;
@@ -1784,14 +2717,14 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .docx-preview-cover dt {
   margin-bottom: 4px;
-  color: #7b8494;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 800;
 }
 
 .docx-preview-cover dd {
   margin: 0;
-  color: #334155;
+  color: var(--text-main);
   font-size: 13px;
   line-height: 1.5;
 }
@@ -1802,7 +2735,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .docx-preview-section h2 {
   margin: 0 0 10px;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 18px;
   line-height: 1.45;
   font-weight: 900;
@@ -1810,7 +2743,7 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 .docx-preview-section p,
 .docx-preview-section li {
-  color: #344054;
+  color: var(--text-main);
   font-size: 14px;
   line-height: 1.9;
 }
@@ -1871,6 +2804,60 @@ watch(isDocxPreviewOpen, (isOpen) => {
 
 :global(body.docx-preview-mode .sidebar-collapse) {
   display: none;
+}
+
+@media (max-width: 900px) {
+  .chat-page.preview-split .chat-main {
+    flex: 1 1 auto;
+    width: 100%;
+    border-right: 0;
+  }
+
+  .chat-page.preview-split .answer-scroll {
+    padding: 18px 16px 20px;
+  }
+
+  .chat-page.preview-split .composer-wrap {
+    padding: 0 14px 14px;
+  }
+
+  .answer-conversation.with-source-drawer .answer-scroll {
+    padding-right: 16px;
+  }
+
+  .composer-wrap.with-source-drawer {
+    margin-right: 0;
+  }
+
+  .source-drawer,
+  .docx-preview-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 64px;
+    z-index: 40;
+    width: auto;
+    height: 100%;
+  }
+
+  .docx-preview-scroll {
+    padding: 14px;
+  }
+
+  .docx-preview-page {
+    min-height: calc(100vh - 88px);
+    padding: 26px 24px;
+  }
+
+  .docx-preview-cover h1 {
+    font-size: 24px;
+    overflow-wrap: anywhere;
+  }
+
+  .docx-preview-cover dl {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {

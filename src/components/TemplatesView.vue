@@ -25,8 +25,18 @@ const skillOptions = computed(() => [
   '全部',
   ...new Set(templateAssets.flatMap((template) => template.applicableSkills)),
 ]);
-const officialTemplateCount = computed(
-  () => templateAssets.filter((template) => template.source === '官方推荐').length,
+const templateFilePath = (template: TemplateAsset) => `assets/templates/${template.id}.md`;
+const templatesBySkill = computed(() => {
+  const counts = new Map<string, number>();
+  templateAssets.forEach((template) => {
+    template.applicableSkills.forEach((skillName) => {
+      counts.set(skillName, (counts.get(skillName) ?? 0) + 1);
+    });
+  });
+  return counts;
+});
+const multiTemplateSkillCount = computed(
+  () => Array.from(templatesBySkill.value.values()).filter((count) => count > 1).length,
 );
 
 const filteredTemplates = computed(() => {
@@ -68,8 +78,8 @@ const openTemplate = (template: TemplateAsset) => {
             <Library :size="24" />
           </div>
           <div>
-            <h1 class="page-title">模板库</h1>
-            <p class="page-subtitle">管理常用文档结构，作为写作、审查和问答的输入约束</p>
+            <h1 class="page-title">法律模板文件</h1>
+            <p class="page-subtitle">合同、尽调、法律意见等标准文书模板文件</p>
           </div>
         </div>
 
@@ -81,12 +91,12 @@ const openTemplate = (template: TemplateAsset) => {
 
       <section class="summary-grid">
         <article class="summary-card">
-          <span>模板总数</span>
+          <span>模板文件总数</span>
           <strong>{{ templateAssets.length }}</strong>
         </article>
         <article class="summary-card">
-          <span>官方推荐</span>
-          <strong>{{ officialTemplateCount }}</strong>
+          <span>多模板技能</span>
+          <strong>{{ multiTemplateSkillCount }}</strong>
         </article>
         <article class="summary-card">
           <span>文档类型</span>
@@ -97,7 +107,7 @@ const openTemplate = (template: TemplateAsset) => {
       <section class="filter-panel">
         <div class="filter-heading">
           <Filter :size="16" />
-          <span>筛选模板</span>
+          <span>筛选模板文件</span>
         </div>
 
         <div class="filter-group">
@@ -126,7 +136,7 @@ const openTemplate = (template: TemplateAsset) => {
         <div class="section-header">
           <div class="section-title">
             <Layers :size="18" />
-            <span>模板卡片</span>
+            <span>法律模板卡片</span>
           </div>
           <span class="result-count">{{ filteredTemplates.length }} 项</span>
         </div>
@@ -151,6 +161,11 @@ const openTemplate = (template: TemplateAsset) => {
               </span>
             </div>
 
+            <div class="file-path-row">
+              <FileText :size="14" />
+              <span>{{ templateFilePath(template) }}</span>
+            </div>
+
             <div class="field-list">
               <span v-for="field in template.requiredFields.slice(0, 4)" :key="field">{{ field }}</span>
             </div>
@@ -167,25 +182,27 @@ const openTemplate = (template: TemplateAsset) => {
         <div class="section-header">
           <div class="section-title">
             <FileText :size="18" />
-            <span>模板列表</span>
+            <span>法律模板文件</span>
           </div>
         </div>
 
         <div class="template-table">
           <div class="table-head">
-            <span>模板名称</span>
+            <span>模板文件</span>
             <span>类型</span>
-            <span>关联能力</span>
+            <span>关联技能</span>
+            <span>来源</span>
             <span>更新时间</span>
             <span>操作</span>
           </div>
           <div v-for="template in filteredTemplates" :key="`row-${template.id}`" class="table-row">
             <div class="template-name">
               <strong>{{ template.name }}</strong>
-              <span>{{ template.applicableSkills.join(' / ') }}</span>
+              <span>{{ templateFilePath(template) }}</span>
             </div>
             <span>{{ template.docType }}</span>
             <span>{{ template.agent }}</span>
+            <span>{{ template.source }}</span>
             <span>{{ template.updatedAt }}</span>
             <div class="row-actions">
               <button class="ghost-btn" @click="openTemplate(template)">预览</button>
@@ -204,6 +221,14 @@ const openTemplate = (template: TemplateAsset) => {
         <span class="type-pill">{{ selectedTemplate.docType }}</span>
         <h2>{{ selectedTemplate.name }}</h2>
         <p class="drawer-intro">{{ selectedTemplate.preview }}</p>
+
+        <div class="detail-section">
+          <h3>模板文件</h3>
+          <div class="file-badge">
+            <FileText :size="15" />
+            <span>{{ templateFilePath(selectedTemplate) }}</span>
+          </div>
+        </div>
 
         <div class="detail-section">
           <h3>适用技能</h3>
@@ -243,7 +268,7 @@ const openTemplate = (template: TemplateAsset) => {
   height: 100%;
   overflow-y: auto;
   padding: 24px 32px 40px;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .templates-wrapper {
@@ -260,7 +285,7 @@ const openTemplate = (template: TemplateAsset) => {
   padding: 24px 28px;
   margin-bottom: 18px;
   color: white;
-  background: linear-gradient(135deg, #0f766e 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--diff-added) 0%, var(--primary-color) 100%);
   border-radius: 12px;
   box-shadow: 0 6px 20px rgba(15, 118, 110, 0.16);
 }
@@ -279,7 +304,7 @@ const openTemplate = (template: TemplateAsset) => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #0f766e;
+  color: var(--diff-added);
   background: white;
   border-radius: 12px;
 }
@@ -307,7 +332,7 @@ const openTemplate = (template: TemplateAsset) => {
   padding: 0 14px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.96);
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .search-box input {
@@ -315,7 +340,7 @@ const openTemplate = (template: TemplateAsset) => {
   border: 0;
   outline: 0;
   background: transparent;
-  color: #1e293b;
+  color: var(--text-main);
   font-size: 14px;
 }
 
@@ -328,21 +353,21 @@ const openTemplate = (template: TemplateAsset) => {
 
 .summary-card {
   padding: 18px 20px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   background: white;
 }
 
 .summary-card span {
   display: block;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .summary-card strong {
   display: block;
   margin-top: 8px;
-  color: #0f172a;
+  color: var(--text-strong);
   font-size: 24px;
 }
 
@@ -353,7 +378,7 @@ const openTemplate = (template: TemplateAsset) => {
   align-items: end;
   padding: 16px;
   margin-bottom: 28px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   background: white;
 }
@@ -363,7 +388,7 @@ const openTemplate = (template: TemplateAsset) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
@@ -381,17 +406,17 @@ const openTemplate = (template: TemplateAsset) => {
 }
 
 .filter-group label {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
 
 .filter-group select {
   height: 38px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   background: white;
-  color: #1e293b;
+  color: var(--text-main);
   padding: 0 10px;
   font-size: 13px;
   outline: 0;
@@ -409,7 +434,7 @@ const openTemplate = (template: TemplateAsset) => {
 }
 
 .result-count {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -424,7 +449,7 @@ const openTemplate = (template: TemplateAsset) => {
   min-height: 292px;
   flex-direction: column;
   padding: 18px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   background: white;
   transition: all 0.2s ease;
@@ -432,7 +457,7 @@ const openTemplate = (template: TemplateAsset) => {
 
 .template-card:hover,
 .table-row:hover {
-  border-color: #bfdbfe;
+  border-color: var(--primary-border);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
 }
 
@@ -456,14 +481,14 @@ const openTemplate = (template: TemplateAsset) => {
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  color: #0f766e;
-  background: #ecfdf5;
+  color: var(--diff-added);
+  background: var(--diff-added-soft);
   font-size: 12px;
   font-weight: 700;
 }
 
 .source-label {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
@@ -471,7 +496,7 @@ const openTemplate = (template: TemplateAsset) => {
 .template-card h2,
 .detail-drawer h2 {
   margin: 0;
-  color: #0f172a;
+  color: var(--text-strong);
   font-weight: 700;
   letter-spacing: 0;
 }
@@ -482,7 +507,7 @@ const openTemplate = (template: TemplateAsset) => {
 
 .template-card p,
 .drawer-intro {
-  color: #64748b;
+  color: var(--text-secondary);
   line-height: 1.65;
 }
 
@@ -495,7 +520,7 @@ const openTemplate = (template: TemplateAsset) => {
 .card-meta {
   gap: 12px;
   flex-wrap: wrap;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -503,6 +528,38 @@ const openTemplate = (template: TemplateAsset) => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.file-path-row,
+.file-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-soft);
+}
+
+.file-path-row {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.file-path-row svg,
+.file-badge svg {
+  flex-shrink: 0;
+  color: var(--primary-color);
+}
+
+.file-path-row span,
+.file-badge span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .field-list,
@@ -520,8 +577,8 @@ const openTemplate = (template: TemplateAsset) => {
 .tag-row span {
   padding: 5px 8px;
   border-radius: 7px;
-  color: #475569;
-  background: #f1f5f9;
+  color: var(--text-secondary);
+  background: var(--surface-soft);
   font-size: 12px;
 }
 
@@ -549,16 +606,16 @@ const openTemplate = (template: TemplateAsset) => {
 }
 
 .ghost-btn {
-  color: #475569;
+  color: var(--text-secondary);
   background: white;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
 }
 
 .primary-btn,
 .drawer-primary {
   color: white;
-  background: #2563eb;
-  border: 1px solid #2563eb;
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
 }
 
 .template-table {
@@ -570,24 +627,24 @@ const openTemplate = (template: TemplateAsset) => {
 .table-head,
 .table-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.5fr) 140px 150px 120px 150px;
+  grid-template-columns: minmax(260px, 1.6fr) 120px 150px 110px 110px 140px;
   gap: 14px;
   align-items: center;
 }
 
 .table-head {
   padding: 0 16px 4px;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 700;
 }
 
 .table-row {
   padding: 14px 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   background: white;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -599,12 +656,12 @@ const openTemplate = (template: TemplateAsset) => {
 }
 
 .template-name strong {
-  color: #0f172a;
+  color: var(--text-strong);
   font-size: 14px;
 }
 
 .template-name span {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -636,9 +693,9 @@ const openTemplate = (template: TemplateAsset) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #64748b;
+  color: var(--text-secondary);
   border-radius: 8px;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .detail-drawer h2 {
@@ -654,13 +711,20 @@ const openTemplate = (template: TemplateAsset) => {
 
 .detail-section {
   padding: 16px 0;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .detail-section h3 {
   margin: 0 0 8px;
-  color: #0f172a;
+  color: var(--text-strong);
   font-size: 14px;
+}
+
+.file-badge {
+  min-height: 38px;
+  padding: 0 11px;
+  border-radius: 8px;
+  font-size: 13px;
 }
 
 .inline-list {
@@ -673,7 +737,7 @@ const openTemplate = (template: TemplateAsset) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #475569;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -712,7 +776,7 @@ button:hover {
 
   .table-head,
   .table-row {
-    min-width: 880px;
+    min-width: 980px;
   }
 }
 

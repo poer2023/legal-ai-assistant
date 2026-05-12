@@ -805,14 +805,14 @@ const getStatusClass = (status: ChangeStatus) => ({
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 /* Header - 文档编辑器风格 */
 .page-header {
   height: 56px;
-  background: linear-gradient(90deg, #e0e7ff 0%, #eff6ff 50%, #e0e7ff 100%);
-  border-bottom: 1px solid #c7d2fe;
+  background: linear-gradient(90deg, var(--primary-soft-strong) 0%, var(--primary-soft) 50%, var(--primary-soft-strong) 100%);
+  border-bottom: 1px solid var(--primary-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -836,7 +836,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #3b82f6;
+  color: var(--primary-color);
   cursor: pointer;
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
   transition: all 0.2s;
@@ -855,7 +855,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 
 .header-badge {
   background: white;
-  color: #3b82f6;
+  color: var(--primary-color);
   font-size: 12px;
   font-weight: 500;
   padding: 4px 10px;
@@ -866,13 +866,13 @@ const getStatusClass = (status: ChangeStatus) => ({
 .page-title {
   font-size: 15px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
 }
 
 .save-status {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin-left: 4px;
 }
 
@@ -882,7 +882,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   gap: 4px;
   margin-left: 12px;
   padding-left: 12px;
-  border-left: 1px solid #cbd5e1;
+  border-left: 1px solid var(--border-color);
 }
 
 .header-center {
@@ -905,14 +905,14 @@ const getStatusClass = (status: ChangeStatus) => ({
   justify-content: center;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: var(--text-secondary);
   border-radius: 4px;
   cursor: pointer;
 }
 
 .tool-btn:hover:not(:disabled) {
   background: rgba(0,0,0,0.05);
-  color: #1e293b;
+  color: var(--text-main);
 }
 
 .tool-btn:disabled,
@@ -924,7 +924,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 .divider-v {
   width: 1px;
   height: 16px;
-  background: #cbd5e1;
+  background: var(--border-color);
   margin: 0 4px;
 }
 
@@ -941,7 +941,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   align-items: center;
   gap: 6px;
   padding: 7px 16px;
-  background: #3b82f6;
+  background: var(--primary-color);
   color: white;
   border: none;
   border-radius: 6px;
@@ -953,7 +953,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .action-btn-primary:hover {
-  background: #2563eb;
+  background: var(--primary-color);
   transform: translateY(-1px);
 }
 
@@ -963,7 +963,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   gap: 6px;
   padding: 7px 16px;
   background: white;
-  color: #1e293b;
+  color: var(--text-main);
   border: none;
   border-radius: 6px;
   font-size: 13px;
@@ -974,7 +974,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .action-btn-secondary:hover {
-  background: #f8fafc;
+  background: var(--bg-color);
   transform: translateY(-1px);
 }
 
@@ -990,7 +990,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   flex: 1;
   overflow-y: auto;
   padding: 40px;
-  background: #e5e7eb;
+  background: var(--border-color);
 }
 
 /* 页面容器 */
@@ -1023,34 +1023,34 @@ const getStatusClass = (status: ChangeStatus) => ({
 
 .page-footer {
   padding: 16px 64px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--surface-soft);
   display: flex;
   justify-content: center;
 }
 
 .page-number {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .contract-header {
   text-align: center;
   margin-bottom: 32px;
   padding-bottom: 24px;
-  border-bottom: 2px solid #1e293b;
+  border-bottom: 2px solid var(--text-main);
 }
 
 .contract-title {
   font-size: 24px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 8px 0;
   letter-spacing: 4px;
 }
 
 .contract-no {
   font-size: 14px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -1063,20 +1063,20 @@ const getStatusClass = (status: ChangeStatus) => ({
 
 .party-label {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin-bottom: 8px;
 }
 
 .party-info p {
   margin: 4px 0;
   font-size: 14px;
-  color: #475569;
+  color: var(--text-secondary);
   line-height: 1.6;
 }
 
 .contract-intro {
   font-size: 14px;
-  color: #475569;
+  color: var(--text-secondary);
   margin-bottom: 32px;
   text-indent: 2em;
   line-height: 1.8;
@@ -1106,7 +1106,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 .clause-title {
   font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 12px 0;
   display: flex;
   align-items: center;
@@ -1120,15 +1120,15 @@ const getStatusClass = (status: ChangeStatus) => ({
   font-weight: 500;
 }
 
-.clause-badge.risk-high { background: #fee2e2; color: #dc2626; }
-.clause-badge.risk-medium { background: #fef3c7; color: #d97706; }
-.clause-badge.risk-low { background: #dcfce7; color: #16a34a; }
+.clause-badge.risk-high { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.clause-badge.risk-medium { background: var(--warning-soft); color: var(--warning-color); }
+.clause-badge.risk-low { background: var(--diff-added-soft); color: var(--diff-added); }
 
 .clause-text {
   font-family: inherit;
   font-size: 14px;
   line-height: 1.9;
-  color: #475569;
+  color: var(--text-secondary);
   white-space: pre-wrap;
   margin: 0;
 }
@@ -1164,7 +1164,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .highlight-block.status-accepted .highlight-text {
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 /* 已拒绝状态 - 轻微删除线效果 */
@@ -1182,9 +1182,9 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .highlight-block.status-rejected .highlight-text {
-  color: #94a3b8;
+  color: var(--text-muted);
   text-decoration: line-through;
-  text-decoration-color: #cbd5e1;
+  text-decoration-color: var(--border-color);
 }
 
 /* 滚动定位后的闪烁动画 - 待处理 */
@@ -1226,8 +1226,8 @@ const getStatusClass = (status: ChangeStatus) => ({
 /* 拒绝状态 - 灰色删除线 */
 .modification-anchor.status-rejected {
   text-decoration: line-through;
-  text-decoration-color: #94a3b8;
-  color: #94a3b8;
+  text-decoration-color: var(--text-muted);
+  color: var(--text-muted);
 }
 
 /* 锚点的闪烁高亮动画 - 只影响锚点本身 */
@@ -1254,14 +1254,14 @@ const getStatusClass = (status: ChangeStatus) => ({
   border-radius: 50%;
 }
 
-.highlight-block.risk-high .marker-dot { background: #dc2626; }
-.highlight-block.risk-medium .marker-dot { background: #d97706; }
-.highlight-block.risk-low .marker-dot { background: #16a34a; }
+.highlight-block.risk-high .marker-dot { background: var(--diff-removed); }
+.highlight-block.risk-medium .marker-dot { background: var(--warning-color); }
+.highlight-block.risk-low .marker-dot { background: var(--diff-added); }
 
 .marker-label {
   font-size: 12px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .diff-content {
@@ -1279,15 +1279,15 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .diff-line.del {
-  background-color: #fee2e2;
-  color: #b91c1c;
+  background-color: var(--diff-removed-soft);
+  color: var(--diff-removed);
   text-decoration: line-through;
   text-decoration-color: rgba(185, 28, 28, 0.4);
 }
 
 .diff-line.add {
-  background-color: #dcfce7;
-  color: #15803d;
+  background-color: var(--diff-added-soft);
+  color: var(--diff-added);
 }
 
 /* Original highlight-text removal if no longer used */
@@ -1305,14 +1305,14 @@ const getStatusClass = (status: ChangeStatus) => ({
   border-radius: 4px;
 }
 
-.highlight-block.status-accepted .highlight-status { background: #dcfce7; color: #16a34a; }
-.highlight-block.status-rejected .highlight-status { background: #f1f5f9; color: #64748b; }
+.highlight-block.status-accepted .highlight-status { background: var(--diff-added-soft); color: var(--diff-added); }
+.highlight-block.status-rejected .highlight-status { background: var(--surface-soft); color: var(--text-secondary); }
 
 /* Signature Section */
 .signature-section {
   margin-top: 48px;
   padding-top: 32px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
 }
 
 .sign-row {
@@ -1323,20 +1323,20 @@ const getStatusClass = (status: ChangeStatus) => ({
 
 .sign-box p {
   font-size: 14px;
-  color: #475569;
+  color: var(--text-secondary);
   margin: 8px 0;
 }
 
 .sign-line {
-  border-bottom: 1px solid #1e293b;
+  border-bottom: 1px solid var(--text-main);
   margin: 16px 0;
 }
 
 /* ===== Right: Cards Panel ===== */
 .cards-panel {
   width: 420px;
-  background: #f8fafc;
-  border-left: 1px solid #e2e8f0;
+  background: var(--bg-color);
+  border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -1348,13 +1348,13 @@ const getStatusClass = (status: ChangeStatus) => ({
   justify-content: space-between;
   padding: 16px 20px;
   background: white;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .panel-header h2 {
   font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
   display: flex;
   align-items: center;
@@ -1363,9 +1363,9 @@ const getStatusClass = (status: ChangeStatus) => ({
 
 .panel-header h2 .count {
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 13px;
-  background: #f1f5f9;
+  background: var(--surface-soft);
   padding: 2px 8px;
   border-radius: 12px;
 }
@@ -1392,29 +1392,29 @@ const getStatusClass = (status: ChangeStatus) => ({
 .panel-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  background: #f1f5f9 !important;
-  color: #94a3b8 !important;
+  background: var(--surface-soft) !important;
+  color: var(--text-muted) !important;
   border-color: transparent !important;
 }
 
 .panel-btn.reject {
   background: white;
-  border-color: #fecaca;
-  color: #dc2626;
+  border-color: var(--diff-removed-border);
+  color: var(--diff-removed);
 }
 
 .panel-btn.reject:hover:not(:disabled) {
-  background: #fef2f2;
+  background: var(--diff-removed-soft);
 }
 
 .panel-btn.accept {
   background: white;
-  border-color: #bbf7d0;
-  color: #16a34a;
+  border-color: var(--diff-added-border);
+  color: var(--diff-added);
 }
 
 .panel-btn.accept:hover:not(:disabled) {
-  background: #f0fdf4;
+  background: var(--diff-added-soft);
 }
 
 .cards-container {
@@ -1428,7 +1428,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   background: white;
   border-radius: 12px;
   margin-bottom: 16px;
-  border: 1px solid #e2e8f0; /* No colored left border */
+  border: 1px solid var(--border-color); /* No colored left border */
   overflow: hidden;
   transition: all 0.3s ease;
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
@@ -1437,12 +1437,12 @@ const getStatusClass = (status: ChangeStatus) => ({
 .mod-card:hover {
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   transform: translateY(-2px);
-  border-color: #cbd5e1;
+  border-color: var(--border-color);
 }
 
 .mod-card.expanded {
   box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-  border-color: #94a3b8;
+  border-color: var(--text-muted);
 }
 
 /* Card Header */
@@ -1457,7 +1457,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .card-header:hover {
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .card-left {
@@ -1472,8 +1472,8 @@ const getStatusClass = (status: ChangeStatus) => ({
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   display: flex;
@@ -1485,9 +1485,9 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 /* Use risk colors for index badge background with low opacity */
-.card-index.risk-high { background: #fee2e2; color: #dc2626; }
-.card-index.risk-medium { background: #fef3c7; color: #d97706; }
-.card-index.risk-low { background: #dcfce7; color: #16a34a; }
+.card-index.risk-high { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.card-index.risk-medium { background: var(--warning-soft); color: var(--warning-color); }
+.card-index.risk-low { background: var(--diff-added-soft); color: var(--diff-added); }
 
 .card-info {
   flex: 1;
@@ -1497,7 +1497,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 .card-clause {
   font-size: 14px;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-main);
   display: block;
   line-height: 1.5;
   margin-bottom: 2px;
@@ -1517,13 +1517,13 @@ const getStatusClass = (status: ChangeStatus) => ({
   padding: 2px 8px;
   border-radius: 10px;
   font-weight: 500;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
 }
 
-.risk-tag.risk-high { background: #fef2f2; color: #ef4444; border: 1px solid #fee2e2; }
-.risk-tag.risk-medium { background: #fffbeb; color: #f59e0b; border: 1px solid #fef3c7; }
-.risk-tag.risk-low { background: #f0fdf4; color: #10b981; border: 1px solid #dcfce7; }
+.risk-tag.risk-high { background: var(--diff-removed-soft); color: var(--diff-removed); border: 1px solid var(--diff-removed-soft); }
+.risk-tag.risk-medium { background: var(--warning-soft); color: var(--warning-color); border: 1px solid var(--warning-soft); }
+.risk-tag.risk-low { background: var(--diff-added-soft); color: var(--diff-added); border: 1px solid var(--diff-added-soft); }
 
 .expand-btn {
   width: 24px;
@@ -1534,20 +1534,20 @@ const getStatusClass = (status: ChangeStatus) => ({
   background: transparent;
   border: none;
   border-radius: 4px;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .expand-btn:hover {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
 }
 
 /* Card Body */
 .card-body {
   padding: 0 16px 20px 16px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--surface-soft);
   animation: slideDown 0.2s ease-out;
 }
 
@@ -1560,8 +1560,8 @@ const getStatusClass = (status: ChangeStatus) => ({
   margin-top: 16px;
   padding: 12px 16px;
   border-radius: 8px;
-  background: #fff1f2;
-  border: 1px solid #ffe4e6;
+  background: var(--diff-removed-soft);
+  border: 1px solid var(--diff-removed-border);
 }
 
 .reason-header {
@@ -1570,14 +1570,14 @@ const getStatusClass = (status: ChangeStatus) => ({
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #e11d48;
+  color: var(--diff-removed);
   margin-bottom: 8px;
 }
 
 .reason-text {
   font-size: 13px;
   line-height: 1.6;
-  color: #475569;
+  color: var(--text-secondary);
   margin: 0;
   text-align: justify;
 }
@@ -1597,13 +1597,13 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .diff-box.del {
-  background: #fef2f2;
-  border-color: #fecaca;
+  background: var(--diff-removed-soft);
+  border-color: var(--diff-removed-border);
 }
 
 .diff-box.add {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: var(--diff-added-soft);
+  border-color: var(--diff-added-border);
 }
 
 .box-label {
@@ -1617,23 +1617,23 @@ const getStatusClass = (status: ChangeStatus) => ({
   border-bottom: 1px solid rgba(0,0,0,0.05);
 }
 
-.diff-box.del .box-label { color: #991b1b; }
+.diff-box.del .box-label { color: var(--diff-removed); }
 .diff-box.del .box-label::before {
   content: '';
   display: inline-block;
   width: 6px;
   height: 6px;
-  background: #ef4444;
+  background: var(--diff-removed);
   border-radius: 2px;
 }
 
-.diff-box.add .box-label { color: #166534; }
+.diff-box.add .box-label { color: var(--diff-added); }
 .diff-box.add .box-label::before {
   content: '';
   display: inline-block;
   width: 6px;
   height: 6px;
-  background: #22c55e;
+  background: var(--diff-added);
   border-radius: 2px;
 }
 
@@ -1641,13 +1641,13 @@ const getStatusClass = (status: ChangeStatus) => ({
   padding: 10px 12px;
   font-size: 13px;
   line-height: 1.6;
-  color: #334155;
+  color: var(--text-main);
   white-space: pre-wrap;
 }
 
 .diff-box.del .box-content {
   text-decoration: line-through;
-  color: #7f1d1d;
+  color: var(--diff-removed);
   opacity: 0.8;
   background: rgba(254, 226, 226, 0.3);
 }
@@ -1679,26 +1679,26 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .action-btn.accept {
-  background: #16a34a;
+  background: var(--diff-added);
   color: white;
   box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);
 }
 .action-btn.accept:hover {
-  background: #15803d;
+  background: var(--diff-added);
   transform: translateY(-1px);
   box-shadow: 0 4px 6px rgba(22, 163, 74, 0.3);
 }
 .action-btn.accept:active { transform: translateY(0); }
 
 .action-btn.reject {
-  background: #f1f5f9;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
 }
 .action-btn.reject:hover {
-  background: #e2e8f0;
-  color: #475569;
-  border-color: #cbd5e1;
+  background: var(--border-color);
+  color: var(--text-secondary);
+  border-color: var(--border-color);
 }
 .action-btn.reject:active { transform: translateY(0); }
 
@@ -1718,14 +1718,14 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .status-display.status-accepted {
-  background: #dcfce7;
-  color: #16a34a;
-  border: 1px solid #bbf7d0;
+  background: var(--diff-added-soft);
+  color: var(--diff-added);
+  border: 1px solid var(--diff-added-border);
 }
 .status-display.status-rejected {
-  background: #f1f5f9;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
 }
 
 /* ============ 右侧面板 Tab 切换 ============ */
@@ -1733,7 +1733,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   display: flex;
   gap: 0;
   padding: 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .panel-tab {
@@ -1744,10 +1744,10 @@ const getStatusClass = (status: ChangeStatus) => ({
   gap: 6px;
   padding: 10px 16px;
   background: transparent;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   font-size: 14px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -1762,18 +1762,18 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .panel-tab:hover {
-  background: #f8fafc;
-  color: #3b82f6;
+  background: var(--bg-color);
+  color: var(--primary-color);
 }
 
 .panel-tab.active {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 .panel-tab.active + .panel-tab {
-  border-left-color: #2563eb;
+  border-left-color: var(--primary-color);
 }
 
 /* ============ AI 编辑模式 ============ */
@@ -1800,28 +1800,28 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .section-icon {
-  color: #3b82f6;
+  color: var(--primary-color);
   margin-top: 2px;
 }
 
 .section-icon.sparkle {
-  color: #d97706;
+  color: var(--warning-color);
 }
 
 .section-icon.ppt {
-  color: #dc2626;
+  color: var(--diff-removed);
 }
 
 .section-title-group h3 {
   font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 4px 0;
 }
 
 .section-desc {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -1835,19 +1835,19 @@ const getStatusClass = (status: ChangeStatus) => ({
   flex: 1;
   padding: 10px 16px;
   background: white;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .text-tool-btn:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
-  background: #eff6ff;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 /* 多模态工具 */
@@ -1865,11 +1865,11 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .tool-row.gradient-purple {
-  background: linear-gradient(135deg, #eff6ff 0%, #f3e8ff 100%);
+  background: linear-gradient(135deg, var(--primary-soft) 0%, var(--skill-soft) 100%);
 }
 
 .tool-row.gradient-rainbow {
-  background: linear-gradient(135deg, #fdf2f8 0%, #eff6ff 33%, #f0fdf4 66%, #fefce8 100%);
+  background: linear-gradient(135deg, var(--skill-soft) 0%, var(--primary-soft) 33%, var(--diff-added-soft) 66%, var(--warning-soft) 100%);
 }
 
 .tool-card {
@@ -1893,25 +1893,25 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .tool-card svg {
-  color: #3b82f6;
+  color: var(--primary-color);
 }
 
 .tool-card span {
   font-size: 13px;
   font-weight: 500;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .formula-icon {
   font-size: 24px;
   font-weight: 600;
-  color: #d97706;
+  color: var(--warning-color);
 }
 
 /* PPT 功能区 */
 .ppt-section {
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
 }
 
 .ppt-features {
@@ -1928,25 +1928,25 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .feature-icon {
-  color: #3b82f6;
+  color: var(--primary-color);
 }
 
 .feature-title {
   font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   min-width: 60px;
 }
 
 .feature-desc {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .ppt-generate-btn {
   width: 100%;
   padding: 16px 24px;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--skill-color) 50%, var(--skill-color) 100%);
   border: none;
   border-radius: 12px;
   font-size: 18px;
@@ -1983,7 +1983,7 @@ const getStatusClass = (status: ChangeStatus) => ({
   align-items: center;
   gap: 10px;
   padding: 14px 24px;
-  background: #1e293b;
+  background: var(--text-main);
   color: white;
   border-radius: 10px;
   font-size: 14px;
@@ -1992,7 +1992,7 @@ const getStatusClass = (status: ChangeStatus) => ({
 }
 
 .toast-message svg {
-  color: #fbbf24;
+  color: var(--warning-color);
 }
 
 /* Toast 动画 */

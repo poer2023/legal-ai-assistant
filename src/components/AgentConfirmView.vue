@@ -117,13 +117,13 @@ const pageDescription = computed(() => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .page-header {
   background: white;
   padding: 16px 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -132,24 +132,24 @@ const pageDescription = computed(() => {
 .header-icon {
   width: 36px;
   height: 36px;
-  background: #eff6ff;
+  background: var(--primary-soft);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .page-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
 }
 
 .page-desc {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin: 2px 0 0 0;
 }
 
@@ -166,7 +166,7 @@ const pageDescription = computed(() => {
   border-radius: 12px;
   padding: 24px;
   margin-bottom: 24px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
 }
 
 .card-header {
@@ -179,13 +179,13 @@ const pageDescription = computed(() => {
 .card-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
 }
 
 .edit-btn {
   font-size: 13px;
-  color: #2563eb;
+  color: var(--primary-color);
   background: none;
   border: none;
   cursor: pointer;
@@ -196,7 +196,7 @@ const pageDescription = computed(() => {
 }
 
 .info-grid {
-  background: #f8fafc;
+  background: var(--bg-color);
   border-radius: 8px;
   padding: 20px;
   display: flex;
@@ -210,25 +210,25 @@ const pageDescription = computed(() => {
 }
 
 .label {
-  color: #64748b;
+  color: var(--text-secondary);
   width: 80px;
 }
 
 .value {
-  color: #1e293b;
+  color: var(--text-main);
   font-weight: 500;
 }
 
 .section-label {
   font-size: 14px;
   font-weight: 500;
-  color: #475569;
+  color: var(--text-secondary);
   margin: 0 0 12px 0;
 }
 
 .document-card {
-  background: #eff6ff;
-  border: 1px solid #dbeafe;
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-soft-strong);
   border-radius: 8px;
   padding: 16px;
   display: flex;
@@ -239,7 +239,7 @@ const pageDescription = computed(() => {
 .checkbox {
   width: 20px;
   height: 20px;
-  background: #2563eb;
+  background: var(--primary-color);
   border-radius: 4px;
   display: flex;
   align-items: center;
@@ -250,24 +250,24 @@ const pageDescription = computed(() => {
 .doc-name {
   flex: 1;
   font-size: 14px;
-  color: #1e293b;
+  color: var(--text-main);
 }
 
 .doc-size {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .page-footer {
   background: white;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--border-color);
   padding: 16px 24px;
   display: flex;
   justify-content: center;
 }
 
 .confirm-btn {
-  background: #5b7fff; /* Matching screenshot purple-ish blue */
+  background: var(--primary-color); /* Matching screenshot purple-ish blue */
   color: white;
   border: none;
   padding: 12px 48px;
@@ -276,7 +276,7 @@ const pageDescription = computed(() => {
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%);
+  background: linear-gradient(135deg, var(--skill-color) 0%, var(--primary-color) 100%);
 }
 
 .confirm-btn:hover {

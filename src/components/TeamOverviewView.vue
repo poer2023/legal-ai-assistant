@@ -57,7 +57,7 @@ const teamInfo = [
   width: 100%;
   min-height: 100%;
   padding: 32px 16px;
-  color: #1f2937;
+  color: var(--text-main);
 }
 
 .team-overview-header {
@@ -70,7 +70,7 @@ const teamInfo = [
 
 .team-overview-header h2 {
   margin: 0;
-  color: #111827;
+  color: var(--text-strong);
   font-size: 18px;
   font-weight: 650;
 }
@@ -81,8 +81,8 @@ const teamInfo = [
   margin: 0 auto;
   padding: 48px 64px;
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-card);
 }
 
 .card-topline {
@@ -95,7 +95,7 @@ const teamInfo = [
 
 .card-title {
   min-width: 120px;
-  color: #333333;
+  color: var(--text-main);
   font-size: 16px;
   font-weight: 700;
 }
@@ -106,15 +106,15 @@ const teamInfo = [
   gap: 6px;
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid #2551b5;
+  border: 1px solid var(--primary-color);
   border-radius: 8px;
-  color: #2551b5;
+  color: var(--primary-color);
   font-size: 14px;
   font-weight: 500;
 }
 
 .edit-button:hover {
-  background: #eff6ff;
+  background: var(--primary-soft);
 }
 
 .info-row {
@@ -131,7 +131,7 @@ const teamInfo = [
 
 .info-label {
   min-width: 160px;
-  color: #333333;
+  color: var(--text-main);
   font-size: 16px;
   font-weight: 500;
 }
@@ -140,7 +140,7 @@ const teamInfo = [
   min-height: 40px;
   display: flex;
   align-items: center;
-  color: #333333;
+  color: var(--text-main);
   font-size: 14px;
   font-weight: 400;
 }
@@ -155,15 +155,15 @@ const teamInfo = [
 .team-logo {
   width: 96px;
   height: 96px;
-  border: 4px solid #ffffff;
+  border: 4px solid var(--card-bg);
   border-radius: 999px;
   overflow: hidden;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
-  background: linear-gradient(135deg, #2563eb, #60a5fa);
+  box-shadow: var(--shadow-card);
+  background: linear-gradient(135deg, var(--primary-color), var(--focus-ring));
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--on-primary);
   font-size: 34px;
   font-weight: 800;
 }
@@ -176,7 +176,7 @@ const teamInfo = [
   justify-content: center;
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.36);
-  color: #d1d5db;
+  color: var(--border-color);
   opacity: 0;
   transition: opacity 0.2s ease;
 }

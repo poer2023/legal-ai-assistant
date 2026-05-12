@@ -86,10 +86,10 @@ const handleQuestionClick = (question: string) => {
 .question-chip {
   min-height: 48px;
   padding: 0 22px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 999px;
-  background: #ffffff;
-  color: #525a66;
+  background: var(--card-bg);
+  color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -104,24 +104,24 @@ const handleQuestionClick = (question: string) => {
 }
 
 .question-chip:hover {
-  border-color: #bfdbfe;
-  color: #1d4ed8;
+  border-color: var(--primary-border);
+  color: var(--primary-hover);
   box-shadow: 0 8px 22px rgba(37, 99, 235, 0.1);
   transform: translateY(-1px);
 }
 
 .question-chip:focus-visible {
-  outline: 2px solid #60a5fa;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 3px;
 }
 
 .question-icon {
   flex-shrink: 0;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .question-chip:hover .question-icon {
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 @media (max-width: 1180px) {

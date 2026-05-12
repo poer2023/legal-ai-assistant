@@ -169,14 +169,14 @@ const handleSubmit = () => {
 .comparison-form-page {
   display: flex;
   height: 100%;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 /* Template Sidebar */
 .template-sidebar {
   width: 200px;
   background: white;
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid var(--border-color);
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -188,17 +188,17 @@ const handleSubmit = () => {
   align-items: center;
   gap: 4px;
   padding: 8px 12px;
-  background: #eff6ff;
+  background: var(--primary-soft);
   border: none;
   border-radius: 6px;
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .back-btn:hover {
-  background: #dbeafe;
+  background: var(--primary-soft-strong);
 }
 
 .search-box {
@@ -206,13 +206,13 @@ const handleSubmit = () => {
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
 
 .search-icon {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .search-input {
@@ -221,11 +221,11 @@ const handleSubmit = () => {
   background: transparent;
   outline: none;
   font-size: 12px;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .search-input::placeholder {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .template-section {
@@ -236,7 +236,7 @@ const handleSubmit = () => {
 
 .section-title {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
   padding: 8px 0 4px 0;
 }
 
@@ -247,18 +247,18 @@ const handleSubmit = () => {
   padding: 10px 12px;
   border-radius: 6px;
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .template-item:hover {
-  background: #f1f5f9;
+  background: var(--surface-soft);
 }
 
 .template-item.active {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
   font-weight: 500;
 }
 
@@ -283,24 +283,24 @@ const handleSubmit = () => {
 .form-icon {
   width: 40px;
   height: 40px;
-  background: #eff6ff;
+  background: var(--primary-soft);
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .form-title {
   font-size: 18px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
 }
 
 .form-subtitle {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin: 4px 0 0 0;
 }
 
@@ -318,12 +318,12 @@ const handleSubmit = () => {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: #334155;
+  color: var(--text-main);
   margin-bottom: 8px;
 }
 
 .required {
-  color: #2563eb;
+  color: var(--primary-color);
   margin-right: 2px;
 }
 
@@ -337,7 +337,7 @@ const handleSubmit = () => {
 .submit-btn {
   width: 200px;
   padding: 14px 48px;
-  background: #2563eb;
+  background: var(--primary-color);
   border: none;
   border-radius: 8px;
   color: white;
@@ -348,7 +348,7 @@ const handleSubmit = () => {
 }
 
 .submit-btn:hover {
-  background: #1e40af;
+  background: var(--primary-hover);
 }
 
 /* Option Selector */
@@ -369,24 +369,24 @@ const handleSubmit = () => {
   justify-content: center;
   gap: 8px;
   padding: 12px 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   background: white;
   font-size: 14px;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .option-btn:hover {
-  border-color: #cbd5e1;
-  background: #f8fafc;
+  border-color: var(--border-color);
+  background: var(--bg-color);
 }
 
 .option-btn.active {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #2563eb;
+  border-color: var(--primary-color);
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 /* Template Upload Cards */
@@ -405,7 +405,7 @@ const handleSubmit = () => {
   align-items: center;
   justify-content: center;
   padding: 32px 24px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--border-color);
   border-radius: 12px;
   background: white;
   cursor: pointer;
@@ -415,8 +415,8 @@ const handleSubmit = () => {
 }
 
 .upload-card:hover {
-  border-color: #2563eb;
-  background: #eff6ff;
+  border-color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .card-icon {
@@ -430,26 +430,26 @@ const handleSubmit = () => {
 }
 
 .upload-icon {
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 .card-title {
   font-size: 14px;
   font-weight: 500;
-  color: #334155;
+  color: var(--text-main);
   margin-bottom: 4px;
 }
 
 .card-subtitle {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .uploaded-file-name {
   margin-top: 8px;
   font-size: 12px;
-  color: #22c55e;
+  color: var(--diff-added);
 }
 
 /* Info Sidebar */
@@ -473,13 +473,13 @@ const handleSubmit = () => {
 .info-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 8px 0;
 }
 
 .info-desc {
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin: 0 0 20px 0;
 }
 
@@ -494,12 +494,12 @@ const handleSubmit = () => {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: #475569;
+  color: var(--text-secondary);
   padding: 6px 0;
 }
 
 .bullet {
-  color: #2563eb;
+  color: var(--primary-color);
   font-size: 8px;
 }
 </style>

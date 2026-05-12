@@ -366,8 +366,8 @@ defineExpose({ displayToast });
 .compare-panel {
   width: 420px;
   min-width: 420px;
-  background: #f8fafc;
-  border-left: 1px solid #e2e8f0;
+  background: var(--bg-color);
+  border-left: 1px solid var(--border-color);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -378,7 +378,7 @@ defineExpose({ displayToast });
   display: flex;
   gap: 0;
   padding: 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .panel-tab {
@@ -389,10 +389,10 @@ defineExpose({ displayToast });
   gap: 6px;
   padding: 10px 16px;
   background: transparent;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   font-size: 14px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -407,14 +407,14 @@ defineExpose({ displayToast });
 }
 
 .panel-tab:hover {
-  background: #f8fafc;
-  color: #3b82f6;
+  background: var(--bg-color);
+  color: var(--primary-color);
 }
 
 .panel-tab.active {
-  background: #eff6ff;
-  color: #2563eb;
-  border-color: #2563eb;
+  background: var(--primary-soft);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 
 /* ============ 面板头部 ============ */
@@ -424,13 +424,13 @@ defineExpose({ displayToast });
   justify-content: space-between;
   padding: 14px 16px;
   background: white;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .panel-header h2 {
   font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
   display: flex;
   align-items: center;
@@ -439,7 +439,7 @@ defineExpose({ displayToast });
 
 .panel-header h2 .count {
   font-weight: 400;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 .panel-actions {
@@ -467,21 +467,21 @@ defineExpose({ displayToast });
 }
 
 .panel-btn.keep {
-  background: #eff6ff;
-  color: #1e40af;
+  background: var(--primary-soft);
+  color: var(--primary-hover);
 }
 
 .panel-btn.keep:hover:not(:disabled) {
-  background: #dbeafe;
+  background: var(--primary-soft-strong);
 }
 
 .panel-btn.adopt {
-  background: #fff7ed;
-  color: #c2410c;
+  background: var(--warning-soft);
+  color: var(--warning-color);
 }
 
 .panel-btn.adopt:hover:not(:disabled) {
-  background: #fed7aa;
+  background: var(--warning-border);
 }
 
 /* ============ 卡片容器 ============ */
@@ -495,7 +495,7 @@ defineExpose({ displayToast });
   background: white;
   border-radius: 12px;
   margin-bottom: 16px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   overflow: hidden;
   transition: all 0.2s;
   box-shadow: 0 1px 3px rgba(0,0,0,0.02);
@@ -508,7 +508,7 @@ defineExpose({ displayToast });
 
 .mod-card.expanded {
   box-shadow: 0 8px 16px rgba(0,0,0,0.06);
-  border-color: #cbd5e1;
+  border-color: var(--border-color);
 }
 
 /* ============ 卡片头部 ============ */
@@ -533,8 +533,8 @@ defineExpose({ displayToast });
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 600;
   display: flex;
@@ -544,9 +544,9 @@ defineExpose({ displayToast });
   transition: all 0.2s;
 }
 
-.card-index.risk-high { background: #fee2e2; color: #dc2626; }
-.card-index.risk-medium { background: #fef3c7; color: #d97706; }
-.card-index.risk-low { background: #dcfce7; color: #16a34a; }
+.card-index.risk-high { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.card-index.risk-medium { background: var(--warning-soft); color: var(--warning-color); }
+.card-index.risk-low { background: var(--diff-added-soft); color: var(--diff-added); }
 
 .card-info {
   flex: 1;
@@ -556,7 +556,7 @@ defineExpose({ displayToast });
 .card-clause {
   font-size: 14px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   display: block;
   white-space: nowrap;
   overflow: hidden;
@@ -575,13 +575,13 @@ defineExpose({ displayToast });
   padding: 4px 8px;
   border-radius: 4px;
   font-weight: 500;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
 }
 
-.risk-tag.risk-high { background: #fee2e2; color: #dc2626; }
-.risk-tag.risk-medium { background: #fef3c7; color: #d97706; }
-.risk-tag.risk-low { background: #dcfce7; color: #16a34a; }
+.risk-tag.risk-high { background: var(--diff-removed-soft); color: var(--diff-removed); }
+.risk-tag.risk-medium { background: var(--warning-soft); color: var(--warning-color); }
+.risk-tag.risk-low { background: var(--diff-added-soft); color: var(--diff-added); }
 
 .expand-btn {
   width: 24px;
@@ -592,27 +592,27 @@ defineExpose({ displayToast });
   background: transparent;
   border: none;
   border-radius: 4px;
-  color: #94a3b8;
+  color: var(--text-muted);
   cursor: pointer;
 }
 
 .expand-btn:hover {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
 }
 
 /* ============ 卡片内容 ============ */
 .card-body {
   padding: 0 16px 16px 16px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--surface-soft);
 }
 
 .reason-block {
   margin-top: 16px;
   padding: 12px 14px;
   border-radius: 8px;
-  background: #fff1f2;
-  border: 1px solid #ffe4e6;
+  background: var(--diff-removed-soft);
+  border: 1px solid var(--diff-removed-border);
 }
 
 .reason-header {
@@ -621,14 +621,14 @@ defineExpose({ displayToast });
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #e11d48;
+  color: var(--diff-removed);
   margin-bottom: 6px;
 }
 
 .reason-text {
   font-size: 13px;
   line-height: 1.6;
-  color: #475569;
+  color: var(--text-secondary);
   margin: 0;
 }
 
@@ -647,13 +647,13 @@ defineExpose({ displayToast });
 }
 
 .diff-box.base {
-  background: #eff6ff;
-  border-color: #93c5fd;
+  background: var(--primary-soft);
+  border-color: var(--primary-border);
 }
 
 .diff-box.compare {
-  background: #fff7ed;
-  border-color: #fdba74;
+  background: var(--warning-soft);
+  border-color: var(--warning-border);
 }
 
 .box-label {
@@ -665,55 +665,55 @@ defineExpose({ displayToast });
   gap: 6px;
 }
 
-.diff-box.base .box-label { color: #1e40af; }
-.diff-box.compare .box-label { color: #c2410c; }
+.diff-box.base .box-label { color: var(--primary-hover); }
+.diff-box.compare .box-label { color: var(--warning-color); }
 
 .box-content {
   padding: 0 12px 10px 12px;
   font-size: 13px;
   line-height: 1.6;
-  color: #334155;
+  color: var(--text-main);
 }
 
 /* ============ 主题覆盖 (Red-Green) ============ */
 .theme-red-green .diff-box.base {
-  background: #fef2f2; /* red-50 */
-  border-color: #fca5a5; /* red-300 */
+  background: var(--diff-removed-soft); /* red-50 */
+  border-color: var(--diff-removed-border); /* red-300 */
 }
 .theme-red-green .diff-box.base .box-label {
-  color: #b91c1c; /* red-700 */
+  color: var(--diff-removed); /* red-700 */
 }
 
 .theme-red-green .diff-box.compare {
-  background: #f0fdf4; /* green-50 */
-  border-color: #86efac; /* green-300 */
+  background: var(--diff-added-soft); /* green-50 */
+  border-color: var(--diff-added-border); /* green-300 */
 }
 .theme-red-green .diff-box.compare .box-label {
-  color: #15803d; /* green-700 */
+  color: var(--diff-added); /* green-700 */
 }
 
 .theme-red-green .reason-block {
-  background: #fffbeb; /* amber-50 */
-  border-color: #fcd34d; /* amber-300 */
+  background: var(--warning-soft); /* amber-50 */
+  border-color: var(--warning-border); /* amber-300 */
 }
 .theme-red-green .reason-header {
-  color: #b45309; /* amber-700 */
+  color: var(--warning-color); /* amber-700 */
 }
 
 .theme-red-green .panel-btn.keep {
-  background: #fef2f2; /* red-50 */
-  color: #b91c1c; /* red-700 */
+  background: var(--diff-removed-soft); /* red-50 */
+  color: var(--diff-removed); /* red-700 */
 }
 .theme-red-green .panel-btn.keep:hover:not(:disabled) {
-  background: #fee2e2; /* red-100 */
+  background: var(--diff-removed-soft); /* red-100 */
 }
 
 .theme-red-green .panel-btn.adopt {
-  background: #f0fdf4; /* green-50 */
-  color: #15803d; /* green-700 */
+  background: var(--diff-added-soft); /* green-50 */
+  color: var(--diff-added); /* green-700 */
 }
 .theme-red-green .panel-btn.adopt:hover:not(:disabled) {
-  background: #dcfce7; /* green-100 */
+  background: var(--diff-added-soft); /* green-100 */
 }
 
 /* ============ 操作按钮 ============ */
@@ -739,22 +739,22 @@ defineExpose({ displayToast });
 }
 
 .action-btn.keep {
-  background: #eff6ff;
-  color: #1e40af;
-  border: 1px solid #93c5fd;
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  border: 1px solid var(--primary-border);
 }
 .action-btn.keep:hover { 
-  background: #dbeafe; 
-  border-color: #3b82f6;
+  background: var(--primary-soft-strong); 
+  border-color: var(--primary-color);
 }
 
 .action-btn.adopt {
-  background: #f59e0b;
+  background: var(--warning-color);
   color: white;
   box-shadow: 0 1px 2px rgba(245, 158, 11, 0.2);
 }
 .action-btn.adopt:hover { 
-  background: #d97706; 
+  background: var(--warning-color); 
   transform: translateY(-1px); 
 }
 
@@ -773,8 +773,8 @@ defineExpose({ displayToast });
   font-weight: 500;
 }
 
-.status-display.status-accepted { background: #dcfce7; color: #16a34a; }
-.status-display.status-rejected { background: #f1f5f9; color: #64748b; }
+.status-display.status-accepted { background: var(--diff-added-soft); color: var(--diff-added); }
+.status-display.status-rejected { background: var(--surface-soft); color: var(--text-secondary); }
 
 /* ============ Toast 提示 ============ */
 .toast-container {
@@ -790,7 +790,7 @@ defineExpose({ displayToast });
   align-items: center;
   gap: 10px;
   padding: 14px 24px;
-  background: #1e293b;
+  background: var(--text-main);
   color: white;
   border-radius: 10px;
   font-size: 14px;
@@ -799,7 +799,7 @@ defineExpose({ displayToast });
 }
 
 .toast-message svg {
-  color: #fbbf24;
+  color: var(--warning-color);
 }
 
 .toast-enter-active,
@@ -837,28 +837,28 @@ defineExpose({ displayToast });
 }
 
 .section-icon {
-  color: #3b82f6;
+  color: var(--primary-color);
   margin-top: 2px;
 }
 
 .section-icon.sparkle {
-  color: #d97706;
+  color: var(--warning-color);
 }
 
 .section-icon.ppt {
-  color: #dc2626;
+  color: var(--diff-removed);
 }
 
 .section-title-group h3 {
   font-size: 15px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 4px 0;
 }
 
 .section-desc {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin: 0;
 }
 
@@ -871,19 +871,19 @@ defineExpose({ displayToast });
   flex: 1;
   padding: 10px 16px;
   background: white;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
-  color: #475569;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .text-tool-btn:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
-  background: #eff6ff;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  background: var(--primary-soft);
 }
 
 .multimodal-tools {
@@ -900,11 +900,11 @@ defineExpose({ displayToast });
 }
 
 .tool-row.gradient-purple {
-  background: linear-gradient(135deg, #eff6ff 0%, #f3e8ff 100%);
+  background: linear-gradient(135deg, var(--primary-soft) 0%, var(--skill-soft) 100%);
 }
 
 .tool-row.gradient-rainbow {
-  background: linear-gradient(135deg, #fdf2f8 0%, #eff6ff 33%, #f0fdf4 66%, #fefce8 100%);
+  background: linear-gradient(135deg, var(--skill-soft) 0%, var(--primary-soft) 33%, var(--diff-added-soft) 66%, var(--warning-soft) 100%);
 }
 
 .tool-card {
@@ -927,13 +927,13 @@ defineExpose({ displayToast });
   box-shadow: 0 4px 12px rgba(0,0,0,0.1);
 }
 
-.tool-card svg { color: #3b82f6; }
-.tool-card span { font-size: 13px; font-weight: 500; color: #475569; }
-.formula-icon { font-size: 24px; font-weight: 600; color: #d97706; }
+.tool-card svg { color: var(--primary-color); }
+.tool-card span { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+.formula-icon { font-size: 24px; font-weight: 600; color: var(--warning-color); }
 
 .ppt-section {
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
+  background: var(--warning-soft);
+  border: 1px solid var(--warning-border);
 }
 
 .ppt-features {
@@ -949,14 +949,14 @@ defineExpose({ displayToast });
   gap: 10px;
 }
 
-.feature-icon { color: #3b82f6; }
-.feature-title { font-size: 14px; font-weight: 600; color: #1e293b; min-width: 60px; }
-.feature-desc { font-size: 13px; color: #64748b; }
+.feature-icon { color: var(--primary-color); }
+.feature-title { font-size: 14px; font-weight: 600; color: var(--text-main); min-width: 60px; }
+.feature-desc { font-size: 13px; color: var(--text-secondary); }
 
 .ppt-generate-btn {
   width: 100%;
   padding: 16px 24px;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--skill-color) 50%, var(--skill-color) 100%);
   border: none;
   border-radius: 12px;
   font-size: 18px;

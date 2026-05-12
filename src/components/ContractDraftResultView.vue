@@ -363,13 +363,13 @@ saveHistory();
 .page-footer {
   text-align: center;
   padding-top: 24px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--surface-soft);
   margin-top: auto;
 }
 
 .page-number {
   font-size: 12px;
-  color: #9ca3af;
+  color: var(--text-muted);
 }
 
 /* Contract Header */
@@ -381,13 +381,13 @@ saveHistory();
 .contract-title {
   font-size: 28px;
   font-weight: 700;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 16px 0;
 }
 
 .contract-meta {
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-secondary);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -404,13 +404,13 @@ saveHistory();
 .party-section h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 12px 0;
 }
 
 .party-section p {
   font-size: 14px;
-  color: #374151;
+  color: var(--text-main);
   margin: 4px 0;
   line-height: 1.6;
 }
@@ -424,13 +424,13 @@ saveHistory();
 .clause-title {
   font-size: 16px;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-strong);
   margin: 0 0 12px 0;
 }
 
 .clause-content {
   font-size: 14px;
-  color: #374151;
+  color: var(--text-main);
   line-height: 1.8;
   text-align: justify;
 }
@@ -457,6 +457,6 @@ saveHistory();
 .signature-block p {
   margin-bottom: 24px;
   font-size: 14px;
-  color: #374151;
+  color: var(--text-main);
 }
 </style>

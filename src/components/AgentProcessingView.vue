@@ -109,13 +109,13 @@ const handleSkip = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f8fafc;
+  background: var(--bg-color);
 }
 
 .page-header {
   background: white;
   padding: 16px 24px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -124,24 +124,24 @@ const handleSkip = () => {
 .header-icon {
   width: 36px;
   height: 36px;
-  background: #eff6ff;
+  background: var(--primary-soft);
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2563eb;
+  color: var(--primary-color);
 }
 
 .page-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0;
 }
 
 .page-desc {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin: 2px 0 0 0;
 }
 
@@ -158,13 +158,13 @@ const handleSkip = () => {
   border-radius: 12px;
   padding: 32px;
   margin-bottom: 24px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
 }
 
 .status-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-main);
   margin: 0 0 24px 0;
 }
 
@@ -173,7 +173,7 @@ const handleSkip = () => {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  background: #f8fafc;
+  background: var(--bg-color);
   border-radius: 8px;
   margin-bottom: 32px;
 }
@@ -181,7 +181,7 @@ const handleSkip = () => {
 .step-icon-wrapper {
   width: 32px;
   height: 32px;
-  background: #3b82f6;
+  background: var(--primary-color);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -201,12 +201,12 @@ const handleSkip = () => {
 .step-name {
   font-size: 14px;
   font-weight: 500;
-  color: #1e293b;
+  color: var(--text-main);
 }
 
 .step-sub {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .progress-section {
@@ -217,21 +217,21 @@ const handleSkip = () => {
   display: flex;
   justify-content: space-between;
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
 .progress-track {
   height: 6px;
-  background: #f1f5f9;
+  background: var(--surface-soft);
   border-radius: 3px;
   overflow: hidden;
 }
 
 .progress-fill {
   height: 100%;
-  background: #e2e8f0; /* Default gray for skeleton feel? Or active blue? Screenshot shows greyish bar? */
-  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
+  background: var(--border-color); /* Default gray for skeleton feel? Or active blue? Screenshot shows greyish bar? */
+  background: linear-gradient(90deg, var(--primary-color) 0%, var(--focus-ring) 100%);
   transition: width 0.3s ease;
 }
 
@@ -239,15 +239,15 @@ const handleSkip = () => {
   background: white;
   border-radius: 12px;
   padding: 24px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--border-color);
   font-size: 13px;
-  color: #64748b;
+  color: var(--text-secondary);
   line-height: 1.6;
   text-align: center;
 }
 
 .tips-card a {
-  color: #2563eb;
+  color: var(--primary-color);
   text-decoration: none;
 }
 
@@ -257,8 +257,8 @@ const handleSkip = () => {
 
 .skip-btn {
   background: white;
-  border: 1px solid #cbd5e1;
-  color: #475569;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   padding: 8px 16px;
   border-radius: 6px;
   cursor: pointer;
@@ -267,7 +267,7 @@ const handleSkip = () => {
 }
 
 .skip-btn:hover {
-  border-color: #2563eb;
-  color: #2563eb;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
 }
 </style>

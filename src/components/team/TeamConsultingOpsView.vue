@@ -296,7 +296,7 @@ const subtotalRow = computed(() => {
 .ops-page {
   width: 100%;
   max-width: 980px;
-  color: #1f2937;
+  color: var(--text-main);
 }
 
 .page-header {
@@ -311,7 +311,7 @@ const subtotalRow = computed(() => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-main);
   line-height: 1.2;
 }
 
@@ -330,10 +330,10 @@ const subtotalRow = computed(() => {
   min-width: 280px;
   height: 36px;
   padding: 0 14px;
-  border: 1px solid #d9e1ec;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: var(--card-bg);
+  color: var(--text-main);
   font-size: 12px;
   display: inline-flex;
   align-items: center;
@@ -343,7 +343,7 @@ const subtotalRow = computed(() => {
 }
 
 .date-trigger-icon {
-  color: #64748b;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -357,17 +357,17 @@ const subtotalRow = computed(() => {
   left: 0;
   z-index: 10;
   width: 360px;
-  background: #fff;
-  border: 1px solid #d9e1ec;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--shadow-card);
   padding: 14px;
 }
 
 .date-panel-title {
   font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: var(--text-main);
   margin-bottom: 12px;
 }
 
@@ -382,17 +382,17 @@ const subtotalRow = computed(() => {
   flex-direction: column;
   gap: 6px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .date-input,
 .toolbar-btn {
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #d9e1ec;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: #fff;
-  color: #475569;
+  background: var(--card-bg);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -407,14 +407,14 @@ const subtotalRow = computed(() => {
 }
 
 .toolbar-btn.primary {
-  background: #2f61d5;
-  border-color: #2f61d5;
-  color: #fff;
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: var(--on-primary);
 }
 
 .toolbar-btn.primary:hover {
-  background: #2856be;
-  border-color: #2856be;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 
 .date-panel-actions {
@@ -427,30 +427,30 @@ const subtotalRow = computed(() => {
 .panel-btn {
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #d9e1ec;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: #fff;
-  color: #475569;
+  background: var(--card-bg);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
 }
 
 .panel-btn.primary {
-  background: #2f61d5;
-  border-color: #2f61d5;
-  color: #fff;
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: var(--on-primary);
 }
 
 .date-separator {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .data-table {
   width: 100%;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -464,25 +464,25 @@ const subtotalRow = computed(() => {
 }
 
 .table-head {
-  background: #fafafa;
-  color: #475569;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
 }
 
 .table-summary {
-  background: #fcfcfd;
+  background: var(--card-bg);
 }
 
 .table-subtotal {
-  background: #f8fafc;
+  background: var(--surface-muted);
 }
 
 .table-row > span {
   min-height: 46px;
   padding: 10px 12px;
-  border-right: 1px solid #eef2f7;
-  border-bottom: 1px solid #eef2f7;
+  border-right: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
   text-align: center;
   vertical-align: middle;
   font-variant-numeric: tabular-nums;
@@ -510,10 +510,10 @@ const subtotalRow = computed(() => {
 .page-btn {
   width: 28px;
   height: 28px;
-  border: 1px solid #d9e1ec;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: #fff;
-  color: #475569;
+  background: var(--card-bg);
+  color: var(--text-secondary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -522,29 +522,29 @@ const subtotalRow = computed(() => {
 
 .page-btn:disabled {
   cursor: not-allowed;
-  color: #cbd5e1;
-  background: #f8fafc;
+  color: var(--text-muted);
+  background: var(--surface-muted);
 }
 
 .page-text {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-secondary);
 }
 
 .table-row > span {
   min-height: 46px;
   font-size: 12px;
-  color: #334155;
+  color: var(--text-main);
 }
 
 .table-head > span {
   font-weight: 600;
-  color: #475569;
+  color: var(--text-secondary);
 }
 
 .summary-label {
   font-weight: 600;
-  color: #1f2937;
+  color: var(--text-main);
 }
 
 .table-summary > span {
@@ -552,7 +552,7 @@ const subtotalRow = computed(() => {
 }
 
 .table-empty > span {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 @media (max-width: 1080px) {
