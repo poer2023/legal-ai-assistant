@@ -104,7 +104,7 @@ const readHistoryItems = async () => {
 const upsertHistoryItem = async (payload) => {
   const id = normalizeText(payload.id);
   const prompt = normalizeText(payload.prompt);
-  const title = normalizeText(payload.title) || '新法律咨询';
+  const title = normalizeText(payload.title) || '新会话';
 
   if (!id || !prompt) {
     const error = new Error('缺少 history id 或 prompt');
@@ -136,6 +136,23 @@ const upsertHistoryItem = async (payload) => {
   return toClientItem(Array.isArray(rows) ? rows[0] : rows);
 };
 
+const deleteHistoryItem = async (id) => {
+  const historyId = normalizeText(id);
+
+  if (!historyId) {
+    const error = new Error('缺少 history id');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  await supabaseFetch(`legal_chat_conversations?id=eq.${encodeURIComponent(historyId)}`, {
+    method: 'DELETE',
+    headers: {
+      Prefer: 'return=minimal',
+    },
+  });
+};
+
 export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
@@ -146,6 +163,13 @@ export default async function handler(request, response) {
     if (request.method === 'POST') {
       const body = await readJsonBody(request);
       sendJson(response, 200, { item: await upsertHistoryItem(body) });
+      return;
+    }
+
+    if (request.method === 'DELETE') {
+      const requestUrl = new URL(request.url || '/', 'http://localhost');
+      await deleteHistoryItem(requestUrl.searchParams.get('id'));
+      sendJson(response, 200, { ok: true });
       return;
     }
 

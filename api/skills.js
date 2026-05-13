@@ -1,4 +1,10 @@
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const TABLE_NAME = 'legal_skills';
+const LOCAL_SKILLS_PATH = process.env.LEGAL_SKILLS_FILE
+  || fileURLToPath(new URL('../.data/legal-skills.json', import.meta.url));
 
 const sendJson = (response, statusCode, payload) => {
   if (typeof response.status === 'function' && typeof response.json === 'function') {
@@ -59,6 +65,58 @@ const supabaseFetch = async (path, init = {}) => {
   return data;
 };
 
+const readLocalRows = async () => {
+  try {
+    const raw = await readFile(LOCAL_SKILLS_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    if (error && typeof error === 'object' && error.code === 'ENOENT') return [];
+    throw error;
+  }
+};
+
+const writeLocalRows = async (rows) => {
+  await mkdir(dirname(LOCAL_SKILLS_PATH), { recursive: true });
+  await writeFile(`${LOCAL_SKILLS_PATH}.tmp`, JSON.stringify(rows, null, 2), 'utf8');
+  await rename(`${LOCAL_SKILLS_PATH}.tmp`, LOCAL_SKILLS_PATH);
+};
+
+const rowUpdatedAt = (row) => {
+  const timestamp = Date.parse(row?.updated_at || row?.updatedAt || row?.created_at || row?.createdAt || '');
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const sortRowsByUpdatedAt = (rows) =>
+  [...rows].sort((left, right) => rowUpdatedAt(right) - rowUpdatedAt(left));
+
+const mergeRowsByLatest = (...rowSets) => {
+  const rowsById = new Map();
+
+  rowSets.flat().forEach((row) => {
+    if (!row || typeof row.id !== 'string' || !row.id.trim()) return;
+
+    const existing = rowsById.get(row.id);
+    if (!existing || rowUpdatedAt(row) >= rowUpdatedAt(existing)) {
+      rowsById.set(row.id, row);
+    }
+  });
+
+  return sortRowsByUpdatedAt([...rowsById.values()]);
+};
+
+const upsertLocalRow = async (row) => {
+  const rows = await readLocalRows();
+  const nextRows = mergeRowsByLatest([row], rows);
+  await writeLocalRows(nextRows);
+  return nextRows.find((item) => item.id === row.id) || row;
+};
+
+const deleteLocalRow = async (skillId) => {
+  const rows = await readLocalRows();
+  await writeLocalRows(rows.filter((item) => item.id !== skillId));
+};
+
 const normalizeText = (value) => typeof value === 'string' ? value.trim() : '';
 
 const normalizeTags = (tags) => Array.isArray(tags)
@@ -81,7 +139,7 @@ const normalizeFiles = (files) => Array.isArray(files)
         id: file.id,
         name: file.name,
         path: file.path,
-        type: ['markdown', 'typescript', 'json'].includes(file.type) ? file.type : 'markdown',
+        type: ['markdown', 'typescript', 'json', 'yaml'].includes(file.type) ? file.type : 'markdown',
         content: file.content,
       });
       return items;
@@ -145,6 +203,12 @@ const toStorageRow = (payload) => {
 };
 
 const readSkills = async () => {
+  const localRows = await readLocalRows();
+  const config = getSupabaseConfig();
+  if (!config) {
+    return sortRowsByUpdatedAt(localRows).map(toClientSkill);
+  }
+
   const fields = [
     'id',
     'slug',
@@ -162,23 +226,43 @@ const readSkills = async () => {
     'created_at',
     'updated_at',
   ].join(',');
-  const rows = await supabaseFetch(
-    `${TABLE_NAME}?select=${fields}&order=updated_at.desc`,
-  );
+  let rows = [];
+  try {
+    rows = await supabaseFetch(
+      `${TABLE_NAME}?select=${fields}&order=updated_at.desc`,
+    );
+  } catch (error) {
+    rows = localRows;
+  }
 
-  return Array.isArray(rows) ? rows.map(toClientSkill) : [];
+  return mergeRowsByLatest(Array.isArray(rows) ? rows : [], localRows).map(toClientSkill);
 };
 
 const upsertSkill = async (payload) => {
-  const rows = await supabaseFetch(`${TABLE_NAME}?on_conflict=id`, {
-    method: 'POST',
-    headers: {
-      Prefer: 'resolution=merge-duplicates,return=representation',
-    },
-    body: JSON.stringify(toStorageRow(payload)),
-  });
+  const row = toStorageRow(payload);
+  const config = getSupabaseConfig();
+  if (!config) {
+    const localRow = await upsertLocalRow(row);
+    return toClientSkill(localRow);
+  }
 
-  return toClientSkill(Array.isArray(rows) ? rows[0] : rows);
+  let rows = null;
+  try {
+    rows = await supabaseFetch(`${TABLE_NAME}?on_conflict=id`, {
+      method: 'POST',
+      headers: {
+        Prefer: 'resolution=merge-duplicates,return=representation',
+      },
+      body: JSON.stringify(row),
+    });
+  } catch (error) {
+    const localRow = await upsertLocalRow(row);
+    return toClientSkill(localRow);
+  }
+
+  const storedRow = Array.isArray(rows) ? rows[0] : rows;
+  await upsertLocalRow(storedRow || row);
+  return toClientSkill(storedRow || row);
 };
 
 const deleteSkill = async (id) => {
@@ -189,12 +273,24 @@ const deleteSkill = async (id) => {
     throw error;
   }
 
-  await supabaseFetch(`${TABLE_NAME}?id=eq.${encodeURIComponent(skillId)}`, {
-    method: 'DELETE',
-    headers: {
-      Prefer: 'return=minimal',
-    },
-  });
+  const config = getSupabaseConfig();
+  if (!config) {
+    await deleteLocalRow(skillId);
+    return;
+  }
+
+  try {
+    await supabaseFetch(`${TABLE_NAME}?id=eq.${encodeURIComponent(skillId)}`, {
+      method: 'DELETE',
+      headers: {
+        Prefer: 'return=minimal',
+      },
+    });
+  } catch (error) {
+    // Keep deletion best-effort across both stores, even if one backend is unavailable.
+  }
+
+  await deleteLocalRow(skillId);
 };
 
 export default async function handler(request, response) {

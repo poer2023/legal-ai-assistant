@@ -1,52 +1,36 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import {
-  BookOpenCheck,
-  CalendarDays,
-  CheckCircle2,
   FileText,
-  Filter,
-  Layers,
   Library,
   Search,
-  X,
 } from 'lucide-vue-next';
 import { templateAssets, type TemplateAsset } from '../data/legalAssets';
+import TemplateDetailPanel from './TemplateDetailPanel.vue';
 
 const searchKeyword = ref('');
-const selectedDocType = ref('全部');
-const selectedSource = ref('全部');
-const selectedSkill = ref('全部');
+const selectedCategory = ref('全部');
 const selectedTemplate = ref<TemplateAsset | null>(null);
 
-const docTypes = computed(() => ['全部', ...new Set(templateAssets.map((template) => template.docType))]);
-const sources = computed(() => ['全部', ...new Set(templateAssets.map((template) => template.source))]);
-const skillOptions = computed(() => [
-  '全部',
-  ...new Set(templateAssets.flatMap((template) => template.applicableSkills)),
-]);
 const templateFilePath = (template: TemplateAsset) => `assets/templates/${template.id}.md`;
-const templatesBySkill = computed(() => {
+const isDetailOpen = computed(() => Boolean(selectedTemplate.value));
+const categoryTabs = computed(() => {
   const counts = new Map<string, number>();
   templateAssets.forEach((template) => {
-    template.applicableSkills.forEach((skillName) => {
-      counts.set(skillName, (counts.get(skillName) ?? 0) + 1);
-    });
+    counts.set(template.docType, (counts.get(template.docType) ?? 0) + 1);
   });
-  return counts;
+
+  return [
+    { name: '全部', count: templateAssets.length },
+    ...Array.from(counts, ([name, count]) => ({ name, count })),
+  ];
 });
-const multiTemplateSkillCount = computed(
-  () => Array.from(templatesBySkill.value.values()).filter((count) => count > 1).length,
-);
 
 const filteredTemplates = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
 
   return templateAssets.filter((template) => {
-    const matchesDocType = selectedDocType.value === '全部' || template.docType === selectedDocType.value;
-    const matchesSource = selectedSource.value === '全部' || template.source === selectedSource.value;
-    const matchesSkill =
-      selectedSkill.value === '全部' || template.applicableSkills.includes(selectedSkill.value);
+    const matchesCategory = selectedCategory.value === '全部' || template.docType === selectedCategory.value;
     const searchable = [
       template.name,
       template.docType,
@@ -60,744 +44,580 @@ const filteredTemplates = computed(() => {
       .join(' ')
       .toLowerCase();
 
-    return matchesDocType && matchesSource && matchesSkill && (!keyword || searchable.includes(keyword));
+    return matchesCategory && (!keyword || searchable.includes(keyword));
   });
 });
+
+const setCategory = (categoryName: string) => {
+  selectedCategory.value = categoryName;
+};
 
 const openTemplate = (template: TemplateAsset) => {
   selectedTemplate.value = template;
 };
+
+const backToList = () => {
+  selectedTemplate.value = null;
+};
+
+const resetFilters = () => {
+  searchKeyword.value = '';
+};
 </script>
 
 <template>
-  <div class="templates-view">
-    <div class="templates-wrapper">
-      <header class="page-header">
-        <div class="header-left">
-          <div class="header-icon">
-            <Library :size="24" />
-          </div>
-          <div>
-            <h1 class="page-title">法律模板文件</h1>
-            <p class="page-subtitle">合同、尽调、法律意见等标准文书模板文件</p>
-          </div>
-        </div>
+  <div class="templates-view" :class="{ 'detail-view': isDetailOpen }">
+    <main class="templates-shell" :class="{ 'detail-shell': isDetailOpen }">
+      <TemplateDetailPanel
+        v-if="selectedTemplate"
+        class="template-page-detail"
+        :template="selectedTemplate"
+        layout="page"
+        @back="backToList"
+      />
 
-        <label class="search-box">
-          <Search :size="18" />
-          <input v-model="searchKeyword" type="text" placeholder="搜索模板、字段、适用场景" />
-        </label>
-      </header>
+      <template v-else>
+        <header class="page-header">
+          <span class="page-icon" aria-hidden="true">
+            <Library :size="22" />
+          </span>
+          <h1>模板库</h1>
+        </header>
 
-      <section class="summary-grid">
-        <article class="summary-card">
-          <span>模板文件总数</span>
-          <strong>{{ templateAssets.length }}</strong>
-        </article>
-        <article class="summary-card">
-          <span>多模板技能</span>
-          <strong>{{ multiTemplateSkillCount }}</strong>
-        </article>
-        <article class="summary-card">
-          <span>文档类型</span>
-          <strong>{{ docTypes.length - 1 }}</strong>
-        </article>
-      </section>
+        <section class="content-section" aria-label="模板库管理">
+          <header class="section-header">
+            <div class="section-toolbar">
+              <p class="section-subtitle">合同、尽调、法律意见等标准文书模板文件</p>
 
-      <section class="filter-panel">
-        <div class="filter-heading">
-          <Filter :size="16" />
-          <span>筛选模板文件</span>
-        </div>
-
-        <div class="filter-group">
-          <label>文档类型</label>
-          <select v-model="selectedDocType">
-            <option v-for="docType in docTypes" :key="docType" :value="docType">{{ docType }}</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label>来源</label>
-          <select v-model="selectedSource">
-            <option v-for="source in sources" :key="source" :value="source">{{ source }}</option>
-          </select>
-        </div>
-
-        <div class="filter-group">
-          <label>适用技能</label>
-          <select v-model="selectedSkill">
-            <option v-for="skill in skillOptions" :key="skill" :value="skill">{{ skill }}</option>
-          </select>
-        </div>
-      </section>
-
-      <section class="section-block">
-        <div class="section-header">
-          <div class="section-title">
-            <Layers :size="18" />
-            <span>法律模板卡片</span>
-          </div>
-          <span class="result-count">{{ filteredTemplates.length }} 项</span>
-        </div>
-
-        <div class="template-grid">
-          <article v-for="template in filteredTemplates" :key="template.id" class="template-card">
-            <div class="card-topline">
-              <span class="type-pill">{{ template.docType }}</span>
-              <span class="source-label">{{ template.source }}</span>
+              <label class="search-control">
+                <Search :size="17" />
+                <input v-model="searchKeyword" type="text" placeholder="搜索模板、字段、适用场景" />
+              </label>
             </div>
-            <h2>{{ template.name }}</h2>
-            <p>{{ template.preview }}</p>
+          </header>
 
-            <div class="card-meta">
-              <span>
-                <BookOpenCheck :size="14" />
-                {{ template.agent }}
-              </span>
-              <span>
-                <CalendarDays :size="14" />
-                {{ template.updatedAt }}
-              </span>
+          <nav class="category-tabs" aria-label="模板分类">
+            <button
+              v-for="tab in categoryTabs"
+              :key="tab.name"
+              class="category-tab"
+              :class="{ active: selectedCategory === tab.name }"
+              type="button"
+              @click="setCategory(tab.name)"
+            >
+              <span>{{ tab.name }}</span>
+              <strong>{{ tab.count }}</strong>
+            </button>
+          </nav>
+
+          <section class="template-section" aria-label="模板文件列表">
+            <div class="list-heading">
+              <div class="list-title">
+                <FileText :size="18" />
+                <span>法律模板文件</span>
+              </div>
+              <span class="result-count">{{ filteredTemplates.length }} 项</span>
             </div>
 
-            <div class="file-path-row">
-              <FileText :size="14" />
-              <span>{{ templateFilePath(template) }}</span>
+            <div v-if="filteredTemplates.length" class="template-grid">
+              <article
+                v-for="template in filteredTemplates"
+                :key="template.id"
+                class="managed-template-card"
+                :title="`${template.name}\n${templateFilePath(template)}`"
+                tabindex="0"
+                @click="openTemplate(template)"
+                @keydown.enter.prevent="openTemplate(template)"
+              >
+                <div class="thumbnail-page" aria-hidden="true">
+                  <div class="thumbnail-topline">
+                    <FileText :size="12" />
+                    <span>{{ template.docType }}</span>
+                  </div>
+                  <strong>{{ template.name }}</strong>
+                  <span class="thumb-line wide"></span>
+                  <span class="thumb-line"></span>
+                  <span class="thumb-line short"></span>
+                  <div class="thumbnail-table">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                  </div>
+                </div>
+
+                <div class="tile-caption">
+                  <h2>{{ template.name }}</h2>
+                  <div class="tile-meta">
+                    <span>{{ template.source }}</span>
+                    <span>{{ template.updatedAt }}</span>
+                  </div>
+                </div>
+              </article>
             </div>
 
-            <div class="field-list">
-              <span v-for="field in template.requiredFields.slice(0, 4)" :key="field">{{ field }}</span>
+            <div v-else class="empty-state">
+              <FileText :size="22" />
+              <strong>未找到匹配模板</strong>
+              <span>调整分类或关键词后再试。</span>
+              <button class="reset-btn active" type="button" @click="resetFilters">清空搜索</button>
             </div>
-
-            <div class="card-actions">
-              <button class="ghost-btn" @click="openTemplate(template)">预览</button>
-              <button class="primary-btn" @click="openTemplate(template)">查看详情</button>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      <section class="section-block">
-        <div class="section-header">
-          <div class="section-title">
-            <FileText :size="18" />
-            <span>法律模板文件</span>
-          </div>
-        </div>
-
-        <div class="template-table">
-          <div class="table-head">
-            <span>模板文件</span>
-            <span>类型</span>
-            <span>关联技能</span>
-            <span>来源</span>
-            <span>更新时间</span>
-            <span>操作</span>
-          </div>
-          <div v-for="template in filteredTemplates" :key="`row-${template.id}`" class="table-row">
-            <div class="template-name">
-              <strong>{{ template.name }}</strong>
-              <span>{{ templateFilePath(template) }}</span>
-            </div>
-            <span>{{ template.docType }}</span>
-            <span>{{ template.agent }}</span>
-            <span>{{ template.source }}</span>
-            <span>{{ template.updatedAt }}</span>
-            <div class="row-actions">
-              <button class="ghost-btn" @click="openTemplate(template)">预览</button>
-              <button class="primary-btn" @click="openTemplate(template)">查看</button>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <div v-if="selectedTemplate" class="drawer-backdrop" @click.self="selectedTemplate = null">
-      <aside class="detail-drawer">
-        <button class="close-btn" aria-label="关闭模板预览" @click="selectedTemplate = null">
-          <X :size="20" />
-        </button>
-        <span class="type-pill">{{ selectedTemplate.docType }}</span>
-        <h2>{{ selectedTemplate.name }}</h2>
-        <p class="drawer-intro">{{ selectedTemplate.preview }}</p>
-
-        <div class="detail-section">
-          <h3>模板文件</h3>
-          <div class="file-badge">
-            <FileText :size="15" />
-            <span>{{ templateFilePath(selectedTemplate) }}</span>
-          </div>
-        </div>
-
-        <div class="detail-section">
-          <h3>适用技能</h3>
-          <div class="inline-list">
-            <span v-for="skill in selectedTemplate.applicableSkills" :key="skill">
-              <CheckCircle2 :size="14" />
-              {{ skill }}
-            </span>
-          </div>
-        </div>
-
-        <div class="detail-section">
-          <h3>所需字段</h3>
-          <div class="field-list expanded">
-            <span v-for="field in selectedTemplate.requiredFields" :key="field">{{ field }}</span>
-          </div>
-        </div>
-
-        <div class="detail-section">
-          <h3>标签</h3>
-          <div class="tag-row">
-            <span v-for="tag in selectedTemplate.tags" :key="tag">{{ tag }}</span>
-          </div>
-        </div>
-
-        <button class="drawer-primary" @click="selectedTemplate = null">
-          关闭预览
-        </button>
-      </aside>
-    </div>
+          </section>
+        </section>
+      </template>
+    </main>
   </div>
 </template>
 
 <style scoped>
 .templates-view {
   flex: 1;
+  min-width: 0;
   height: 100%;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 24px 32px 40px;
   background: var(--bg-color);
+  color: var(--text-main);
 }
 
-.templates-wrapper {
+.templates-view.detail-view {
+  overflow: hidden;
+  padding-bottom: 8px;
+}
+
+.templates-shell {
   width: 100%;
-  max-width: 1400px;
+  max-width: 1120px;
   margin: 0 auto;
+  transition: max-width 0.18s ease;
+}
+
+.templates-shell.detail-shell {
+  max-width: 1180px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.template-page-detail {
+  flex: 1;
+  min-height: 0;
 }
 
 .page-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 24px 28px;
-  margin-bottom: 18px;
-  color: white;
-  background: linear-gradient(135deg, var(--diff-added) 0%, var(--primary-color) 100%);
-  border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(15, 118, 110, 0.16);
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  min-width: 0;
-}
-
-.header-icon {
-  width: 48px;
-  height: 48px;
-  display: flex;
+.page-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--diff-added);
-  background: white;
+  border: 1px solid var(--border-color);
   border-radius: 12px;
+  color: var(--primary-color);
+  background: var(--card-bg);
+  box-shadow: var(--shadow-card);
 }
 
-.page-title {
+.page-header h1 {
   margin: 0;
-  font-size: 22px;
-  font-weight: 700;
+  color: var(--text-strong);
+  font-size: 24px;
+  font-weight: 750;
+  line-height: 1.2;
   letter-spacing: 0;
 }
 
-.page-subtitle {
-  margin: 6px 0 0;
-  color: rgba(255, 255, 255, 0.86);
-  font-size: 14px;
-  line-height: 1.5;
+.content-section {
+  min-height: 360px;
 }
 
-.search-box {
-  height: 44px;
-  min-width: 340px;
+.section-header {
+  margin: 4px 0 16px;
+}
+
+.section-toolbar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.96);
-  color: var(--primary-color);
+  justify-content: space-between;
+  gap: 14px;
 }
 
-.search-box input {
+.section-subtitle {
+  min-width: 0;
+  margin: 0;
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.search-control {
+  width: min(380px, 100%);
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.search-control:focus-within {
+  border-color: var(--primary-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.search-control svg {
+  flex-shrink: 0;
+}
+
+.search-control input {
   width: 100%;
-  border: 0;
-  outline: 0;
+  min-width: 0;
   background: transparent;
   color: var(--text-main);
   font-size: 14px;
 }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-bottom: 18px;
+.search-control input::placeholder {
+  color: var(--text-muted);
 }
 
-.summary-card {
-  padding: 18px 20px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: white;
-}
-
-.summary-card span {
-  display: block;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.summary-card strong {
-  display: block;
-  margin-top: 8px;
-  color: var(--text-strong);
-  font-size: 24px;
-}
-
-.filter-panel {
-  display: grid;
-  grid-template-columns: auto repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  align-items: end;
-  padding: 16px;
-  margin-bottom: 28px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: white;
-}
-
-.filter-heading,
-.section-title {
+.category-tabs {
   display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.category-tab {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.category-tab strong {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.category-tab:hover,
+.category-tab.active {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--primary-color);
+}
+
+.category-tab.active {
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.category-tab.active strong {
+  color: var(--primary-color);
+}
+
+.list-title {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   color: var(--primary-color);
   font-size: 14px;
   font-weight: 700;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.filter-heading {
-  align-self: center;
-  padding-right: 6px;
-}
-
-.filter-group {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.filter-group label {
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.filter-group select {
-  height: 38px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: white;
-  color: var(--text-main);
-  padding: 0 10px;
+.reset-btn {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border-radius: 10px;
   font-size: 13px;
-  outline: 0;
+  font-weight: 650;
+  line-height: 1;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
 }
 
-.section-block {
-  margin-bottom: 30px;
+.reset-btn {
+  border: 1px solid var(--border-color);
+  background: var(--surface-muted);
+  color: var(--text-main);
 }
 
-.section-header {
+.reset-btn:not(:disabled):hover,
+.reset-btn.active {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.reset-btn:disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.62;
+}
+
+.template-section {
+  min-width: 0;
+}
+
+.list-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 14px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
 .result-count {
   color: var(--text-secondary);
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .template-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 20px 18px;
 }
 
-.template-card {
+.managed-template-card {
   display: flex;
-  min-height: 292px;
   flex-direction: column;
-  padding: 18px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: white;
-  transition: all 0.2s ease;
-}
-
-.template-card:hover,
-.table-row:hover {
-  border-color: var(--primary-border);
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
-}
-
-.card-topline,
-.card-meta,
-.card-actions,
-.row-actions {
-  display: flex;
-  align-items: center;
-}
-
-.card-topline {
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.type-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  color: var(--diff-added);
-  background: var(--diff-added-soft);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.source-label {
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.template-card h2,
-.detail-drawer h2 {
-  margin: 0;
-  color: var(--text-strong);
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.template-card h2 {
-  font-size: 18px;
-}
-
-.template-card p,
-.drawer-intro {
-  color: var(--text-secondary);
-  line-height: 1.65;
-}
-
-.template-card p {
-  flex: 1;
-  margin: 10px 0 16px;
-  font-size: 14px;
-}
-
-.card-meta {
-  gap: 12px;
-  flex-wrap: wrap;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.card-meta span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.file-path-row,
-.file-badge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  color: var(--text-secondary);
-  background: var(--surface-muted);
-  border: 1px solid var(--border-soft);
-}
-
-.file-path-row {
-  margin-top: 12px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  font-size: 12px;
-}
-
-.file-path-row svg,
-.file-badge svg {
-  flex-shrink: 0;
-  color: var(--primary-color);
-}
-
-.file-path-row span,
-.file-badge span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.field-list,
-.tag-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.field-list {
-  margin: 14px 0 16px;
-}
-
-.field-list span,
-.tag-row span {
-  padding: 5px 8px;
-  border-radius: 7px;
-  color: var(--text-secondary);
-  background: var(--surface-soft);
-  font-size: 12px;
-}
-
-.field-list.expanded {
-  margin: 0;
-}
-
-.card-actions,
-.row-actions {
   gap: 10px;
-}
-
-.ghost-btn,
-.primary-btn,
-.drawer-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 36px;
-  padding: 0 13px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.ghost-btn {
-  color: var(--text-secondary);
-  background: white;
-  border: 1px solid var(--border-color);
-}
-
-.primary-btn,
-.drawer-primary {
-  color: white;
-  background: var(--primary-color);
-  border: 1px solid var(--primary-color);
-}
-
-.template-table {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.table-head,
-.table-row {
-  display: grid;
-  grid-template-columns: minmax(260px, 1.6fr) 120px 150px 110px 110px 140px;
-  gap: 14px;
-  align-items: center;
-}
-
-.table-head {
-  padding: 0 16px 4px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.table-row {
-  padding: 14px 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: white;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.template-name {
-  display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.template-name strong {
-  color: var(--text-strong);
-  font-size: 14px;
-}
-
-.template-name span {
-  color: var(--text-secondary);
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: flex;
-  justify-content: flex-end;
-  background: rgba(15, 23, 42, 0.28);
-}
-
-.detail-drawer {
-  width: min(460px, 100vw);
-  height: 100%;
-  overflow-y: auto;
-  padding: 28px;
-  background: white;
-  box-shadow: -20px 0 40px rgba(15, 23, 42, 0.18);
-}
-
-.close-btn {
-  float: right;
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-secondary);
-  border-radius: 8px;
-  background: var(--bg-color);
-}
-
-.detail-drawer h2 {
-  clear: both;
-  margin-top: 18px;
-  font-size: 22px;
-}
-
-.drawer-intro {
-  margin: 12px 0 24px;
-  font-size: 14px;
-}
-
-.detail-section {
-  padding: 16px 0;
-  border-top: 1px solid var(--border-color);
-}
-
-.detail-section h3 {
-  margin: 0 0 8px;
-  color: var(--text-strong);
-  font-size: 14px;
-}
-
-.file-badge {
-  min-height: 38px;
-  padding: 0 11px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-.inline-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.inline-list span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.drawer-primary {
-  width: 100%;
-  min-height: 44px;
-  margin-top: 18px;
-}
-
-button {
+  padding: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-main);
   cursor: pointer;
-  transition: all 0.2s ease;
+  text-align: left;
+  transition: transform 0.15s ease;
 }
 
-button:hover {
+.managed-template-card:hover {
   transform: translateY(-1px);
 }
 
-@media (max-width: 1180px) {
-  .template-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.managed-template-card:focus {
+  outline: none;
+}
+
+.managed-template-card:focus-visible,
+.category-tab:focus-visible,
+.reset-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.thumbnail-page {
+  width: min(116px, 100%);
+  min-height: 154px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: center;
+  padding: 14px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--text-strong) 10%, transparent);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.managed-template-card:hover .thumbnail-page {
+  border-color: var(--primary-border);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--primary-color) 16%, transparent);
+}
+
+.thumbnail-topline {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--primary-color);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.thumbnail-topline svg {
+  flex-shrink: 0;
+}
+
+.thumbnail-topline span,
+.thumbnail-page strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thumbnail-page strong {
+  color: var(--text-strong);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.thumb-line {
+  width: 82%;
+  height: 5px;
+  display: block;
+  border-radius: 999px;
+  background: var(--border-soft);
+}
+
+.thumb-line.wide {
+  width: 100%;
+}
+
+.thumb-line.short {
+  width: 58%;
+}
+
+.thumbnail-table {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: auto;
+}
+
+.thumbnail-table span {
+  min-height: 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  background: var(--surface-muted);
+}
+
+.tile-caption {
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.tile-caption h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.2;
+}
+
+.tile-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-meta span + span::before {
+  content: '';
+  width: 3px;
+  height: 3px;
+  display: inline-block;
+  margin: 0 6px 2px 0;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.empty-state {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.empty-state svg {
+  color: var(--primary-color);
+}
+
+.empty-state strong {
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
+.empty-state span {
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .templates-view {
+    padding: 18px 16px 28px;
   }
 
-  .filter-panel {
-    grid-template-columns: 1fr 1fr;
+  .section-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
-  .filter-heading {
-    grid-column: 1 / -1;
-  }
-
-  .template-table {
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-
-  .table-head,
-  .table-row {
-    min-width: 980px;
+  .search-control {
+    width: 100%;
   }
 }
 
-@media (max-width: 760px) {
-  .templates-view {
-    padding: 16px;
+@media (max-width: 600px) {
+  .template-grid {
+    grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+    gap: 16px 12px;
   }
 
-  .page-header {
-    flex-direction: column;
-    align-items: stretch;
+  .page-header h1 {
+    font-size: 21px;
   }
 
-  .search-box {
-    min-width: 0;
-  }
-
-  .summary-grid,
-  .template-grid,
-  .filter-panel {
-    grid-template-columns: 1fr;
+  .thumbnail-page {
+    min-height: 134px;
+    padding: 12px 10px;
   }
 }
 </style>

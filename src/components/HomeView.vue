@@ -14,6 +14,7 @@ const chatInputRef = ref<ChatInputController | null>(null);
 const route = useRoute();
 const router = useRouter();
 const handledComposerAction = ref('');
+const isSkillCreatorGuideActive = ref(false);
 
 const getComposerAction = (): ComposerAction | null => {
   const action = route.query.composerAction;
@@ -38,6 +39,10 @@ const handleComposerSubmit = (value: string) => {
       prompt: value.trim(),
     },
   });
+};
+
+const handleSkillCreatorGuideActiveChange = (active: boolean) => {
+  isSkillCreatorGuideActive.value = active;
 };
 
 const triggerComposerAction = async () => {
@@ -82,7 +87,7 @@ watch(
 </script>
 
 <template>
-  <div class="home-view">
+  <div class="home-view" :class="{ 'skill-guide-mode': isSkillCreatorGuideActive }">
     <div class="content-wrapper">
       <div class="center-title-area">
         <h1 class="main-title">
@@ -93,7 +98,12 @@ watch(
       </div>
 
       <div class="chat-area">
-        <ChatInput ref="chatInputRef" v-model="inputValue" @submit="handleComposerSubmit" />
+        <ChatInput
+          ref="chatInputRef"
+          v-model="inputValue"
+          @submit="handleComposerSubmit"
+          @skill-guide-active-change="handleSkillCreatorGuideActiveChange"
+        />
       </div>
 
     </div>
@@ -110,6 +120,11 @@ watch(
   justify-content: flex-start;
   padding: clamp(96px, calc(38.2vh - 132px), 240px) 40px 40px;
   background: var(--bg-color);
+  transition: padding-top 0.24s ease;
+}
+
+.home-view.skill-guide-mode {
+  padding-top: clamp(52px, calc(16vh - 58px), 84px);
 }
 
 .content-wrapper {
@@ -121,6 +136,12 @@ watch(
 .center-title-area {
   text-align: center;
   margin-bottom: 70px;
+  transition: margin-bottom 0.24s ease, transform 0.24s ease;
+}
+
+.home-view.skill-guide-mode .center-title-area {
+  margin-bottom: 174px;
+  transform: none;
 }
 
 .main-title {
@@ -150,12 +171,21 @@ watch(
   width: 100%;
   margin: 0 auto 26px;
   position: relative;
+  transition: transform 0.24s ease;
+}
+
+.home-view.skill-guide-mode .chat-area {
+  transform: translateY(-4px);
 }
 
 @media (max-width: 768px) {
   .home-view {
     padding: 24px 16px 32px;
     justify-content: flex-start;
+  }
+
+  .home-view.skill-guide-mode {
+    padding-top: 18px;
   }
 
   .main-title {
@@ -170,6 +200,15 @@ watch(
 
   .chat-area {
     margin-bottom: 28px;
+  }
+
+  .home-view.skill-guide-mode .center-title-area {
+    margin-bottom: 48px;
+    transform: translateY(-8px);
+  }
+
+  .home-view.skill-guide-mode .chat-area {
+    transform: translateY(0);
   }
 }
 </style>

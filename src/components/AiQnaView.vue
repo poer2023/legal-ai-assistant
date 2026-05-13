@@ -17,6 +17,7 @@ import {
   MessageCircle,
   MessageSquareText,
   Mic,
+  Pencil,
   Plus,
   Puzzle,
   Scale,
@@ -33,9 +34,10 @@ import SkillManageModal from './SkillManageModal.vue';
 import TemplateDropdownContent from './TemplateDropdownContent.vue';
 import TemplateManageModal from './TemplateManageModal.vue';
 import { defaultTemplateAssets, type TemplateAsset } from '../data/legalAssets';
-import { getSkillByNameOrId, markSkillUsed } from '../data/skillCatalog';
+import { getSkillByNameOrId, markSkillUsed, persistCustomSkillNow, upsertCustomSkill, type SkillCatalogItem } from '../data/skillCatalog';
 import { docxLegalResearchMock } from '../data/docxLegalResearchMock';
-import { streamOpenRouterMessage } from '../services/openrouterChat';
+import { streamSkillWithSkillCreator, type SkillCreatorAnswers } from '../services/skillCreator';
+import { generateDeepSeekConversationTitle, streamDeepSeekMessage } from '../services/deepseekChat';
 import { useChatHistory } from '../stores/chatHistory';
 
 type SearchMode = {
@@ -54,26 +56,23 @@ type InlineSegment = {
   value: string;
 };
 
-type LiveAnswerTextBlock = {
-  type: 'heading' | 'paragraph';
-  text: string;
-  segments: InlineSegment[];
+type ChatArtifact = {
+  id: string;
+  title: string;
+  kind: 'document' | 'code' | 'html';
+  language: string;
+  content: string;
+  summary: string;
+  sourceStart: number;
+  sourceEnd: number;
 };
-
-type LiveAnswerListBlock = {
-  type: 'ordered-list' | 'unordered-list';
-  items: Array<{
-    text: string;
-    segments: InlineSegment[];
-  }>;
-};
-
-type LiveAnswerBlock = LiveAnswerTextBlock | LiveAnswerListBlock;
 
 const route = useRoute();
 const router = useRouter();
 const {
   addMockConversation,
+  applyGeneratedConversationTitle,
+  deleteConversation,
   findHistoryItem,
   getCachedConversation,
   loadHistory,
@@ -89,9 +88,11 @@ const showSourceNotice = ref(true);
 const hasCompletedMock = ref(false);
 const isReferenceDrawerOpen = ref(false);
 const isDocxPreviewOpen = ref(false);
+const isArtifactPreviewOpen = ref(false);
 const isProcessExpanded = ref(false);
 const isThinkingExpanded = ref(true);
 const activeReferenceId = ref<number | null>(null);
+const activeArtifactId = ref('');
 const expandedReferenceIds = ref<Set<number>>(new Set());
 const completedQuestion = ref('');
 const selectedTemplate = ref<TemplateAsset | null>(null);
@@ -100,9 +101,20 @@ const answerModel = ref('');
 const answerError = ref('');
 const answerNotice = ref('');
 const isGeneratingAnswer = ref(false);
-const isRenderingAnswer = ref(false);
 const handledRoutePromptKey = ref('');
 const activeHistoryId = ref('');
+const toastMessage = ref('');
+const liveThinkingContent = ref('');
+const isLiveThinkingExpanded = ref(false);
+const skillValidationStatus = ref<'idle' | 'checking' | 'complete' | 'error'>('idle');
+const skillValidationMessage = ref('');
+const createdSkillResult = ref<SkillCatalogItem | null>(null);
+const lastAutoOpenedArtifactId = ref('');
+const isArtifactEditing = ref(false);
+const isSavingArtifactEdit = ref(false);
+const artifactEditContent = ref('');
+const artifactEditorRef = ref<HTMLTextAreaElement | null>(null);
+let toastTimer: number | undefined;
 const selectedDialogMode = ref('research');
 const enabledSearchModes = ref<Set<string>>(new Set(['legal']));
 const templateCreatorPrompt = '请使用 /template-creator 帮我创建一个可复用的写作模板，我的需求/源文件如下：';
@@ -111,9 +123,6 @@ const createSkillPrompt = (skillName: string) =>
   `请使用 /${skillName} 帮我完成以下任务，我的需求如下：`;
 const createTemplatePrompt = (template: TemplateAsset) =>
   `请使用 模板：${template.name} 帮我按照这个模板完成写作，我的需求/源文件如下：`;
-let answerRenderQueue = '';
-let answerRenderTimer: ReturnType<typeof window.setInterval> | null = null;
-let answerDrainResolver: (() => void) | null = null;
 
 const dialogModes = [
   { id: 'consult', label: '咨询模式', icon: MessageCircle },
@@ -162,81 +171,565 @@ const createInlineSegments = (text: string): InlineSegment[] => {
   return segments.length ? segments : [{ type: 'text', value: text }];
 };
 
-const createTextBlock = (type: LiveAnswerTextBlock['type'], text: string): LiveAnswerTextBlock => ({
-  type,
-  text,
-  segments: createInlineSegments(text),
-});
+const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
-const parseLiveAnswerBlocks = (text: string): LiveAnswerBlock[] => {
-  const blocks: LiveAnswerBlock[] = [];
+const escapeAttribute = (value: string): string => escapeHtml(value).replace(/`/g, '&#96;');
+
+const isSafeLink = (value: string): boolean => /^(https?:\/\/|mailto:)/i.test(value);
+
+const renderInlineMarkdown = (text: string): string => {
+  const pattern = /(`([^`]+)`|\*\*([\s\S]+?)\*\*|__([\s\S]+?)__|\[([^\]]+)\]\(([^)\s]+)\)|\[(\d+)\])/g;
+  let html = '';
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      html += escapeHtml(text.slice(lastIndex, match.index));
+    }
+
+    if (match[2]) {
+      html += `<code class="live-answer-code">${escapeHtml(match[2])}</code>`;
+    } else if (match[3]) {
+      html += `<strong class="live-answer-strong">${renderInlineMarkdown(match[3])}</strong>`;
+    } else if (match[4]) {
+      html += `<strong class="live-answer-strong">${renderInlineMarkdown(match[4])}</strong>`;
+    } else if (match[5] && match[6]) {
+      const href = match[6].trim();
+      html += isSafeLink(href)
+        ? `<a class="live-answer-link" href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${renderInlineMarkdown(match[5])}</a>`
+        : escapeHtml(match[0]);
+    } else if (match[7]) {
+      html += `<span class="live-source-token">[${escapeHtml(match[7])}]</span>`;
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    html += escapeHtml(text.slice(lastIndex));
+  }
+
+  return html;
+};
+
+const renderMarkdownTable = (rows: string[]): string => {
+  const splitRow = (row: string): string[] => row.trim().replace(/^\||\|$/g, '').split('|').map((cell) => cell.trim());
+  const header = splitRow(rows[0] || '');
+  const bodyRows = rows.slice(2).map(splitRow).filter((cells) => cells.some(Boolean));
+
+  return [
+    '<div class="live-answer-table-wrap"><table class="live-answer-table">',
+    '<thead><tr>',
+    ...header.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`),
+    '</tr></thead>',
+    bodyRows.length ? '<tbody>' : '',
+    ...bodyRows.map((cells) => [
+      '<tr>',
+      ...header.map((_, index) => `<td>${renderInlineMarkdown(cells[index] || '')}</td>`),
+      '</tr>',
+    ].join('')),
+    bodyRows.length ? '</tbody>' : '',
+    '</table></div>',
+  ].join('');
+};
+
+const foldSkillCreatorArtifactList = (content: string) => {
+  const listHeadingPattern = /^##\s*2\.\s*生成物清单\s*$/im;
+  const listMatch = listHeadingPattern.exec(content);
+  if (!listMatch || listMatch.index === undefined) {
+    return content.replace(/^##\s*3\.\s*逐个生成生成物\s*$/im, '## 2. 生成技能');
+  }
+
+  const listStart = listMatch.index;
+  const listBodyStart = listStart + listMatch[0].length;
+  const afterList = content.slice(listBodyStart);
+  const nextStepMatch = afterList.match(/\n##\s*3\.\s*逐个生成生成物\s*$/im);
+  const listEnd = nextStepMatch?.index === undefined
+    ? content.length
+    : listBodyStart + nextStepMatch.index;
+  const listBody = content.slice(listBodyStart, listEnd).trim();
+  const replacement = listBody
+    ? `\n\n:::collapse 生成物清单\n${listBody}\n:::\n\n`
+    : '\n\n:::collapse 生成物清单\n正在整理生成物清单...\n:::\n\n';
+  const rest = nextStepMatch?.index === undefined
+    ? ''
+    : content.slice(listEnd).replace(/\n##\s*3\.\s*逐个生成生成物\s*$/im, '\n## 2. 生成技能');
+
+  return `${content.slice(0, listStart)}${replacement}${rest}`;
+};
+
+const formatSkillCreatorDisplayContent = (content: string): string => {
+  let text = normalizeGeneratedArtifactBoundaries(content.replace(/\r\n/g, '\n'));
+  const trimmed = text.trimStart().toLowerCase();
+
+  if (!text.match(/<generation_markdown>/i) && '<generation_markdown>'.startsWith(trimmed)) {
+    return '';
+  }
+
+  const generationStart = text.search(/<generation_markdown>/i);
+  if (generationStart >= 0) {
+    text = text.slice(generationStart).replace(/^<generation_markdown>/i, '');
+  }
+
+  text = text
+    .replace(/<\/generation_markdown>/ig, '')
+    .replace(/\n*##\s*4\.\s*待系统解析[\s\S]*?(?=<skill_json>|$)/i, '');
+
+  const partialGenerationEnd = text.match(/\s*<\/[^>\n]*$/i);
+  if (partialGenerationEnd && '</generation_markdown>'.startsWith(partialGenerationEnd[0].trim().toLowerCase())) {
+    text = text.slice(0, partialGenerationEnd.index);
+  }
+
+  while (true) {
+    const jsonStart = text.search(/<skill_json>/i);
+    if (jsonStart < 0) break;
+
+    const beforeJson = text.slice(0, jsonStart);
+    const rest = text.slice(jsonStart);
+    const endMatch = rest.match(/<\/skill_json>/i);
+    if (!endMatch) {
+      text = beforeJson;
+      break;
+    }
+
+    text = beforeJson + rest.slice((endMatch.index ?? 0) + endMatch[0].length);
+  }
+
+  const partialSkillJsonStart = text.match(/\s*<[^>\n]*$/i);
+  if (partialSkillJsonStart && '<skill_json>'.startsWith(partialSkillJsonStart[0].trim().toLowerCase())) {
+    text = text.slice(0, partialSkillJsonStart.index);
+  }
+
+  return foldSkillCreatorArtifactList(text.trimStart());
+};
+
+const extractCreatedSkillIdFromContent = (content: string): string => {
+  const explicitMatch = content.match(/技能\s*ID\s*[:：]\s*([^\s\n]+)/);
+  if (explicitMatch?.[1]) return explicitMatch[1].trim();
+
+  const taggedJson = content.match(/<skill_json>\s*([\s\S]*?)\s*<\/skill_json>/i);
+  const jsonBody = taggedJson?.[1]?.trim();
+  if (jsonBody) {
+    try {
+      const parsed = JSON.parse(jsonBody.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, ''));
+      if (typeof parsed?.id === 'string' && parsed.id.trim()) return parsed.id.trim();
+    } catch {
+      const idMatch = jsonBody.match(/"id"\s*:\s*"([^"]+)"/);
+      if (idMatch?.[1]) return idMatch[1].trim();
+    }
+  }
+
+  return '';
+};
+
+const normalizeArtifactTitle = (value: string, fallback: string) => {
+  const title = value
+    .replace(/^文件名\s*[:：]\s*/i, '')
+    .replace(/^filename\s*[:：]\s*/i, '')
+    .replace(/^file\s*[:：]\s*/i, '')
+    .replace(/^path\s*[:：]\s*/i, '')
+    .replace(/^`|`$/g, '')
+    .trim();
+
+  return title || fallback;
+};
+
+const getArtifactExtension = (title: string, language: string) => {
+  const extensionMatch = title.match(/\.([A-Za-z0-9_-]+)$/);
+  if (extensionMatch?.[1]) return extensionMatch[1].toLowerCase();
+  return language.toLowerCase();
+};
+
+const getArtifactKind = (title: string, language: string): ChatArtifact['kind'] => {
+  const extension = getArtifactExtension(title, language);
+  if (['html', 'htm'].includes(extension)) return 'html';
+  if (['js', 'jsx', 'ts', 'tsx', 'vue', 'css', 'json', 'sql', 'py', 'java', 'go', 'rs', 'sh', 'yaml', 'yml'].includes(extension)) {
+    return 'code';
+  }
+  return 'document';
+};
+
+const getArtifactSummary = (content: string) => {
+  return content
+    .replace(/[#*_`>|-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 92);
+};
+
+const generatedArtifactHeadingPattern = /^#{1,6}\s*(?:系统确认生成物|生成物)\s*\d+(?:\s*\/\s*\d+)?\s*[:：]\s*(.+)$/;
+const generatedArtifactHeadingGlobalPattern = /^#{1,6}\s*(?:系统确认生成物|生成物)\s*\d+(?:\s*\/\s*\d+)?\s*[:：]\s*(.+)$/gm;
+
+const findArtifactTitleBeforeFence = (text: string) => {
+  const previousLines = text.split('\n').map((line) => line.trim()).filter(Boolean).slice(-4).reverse();
+  const titleLine = previousLines.find((line) =>
+    generatedArtifactHeadingPattern.test(line)
+    || /^(文件名|filename|file|path)\s*[:：]/i.test(line)
+    || /^[\w./\-\u4e00-\u9fa5\s（）()]+?\.[A-Za-z0-9_-]{1,8}$/.test(line.replace(/^[-*]\s*/, ''))
+  );
+
+  if (!titleLine) return '';
+
+  const generatedMatch = titleLine.match(generatedArtifactHeadingPattern);
+  return normalizeArtifactTitle((generatedMatch?.[1] || titleLine).replace(/^[-*]\s*/, ''), '');
+};
+
+const findGeneratedArtifactHeadingBeforeFence = (content: string, fenceStart: number) => {
+  let end = fenceStart;
+  while (end > 0 && /\s/.test(content[end - 1] || '')) {
+    end -= 1;
+  }
+
+  const start = content.lastIndexOf('\n', end - 1) + 1;
+  const line = content.slice(start, end).trim();
+  const match = line.match(generatedArtifactHeadingPattern);
+  if (!match?.[1]) return null;
+
+  return {
+    start,
+    title: normalizeArtifactTitle(match[1], ''),
+  };
+};
+
+const createArtifactId = (title: string) => {
+  const slug = title
+    .replace(/[^\w\u4e00-\u9fa5.-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+
+  return `artifact-${slug || 'file'}`;
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const normalizeGeneratedArtifactBoundaries = (content: string) =>
+  content.replace(/(`{3,})(?=#{1,6}\s*(?:系统确认生成物|生成物)\s*\d)/g, '$1\n\n');
+
+type GeneratedArtifactSection = {
+  start: number;
+  end: number;
+  title: string;
+  language: string;
+  content: string;
+};
+
+const extractGeneratedArtifactSections = (content: string): GeneratedArtifactSection[] => {
+  content = normalizeGeneratedArtifactBoundaries(content);
+  const headings: Array<{ start: number; end: number; title: string }> = [];
+  let match: RegExpExecArray | null;
+  generatedArtifactHeadingGlobalPattern.lastIndex = 0;
+
+  while ((match = generatedArtifactHeadingGlobalPattern.exec(content)) !== null) {
+    headings.push({
+      start: match.index,
+      end: generatedArtifactHeadingGlobalPattern.lastIndex,
+      title: normalizeArtifactTitle(match[1] || '', ''),
+    });
+  }
+
+  return headings.map((heading, index) => {
+    const nextGeneratedHeadingStart = headings[index + 1]?.start ?? content.length;
+    const trailingContent = content.slice(heading.end, nextGeneratedHeadingStart);
+    const stopMatch = trailingContent.match(/\n(?=<\/generation_markdown>|<skill_json>|技能创建完成[:：]|系统创建完成[:：]|系统保存流程[:：]|系统保存结果[:：]|文件结构[:：]|可在「技能|##\s*系统解析)/i);
+    const sectionEnd = stopMatch?.index === undefined
+      ? nextGeneratedHeadingStart
+      : heading.end + stopMatch.index;
+    const sectionBody = content.slice(heading.end, sectionEnd);
+    const fenceMatch = sectionBody.match(/(`{3,})([^\n`]*)\n?/);
+
+    if (!fenceMatch || fenceMatch.index === undefined) {
+      return {
+        start: heading.start,
+        end: sectionEnd,
+        title: heading.title,
+        language: 'markdown',
+        content: '',
+      };
+    }
+
+    const contentStart = heading.end + fenceMatch.index + fenceMatch[0].length;
+    const fenceMarker = fenceMatch[1] || '```';
+    const artifactBody = content.slice(contentStart, sectionEnd);
+    const closingFencePattern = new RegExp(`\\n?${escapeRegExp(fenceMarker)}\\s*$`);
+    const artifactContent = artifactBody.replace(closingFencePattern, '').replace(/\s+$/, '');
+
+    return {
+      start: heading.start,
+      end: sectionEnd,
+      title: heading.title,
+      language: (fenceMatch[2] || 'markdown').trim() || 'markdown',
+      content: artifactContent,
+    };
+  });
+};
+
+const extractGeneratedArtifactRanges = (content: string) =>
+  extractGeneratedArtifactSections(content).map((section) => ({
+    start: section.start,
+    end: section.end,
+  }));
+
+const extractArtifactsFromAnswer = (content: string, options: { generatedOnly?: boolean } = {}): ChatArtifact[] => {
+  if (options.generatedOnly) {
+    const generatedArtifactMap = new Map<string, ChatArtifact>();
+    extractGeneratedArtifactSections(content).forEach((section, index) => {
+      const title = normalizeArtifactTitle(section.title, `生成文件 ${index + 1}.md`);
+      const language = section.language || 'markdown';
+      const artifact: ChatArtifact = {
+        id: createArtifactId(title),
+        title,
+        kind: getArtifactKind(title, language),
+        language,
+        content: section.content,
+        summary: section.content ? getArtifactSummary(section.content) : '正在生成文件内容...',
+        sourceStart: section.start,
+        sourceEnd: section.end,
+      };
+      const existingArtifact = generatedArtifactMap.get(title);
+      generatedArtifactMap.set(title, existingArtifact
+        ? {
+            ...artifact,
+            id: existingArtifact.id,
+            sourceStart: existingArtifact.sourceStart,
+            sourceEnd: existingArtifact.sourceEnd,
+          }
+        : artifact);
+    });
+
+    return [...generatedArtifactMap.values()].sort((left, right) => left.sourceStart - right.sourceStart);
+  }
+
+  const artifacts: ChatArtifact[] = [];
+  const fencePattern = /```([^\n`]*)\n([\s\S]*?)```/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = fencePattern.exec(content)) !== null) {
+    const rawInfo = (match[1] || '').trim();
+    const artifactContent = (match[2] || '').trim();
+    if (artifactContent.length < 24) continue;
+    const heading = findGeneratedArtifactHeadingBeforeFence(content, match.index);
+    if (options.generatedOnly && !heading) continue;
+
+    const infoTokens = rawInfo.split(/\s+/).filter(Boolean);
+    const fileToken = infoTokens.find((token) => /[/.\\]|\.([A-Za-z0-9_-]{1,8})$/.test(token));
+    const language = (fileToken ? infoTokens.find((token) => token !== fileToken) : infoTokens[0]) || 'markdown';
+    const title = normalizeArtifactTitle(
+      heading?.title || fileToken || findArtifactTitleBeforeFence(content.slice(0, match.index)),
+      `生成文件 ${artifacts.length + 1}.${language === 'markdown' ? 'md' : language}`,
+    );
+    const artifact: ChatArtifact = {
+      id: createArtifactId(title),
+      title,
+      kind: getArtifactKind(title, language),
+      language,
+      content: artifactContent,
+      summary: getArtifactSummary(artifactContent),
+      sourceStart: heading?.start ?? match.index,
+      sourceEnd: fencePattern.lastIndex,
+    };
+
+    artifacts.push(artifact);
+  }
+
+  return artifacts;
+};
+
+const renderArtifactCardHtml = (artifact: ChatArtifact): string => {
+  return [
+    `<button type="button" class="artifact-card inline-artifact-card" data-artifact-id="${escapeAttribute(artifact.id)}">`,
+    '<span class="artifact-card-icon">FILE</span>',
+    '<span class="artifact-card-main">',
+    `<strong>${escapeHtml(artifact.title)}</strong>`,
+    `<span>${escapeHtml(artifact.summary || '已生成可预览文件')}</span>`,
+    '</span>',
+    `<span class="artifact-card-kind">${escapeHtml(artifact.kind === 'code' ? artifact.language : '预览')}</span>`,
+    '</button>',
+  ].join('');
+};
+
+const renderMarkdownBlocks = (text: string): string => {
+  const lines = text.replace(/\r\n/g, '\n').split('\n');
+  const html: string[] = [];
   const paragraphLines: string[] = [];
-  let activeList: LiveAnswerListBlock | null = null;
+  let listType: 'ol' | 'ul' | null = null;
+  let listItems: string[] = [];
+  let index = 0;
 
-  const flushParagraph = () => {
+  const flushParagraph = (): void => {
     const paragraph = paragraphLines.join('\n').trim();
     paragraphLines.length = 0;
-
     if (paragraph) {
-      blocks.push(createTextBlock('paragraph', paragraph));
+      html.push(`<p class="live-answer-paragraph">${renderInlineMarkdown(paragraph).replace(/\n/g, '<br>')}</p>`);
     }
   };
 
-  const flushList = () => {
-    if (activeList?.items.length) {
-      blocks.push(activeList);
-    }
-
-    activeList = null;
+  const flushList = (): void => {
+    if (!listType || !listItems.length) return;
+    html.push(`<${listType} class="live-answer-list${listType === 'ol' ? ' ordered' : ''}">`);
+    listItems.forEach((item) => {
+      html.push(`<li>${renderInlineMarkdown(item)}</li>`);
+    });
+    html.push(`</${listType}>`);
+    listType = null;
+    listItems = [];
   };
 
-  for (const rawLine of text.replace(/\r\n/g, '\n').split('\n')) {
+  const collectTable = (): string[] => {
+    const rows: string[] = [];
+    while (index < lines.length && /\|/.test(lines[index] || '')) {
+      rows.push(lines[index] || '');
+      index += 1;
+    }
+    return rows;
+  };
+
+  while (index < lines.length) {
+    const rawLine = lines[index] || '';
     const line = rawLine.trim();
 
     if (!line) {
       flushParagraph();
+      flushList();
+      index += 1;
       continue;
     }
 
-    const headingMatch = line.match(/^#{1,4}\s+(.+)$/);
-    if (headingMatch) {
-      const headingText = headingMatch[1]?.trim();
-      if (!headingText) continue;
-
+    const collapseMatch = line.match(/^:::collapse\s+(.+)$/);
+    if (collapseMatch) {
       flushParagraph();
       flushList();
-      blocks.push(createTextBlock('heading', headingText));
+      index += 1;
+      const collapseLines: string[] = [];
+      while (index < lines.length && (lines[index] || '').trim() !== ':::') {
+        collapseLines.push(lines[index] || '');
+        index += 1;
+      }
+      if (index < lines.length) index += 1;
+      html.push([
+        '<details class="live-answer-collapse">',
+        `<summary>${renderInlineMarkdown((collapseMatch[1] || '').trim())}</summary>`,
+        '<div class="live-answer-collapse-body">',
+        renderMarkdownBlocks(collapseLines.join('\n')),
+        '</div>',
+        '</details>',
+      ].join(''));
+      continue;
+    }
+
+    const fenceMatch = line.match(/^```([A-Za-z0-9_-]+)?\s*$/);
+    if (fenceMatch) {
+      flushParagraph();
+      flushList();
+      index += 1;
+      const codeLines: string[] = [];
+      while (index < lines.length && !/^```\s*$/.test((lines[index] || '').trim())) {
+        codeLines.push(lines[index] || '');
+        index += 1;
+      }
+      if (index < lines.length) index += 1;
+      const language = fenceMatch[1] ? `<span>${escapeHtml(fenceMatch[1])}</span>` : '';
+      html.push(`<pre class="live-answer-codeblock">${language}<code>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+      continue;
+    }
+
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+      const level = Math.min(4, headingMatch[1]?.length || 3);
+      html.push(`<h${level} class="live-answer-heading level-${level}">${renderInlineMarkdown((headingMatch[2] || '').trim())}</h${level}>`);
+      index += 1;
+      continue;
+    }
+
+    if (/^[-*_]{3,}$/.test(line)) {
+      flushParagraph();
+      flushList();
+      html.push('<hr class="live-answer-rule">');
+      index += 1;
+      continue;
+    }
+
+    if (/^\|?.+\|.+$/.test(line) && /^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test((lines[index + 1] || '').trim())) {
+      flushParagraph();
+      flushList();
+      html.push(renderMarkdownTable(collectTable()));
+      continue;
+    }
+
+    const quoteMatch = line.match(/^>\s?(.+)$/);
+    if (quoteMatch) {
+      flushParagraph();
+      flushList();
+      const quoteLines = [quoteMatch[1] || ''];
+      index += 1;
+      while (index < lines.length) {
+        const nextQuote = (lines[index] || '').trim().match(/^>\s?(.+)$/);
+        if (!nextQuote) break;
+        quoteLines.push(nextQuote[1] || '');
+        index += 1;
+      }
+      html.push(`<blockquote class="live-answer-quote">${renderInlineMarkdown(quoteLines.join('\n')).replace(/\n/g, '<br>')}</blockquote>`);
       continue;
     }
 
     const orderedMatch = line.match(/^(\d+)[.)、]\s+(.+)$/);
     const unorderedMatch = line.match(/^[-*•]\s+(.+)$/);
-    const listKind = orderedMatch ? 'ordered-list' : unorderedMatch ? 'unordered-list' : null;
-    const listText = orderedMatch?.[2] ?? unorderedMatch?.[1];
+    const checkboxMatch = line.match(/^[-*]\s+\[([ xX])\]\s+(.+)$/);
+    const nextListType = orderedMatch ? 'ol' : unorderedMatch || checkboxMatch ? 'ul' : null;
+    const listText = checkboxMatch
+      ? `${checkboxMatch[1]?.trim() ? '☑' : '☐'} ${checkboxMatch[2] || ''}`
+      : orderedMatch?.[2] ?? unorderedMatch?.[1];
 
-    if (listKind && listText) {
+    if (nextListType && listText) {
       flushParagraph();
-
-      if (!activeList || activeList.type !== listKind) {
-        flushList();
-        activeList = { type: listKind, items: [] };
-      }
-
-      activeList.items.push({
-        text: listText.trim(),
-        segments: createInlineSegments(listText.trim()),
-      });
+      if (listType && listType !== nextListType) flushList();
+      listType = nextListType;
+      listItems.push(listText.trim());
+      index += 1;
       continue;
     }
 
     flushList();
     paragraphLines.push(line);
+    index += 1;
   }
 
   flushParagraph();
   flushList();
 
-  return blocks;
+  return html.join('');
+};
+
+const renderLiveAnswerMarkdown = (text: string, inlineArtifacts: ChatArtifact[] = []): string => {
+  if (!inlineArtifacts.length) return renderMarkdownBlocks(text);
+
+  const artifactByRange = new Map(
+    inlineArtifacts.map((artifact) => [`${artifact.sourceStart}:${artifact.sourceEnd}`, artifact]),
+  );
+  const ranges = extractGeneratedArtifactRanges(text).sort((left, right) => left.start - right.start);
+  let html = '';
+  let cursor = 0;
+
+  ranges.forEach((range) => {
+    if (range.start < cursor) return;
+    html += renderMarkdownBlocks(text.slice(cursor, range.start));
+    const artifact = artifactByRange.get(`${range.start}:${range.end}`);
+    if (artifact) {
+      html += renderArtifactCardHtml(artifact);
+    }
+    cursor = range.end;
+  });
+
+  html += renderMarkdownBlocks(text.slice(cursor));
+  return html;
 };
 
 const extractSelectedSkillsFromPrompt = (prompt: string) => {
@@ -252,88 +745,160 @@ const extractSelectedSkillsFromPrompt = (prompt: string) => {
   }, []);
 };
 
-const getLiveAnswerListItems = (block: LiveAnswerBlock) => {
-  return block.type === 'ordered-list' || block.type === 'unordered-list'
-    ? block.items
-    : [];
+const extractSkillCreatorBrief = (prompt: string) => {
+  const withoutCommand = prompt
+    .replace(/\/skill-creator\b/gi, ' ')
+    .replace(/请使用\s+/g, ' ')
+    .replace(/帮我创建一个可复用的技能[，,]?\s*我的需求如下[:：]?/g, ' ')
+    .replace(/帮我创建一个/g, '创建')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return withoutCommand || '创建一个可复用的法律工作流技能';
 };
 
-const stopAnswerRenderer = () => {
-  if (answerRenderTimer) {
-    window.clearInterval(answerRenderTimer);
-  }
+const inferSkillCreatorAnswers = (prompt: string): SkillCreatorAnswers => {
+  const normalized = prompt.toLowerCase();
 
-  answerRenderTimer = null;
+  const scenario = /合同|协议|条款|红线|交易/.test(prompt)
+    ? '合同 / 交易文件'
+    : /尽调|调查|底稿/.test(prompt)
+      ? '尽职调查'
+      : /投融资|融资|并购|spa|term sheet/i.test(prompt)
+        ? '投融资 / 并购'
+        : /基金|合规|备案|监管/.test(prompt)
+          ? '基金 / 合规'
+          : '咨询意见';
+
+  const output = /矩阵|问题表|风险表/.test(prompt)
+    ? '风险矩阵 / 问题表'
+    : /清单|checklist/i.test(prompt)
+      ? '审查清单'
+      : /流程|规程|步骤/.test(prompt)
+        ? '工作步骤 / 操作规程'
+        : /模板|条款库/.test(prompt)
+          ? '模板 / 条款库'
+          : 'Word 文书初稿';
+
+  const source = /知识库|playbook|团队/.test(prompt)
+    ? '团队知识库'
+    : /模板|现有技能/.test(prompt)
+      ? '现有模板 / 技能'
+      : /纯文字|规则/.test(prompt) || normalized.length < 60
+        ? '纯文字描述规则'
+        : '上传或粘贴项目材料';
+
+  return {
+    scenario,
+    source,
+    output,
+    scope: /团队|共享|全员/.test(prompt) ? '团队共享' : '仅个人使用',
+  };
 };
 
-const resolveAnswerDrain = () => {
-  if (!answerDrainResolver) return;
+const renderCreatedSkillAnswer = (skill: SkillCatalogItem) => [
+  `技能创建完成：${skill.name}`,
+  `已保存到${skill.scope === 'team' ? '团队技能库' : '个人技能库'}，可在「技能」中查看、编辑和使用；输入 \`/${skill.id}\` 即可调用。`,
+  `技能 ID：${skill.id}`,
+].join('\n');
 
-  const resolve = answerDrainResolver;
-  answerDrainResolver = null;
-  resolve();
+const appendAnswerToken = (token: string) => {
+  if (!token) return;
+  generatedAnswer.value += token;
 };
 
-const drainAnswerQueue = () => {
-  if (!answerRenderQueue) {
-    stopAnswerRenderer();
-
-    if (!isGeneratingAnswer.value) {
-      isRenderingAnswer.value = false;
-      resolveAnswerDrain();
-    }
-
+const syncAnswerContent = (content: string) => {
+  if (!content || generatedAnswer.value === content) return;
+  if (content.startsWith(generatedAnswer.value)) {
+    appendAnswerToken(content.slice(generatedAnswer.value.length));
     return;
   }
 
-  const chunkSize = answerRenderQueue.length > 120
-    ? 10
-    : answerRenderQueue.length > 48
-      ? 6
-      : 2;
-  generatedAnswer.value += answerRenderQueue.slice(0, chunkSize);
-  answerRenderQueue = answerRenderQueue.slice(chunkSize);
-};
-
-const queueAnswerToken = (token: string) => {
-  if (!token) return;
-
-  answerRenderQueue += token;
-  isRenderingAnswer.value = true;
-
-  if (!answerRenderTimer) {
-    answerRenderTimer = window.setInterval(drainAnswerQueue, 22);
-  }
-};
-
-const waitForAnswerDrain = () => {
-  if (!answerRenderQueue && !answerRenderTimer) {
-    isRenderingAnswer.value = false;
-    return Promise.resolve();
-  }
-
-  return new Promise<void>((resolve) => {
-    answerDrainResolver = resolve;
-    drainAnswerQueue();
-  });
+  generatedAnswer.value = content;
 };
 
 const isResearchMode = computed(() => selectedDialogMode.value === 'research');
 const hasComposerContent = computed(() => inputValue.value.length > 0 || Boolean(selectedTemplate.value));
 const reportMock = docxLegalResearchMock;
-const hasSidePanel = computed(() => isReferenceDrawerOpen.value || isDocxPreviewOpen.value);
 const isLiveConversation = computed(() =>
   isGeneratingAnswer.value
   || Boolean(generatedAnswer.value)
   || Boolean(answerError.value)
   || Boolean(answerNotice.value)
 );
+const isSkillCreatorConversation = computed(() => /\/skill-creator\b/i.test(completedQuestion.value));
+const renderableAnswerContent = computed(() =>
+  isSkillCreatorConversation.value
+    ? formatSkillCreatorDisplayContent(generatedAnswer.value)
+    : generatedAnswer.value
+);
+const generatedArtifacts = computed(() => {
+  if (!isLiveConversation.value) return [];
 
-const liveHeaderTitle = computed(() => {
-  const normalized = completedQuestion.value.replace(/\s+/g, ' ').trim();
-  if (!normalized) return '法律咨询';
-  return normalized.length > 22 ? `${normalized.slice(0, 22)}...` : normalized;
+  return extractArtifactsFromAnswer(renderableAnswerContent.value, {
+    generatedOnly: isSkillCreatorConversation.value,
+  });
 });
+const liveAnswerHtml = computed(() =>
+  renderLiveAnswerMarkdown(
+    renderableAnswerContent.value,
+    isSkillCreatorConversation.value ? generatedArtifacts.value : [],
+  ),
+);
+const hasLiveThinking = computed(() =>
+  isSkillCreatorConversation.value
+  && (isLiveConversation.value || Boolean(liveThinkingContent.value.trim()))
+);
+const liveThinkingLabel = computed(() =>
+  isGeneratingAnswer.value ? '正在思考' : '思考过程'
+);
+const liveThinkingHint = computed(() => {
+  if (isLiveThinkingExpanded.value) return '收起思考过程';
+  if (liveThinkingContent.value.trim()) return '点击展开查看完整思考内容';
+  return isGeneratingAnswer.value ? '点击展开查看流式思考内容' : '本次历史暂未保存思考内容';
+});
+const liveThinkingBodyHtml = computed(() =>
+  renderLiveAnswerMarkdown(
+    liveThinkingContent.value.trim()
+      ? liveThinkingContent.value
+      : isGeneratingAnswer.value
+        ? '正在等待模型返回思考内容...'
+        : '这条历史没有保存到思考过程；后续生成会自动保留。',
+  )
+);
+const createdSkillIdFromAnswer = computed(() => {
+  const idFromContent = extractCreatedSkillIdFromContent(generatedAnswer.value);
+  if (idFromContent) return idFromContent;
+
+  const skillMarkdown = generatedArtifacts.value.find((artifact) => artifact.title === 'SKILL.md')?.content || '';
+  const frontmatterName = skillMarkdown.match(/^name\s*:\s*['"]?([^'"\n]+)['"]?/m);
+  return frontmatterName?.[1]?.trim() || '';
+});
+const skillCompletionSkill = computed(() =>
+  createdSkillResult.value
+  ?? (createdSkillIdFromAnswer.value ? getSkillByNameOrId(createdSkillIdFromAnswer.value) : null)
+);
+const shouldShowSkillValidation = computed(() =>
+  isSkillCreatorConversation.value && skillValidationStatus.value === 'checking'
+);
+const shouldShowSkillCompletion = computed(() =>
+  isSkillCreatorConversation.value
+  && skillValidationStatus.value === 'complete'
+  && Boolean(skillCompletionSkill.value)
+);
+const activeArtifact = computed(() =>
+  generatedArtifacts.value.find((artifact) => artifact.id === activeArtifactId.value)
+    ?? generatedArtifacts.value[0]
+    ?? null
+);
+const hasPreviewPanel = computed(() => isDocxPreviewOpen.value || (isArtifactPreviewOpen.value && Boolean(activeArtifact.value)));
+const shouldShowAnswerActions = computed(() =>
+  !isGeneratingAnswer.value
+  && (Boolean(generatedAnswer.value) || Boolean(answerError.value) || Boolean(answerNotice.value) || !isLiveConversation.value)
+);
+
+const activeHistoryItem = computed(() => findHistoryItem(activeHistoryId.value, completedQuestion.value));
+const liveHeaderTitle = computed(() => activeHistoryItem.value?.title || '新会话');
 const headerTitle = computed(() => {
   if (!hasCompletedMock.value) return '新提问';
   return isLiveConversation.value ? liveHeaderTitle.value : reportMock.title;
@@ -343,7 +908,6 @@ const headerTime = computed(() => {
   return isLiveConversation.value ? currentTime.value : reportMock.createdAt;
 });
 const completedQuestionParts = computed(() => tokenizePromptText(completedQuestion.value));
-const liveAnswerBlocks = computed(() => parseLiveAnswerBlocks(generatedAnswer.value));
 const processToolCount = computed(() =>
   reportMock.timeline.reduce((count, node) => count + (node.tools?.length ?? 0), 0)
 );
@@ -351,10 +915,13 @@ const processSummaryText = computed(() =>
   `已完成 ${reportMock.timeline.length} 个处理阶段、${processToolCount.value} 项工具动作，采用 ${reportMock.references.length} 条参考来源。`
 );
 const answerStatusLabel = computed(() => {
-  if ((isGeneratingAnswer.value && generatedAnswer.value) || isRenderingAnswer.value) return '正在流式生成';
+  if (shouldShowSkillValidation.value) return '正在校验技能';
+  if (isSkillCreatorConversation.value && isGeneratingAnswer.value) return '正在创建技能';
+  if (isGeneratingAnswer.value && generatedAnswer.value) return '正在流式生成';
   if (isGeneratingAnswer.value) return '正在生成回答';
   if (answerError.value) return '调用异常';
   if (answerNotice.value) return '暂无缓存';
+  if (isSkillCreatorConversation.value && generatedAnswer.value) return '已创建技能';
   return '已完成回答';
 });
 
@@ -389,7 +956,7 @@ const selectDialogMode = (modeId: string) => {
   selectedDialogMode.value = modeId;
 };
 
-const selectedThinkingMode = ref('fast');
+const selectedThinkingMode = ref('thinking');
 const thinkingModes = [
   { id: 'fast', label: '快速', icon: Zap },
   { id: 'thinking', label: '思考', icon: Brain },
@@ -486,18 +1053,51 @@ const syncConversationRoute = (historyId: string, prompt: string) => {
   });
 };
 
+const refreshGeneratedConversationTitle = async (
+  historyId: string | null | undefined,
+  prompt: string,
+  answer: string,
+) => {
+  if (!historyId || !prompt.trim() || !answer.trim()) return;
+
+  try {
+    const title = await generateDeepSeekConversationTitle(prompt, answer);
+    if (!title) return;
+    applyGeneratedConversationTitle(historyId, prompt, title);
+  } catch {
+    // Keep the visible "新会话" title if the secondary title request fails.
+  }
+};
+
 const hydrateCachedConversation = (prompt: string, historyId?: string) => {
   const cached = getCachedConversation(historyId, prompt);
   if (!cached?.answer) return false;
 
   beginConversation(cached.prompt, false, cached.id, !historyId);
   isDocxPreviewOpen.value = false;
+  isArtifactPreviewOpen.value = false;
   answerModel.value = cached.answer.model || '';
-  generatedAnswer.value = cached.answer.content;
+  const normalizedCachedContent = normalizeGeneratedArtifactBoundaries(cached.answer.content);
+  generatedAnswer.value = normalizedCachedContent;
+  liveThinkingContent.value = cached.answer.thinkingContent || '';
+  isLiveThinkingExpanded.value = false;
+  const restoredSkillId = cached.answer.createdSkillId || extractCreatedSkillIdFromContent(normalizedCachedContent);
+  createdSkillResult.value = restoredSkillId ? getSkillByNameOrId(restoredSkillId) : null;
+  skillValidationStatus.value = restoredSkillId ? 'complete' : 'idle';
+  skillValidationMessage.value = createdSkillResult.value
+    ? `技能完整度校验通过，已保存到${createdSkillResult.value.scope === 'team' ? '团队技能库' : '个人技能库'}。`
+    : '';
   answerError.value = '';
   answerNotice.value = '';
   isGeneratingAnswer.value = false;
-  isRenderingAnswer.value = false;
+  if (normalizedCachedContent !== cached.answer.content) {
+    updateConversationAnswer(cached.id, cached.prompt, {
+      ...cached.answer,
+      content: normalizedCachedContent,
+      cachedAt: new Date().toISOString(),
+    });
+  }
+  void nextTick(openFirstGeneratedArtifact);
   return true;
 };
 
@@ -509,11 +1109,15 @@ const hydrateMissingCachedConversation = (prompt: string, historyId?: string) =>
   beginConversation(nextPrompt, false, historyId);
   isDocxPreviewOpen.value = false;
   generatedAnswer.value = '';
+  liveThinkingContent.value = '';
+  isLiveThinkingExpanded.value = false;
+  skillValidationStatus.value = 'idle';
+  skillValidationMessage.value = '';
+  createdSkillResult.value = null;
   answerModel.value = '';
   answerError.value = '';
   answerNotice.value = '这条历史暂未保存回答内容。新提问生成成功后会自动缓存，之后点击历史或刷新会直接加载结果。';
   isGeneratingAnswer.value = false;
-  isRenderingAnswer.value = false;
   return true;
 };
 
@@ -523,22 +1127,26 @@ const beginConversation = (
   historyId?: string,
   shouldSyncRoute = false,
 ) => {
-  stopAnswerRenderer();
-  answerRenderQueue = '';
-  isRenderingAnswer.value = false;
-  resolveAnswerDrain();
   completedQuestion.value = prompt;
   hasCompletedMock.value = true;
   isReferenceDrawerOpen.value = false;
+  isArtifactPreviewOpen.value = false;
   isProcessExpanded.value = false;
   isThinkingExpanded.value = true;
+  isLiveThinkingExpanded.value = false;
   activeReferenceId.value = null;
+  activeArtifactId.value = '';
   expandedReferenceIds.value = new Set();
   generatedAnswer.value = '';
+  liveThinkingContent.value = '';
   answerModel.value = '';
   answerError.value = '';
   answerNotice.value = '';
   isGeneratingAnswer.value = false;
+  skillValidationStatus.value = 'idle';
+  skillValidationMessage.value = '';
+  createdSkillResult.value = null;
+  lastAutoOpenedArtifactId.value = '';
   inputValue.value = '';
   selectedTemplate.value = null;
   showSourceNotice.value = false;
@@ -571,9 +1179,112 @@ const completeLiveConversation = async (
   shouldRecord = true,
   historyId?: string,
 ) => {
+  if (hydrateCachedConversation(prompt, historyId)) return;
+
+  if (historyId && !findHistoryItem(historyId, prompt)) {
+    hydrateMissingCachedConversation(prompt, historyId);
+    return;
+  }
+
+  if (/\/skill-creator\b/i.test(prompt)) {
+    const historyItem = beginConversation(prompt, shouldRecord, historyId, shouldRecord || !historyId);
+    isDocxPreviewOpen.value = false;
+    isGeneratingAnswer.value = true;
+    answerModel.value = 'deepseek-v4-flash';
+    liveThinkingContent.value = '';
+    isLiveThinkingExpanded.value = false;
+    skillValidationStatus.value = 'idle';
+    skillValidationMessage.value = '';
+    createdSkillResult.value = null;
+    lastAutoOpenedArtifactId.value = '';
+
+    try {
+      const result = await streamSkillWithSkillCreator(
+        extractSkillCreatorBrief(prompt),
+        inferSkillCreatorAnswers(prompt),
+        {
+          onFinalContent(content) {
+            syncAnswerContent(content);
+          },
+          onMeta(model) {
+            answerModel.value = model;
+          },
+          onThinking(token) {
+            liveThinkingContent.value += token;
+          },
+          onToken(token) {
+            appendAnswerToken(token);
+          },
+          onValidation(payload) {
+            skillValidationStatus.value = payload.status;
+            skillValidationMessage.value = payload.message || '正在校验技能完整度。';
+          },
+        },
+        {
+          thinkingMode: selectedThinkingMode.value,
+        },
+      );
+      skillValidationStatus.value = 'checking';
+      skillValidationMessage.value = '正在写入技能库、持久化保存并完成读回校验。';
+
+      const savedSkill = upsertCustomSkill({
+        ...result.skill,
+        status: 'active',
+      }, { persist: false });
+      if (!savedSkill) {
+        throw new Error('技能已生成，但写入技能库失败');
+      }
+
+      const locallyVerifiedSkill = getSkillByNameOrId(savedSkill.id);
+      if (!locallyVerifiedSkill) {
+        throw new Error('技能已生成，但未能从当前技能库读回，请重新创建或打开技能管理检查');
+      }
+
+      const persistedSkill = await persistCustomSkillNow(locallyVerifiedSkill);
+      const finalSkill = upsertCustomSkill({
+        ...persistedSkill,
+        status: 'active',
+      }, { persist: false });
+      const verifiedSkill = getSkillByNameOrId(finalSkill?.id || savedSkill.id);
+      if (!verifiedSkill) {
+        throw new Error('技能已持久化，但未能从当前技能库读回，请刷新后打开技能管理检查');
+      }
+
+      createdSkillResult.value = verifiedSkill;
+      skillValidationStatus.value = 'complete';
+      skillValidationMessage.value = `技能完整度校验通过，已保存到${verifiedSkill.scope === 'team' ? '团队技能库' : '个人技能库'}。`;
+
+      const streamedContent = result.answerContent.trim();
+      const resultContent = streamedContent || renderCreatedSkillAnswer(verifiedSkill);
+
+      answerModel.value = result.model || answerModel.value;
+      isGeneratingAnswer.value = false;
+      syncAnswerContent(resultContent);
+
+      const cachedItem = updateConversationAnswer(activeHistoryId.value || historyItem?.id, prompt, {
+        content: resultContent,
+        model: answerModel.value,
+        cachedAt: new Date().toISOString(),
+        createdSkillId: verifiedSkill.id,
+        thinkingContent: liveThinkingContent.value,
+      });
+
+      if (cachedItem) {
+        activeHistoryId.value = cachedItem.id;
+        syncConversationRoute(cachedItem.id, cachedItem.prompt);
+        void refreshGeneratedConversationTitle(cachedItem.id, cachedItem.prompt, resultContent);
+      }
+    } catch (error) {
+      isGeneratingAnswer.value = false;
+      skillValidationStatus.value = skillValidationStatus.value === 'checking' ? 'error' : skillValidationStatus.value;
+      answerError.value = error instanceof Error ? error.message : '技能生成失败';
+    }
+
+    return;
+  }
+
   const selectedSkills = extractSelectedSkillsFromPrompt(prompt);
   if (!selectedSkills.length) {
-    if (hydrateCachedConversation(prompt, historyId)) return;
     if (hydrateMissingCachedConversation(prompt, historyId)) return;
   }
 
@@ -584,7 +1295,7 @@ const completeLiveConversation = async (
 
   try {
     selectedSkills.forEach((skill) => markSkillUsed(skill.id));
-    const result = await streamOpenRouterMessage(
+    const result = await streamDeepSeekMessage(
       prompt,
       {
         mode: selectedDialogMode.value,
@@ -605,20 +1316,20 @@ const completeLiveConversation = async (
         onMeta(model) {
           answerModel.value = model;
         },
-        onToken(_token, fullContent) {
-          const renderedLength = generatedAnswer.value.length + answerRenderQueue.length;
-          queueAnswerToken(fullContent.slice(renderedLength));
+        onToken(token) {
+          appendAnswerToken(token);
         },
       },
     );
 
     answerModel.value = result.model || answerModel.value;
     isGeneratingAnswer.value = false;
-    await waitForAnswerDrain();
 
     if (generatedAnswer.value !== result.content) {
       generatedAnswer.value = result.content;
     }
+
+    openFirstGeneratedArtifact();
 
     const cachedItem = updateConversationAnswer(activeHistoryId.value || historyItem?.id, prompt, {
       content: result.content,
@@ -629,10 +1340,10 @@ const completeLiveConversation = async (
     if (cachedItem) {
       activeHistoryId.value = cachedItem.id;
       syncConversationRoute(cachedItem.id, cachedItem.prompt);
+      void refreshGeneratedConversationTitle(cachedItem.id, cachedItem.prompt, result.content);
     }
   } catch (error) {
     isGeneratingAnswer.value = false;
-    await waitForAnswerDrain();
     answerError.value = error instanceof Error ? error.message : 'DeepSeek 调用失败';
   } finally {
     isGeneratingAnswer.value = false;
@@ -645,9 +1356,13 @@ const submitComposer = () => {
   void completeLiveConversation(inputValue.value.trim() || reportMock.userPrompt);
 };
 
-const submitSharedComposer = (value: string) => {
+const submitSharedComposer = (value: string, options?: { thinkingMode?: string }) => {
   const nextValue = value.trim();
   if (!nextValue) return;
+
+  if (options?.thinkingMode) {
+    selectedThinkingMode.value = options.thinkingMode;
+  }
 
   void completeLiveConversation(nextValue);
 };
@@ -690,6 +1405,7 @@ const revealReference = async (referenceId: number) => {
   expandedReferenceIds.value = new Set([...expandedReferenceIds.value, referenceId]);
   isReferenceDrawerOpen.value = true;
   isDocxPreviewOpen.value = false;
+  isArtifactPreviewOpen.value = false;
 
   await nextTick();
   scrollReferenceIntoView(referenceId);
@@ -722,6 +1438,7 @@ const toggleReferenceDrawer = () => {
   isReferenceDrawerOpen.value = !isReferenceDrawerOpen.value;
   if (isReferenceDrawerOpen.value) {
     isDocxPreviewOpen.value = false;
+    isArtifactPreviewOpen.value = false;
     const referenceId = activeReferenceId.value;
     if (referenceId) {
       void nextTick(() => scrollReferenceIntoView(referenceId));
@@ -731,11 +1448,192 @@ const toggleReferenceDrawer = () => {
 
 const openDocxPreview = () => {
   isReferenceDrawerOpen.value = false;
+  isArtifactPreviewOpen.value = false;
   isDocxPreviewOpen.value = true;
 };
 
 const closeDocxPreview = () => {
   isDocxPreviewOpen.value = false;
+};
+
+const getSafeFenceForContent = (content: string, currentFence: string) => {
+  const maxBacktickRun = Math.max(0, ...(content.match(/`+/g) || []).map((run) => run.length));
+  return '`'.repeat(Math.max(currentFence.length, 3, maxBacktickRun + 1));
+};
+
+const replaceFencedArtifactContent = (
+  source: string,
+  start: number,
+  end: number,
+  nextContent: string,
+) => {
+  const sectionText = source.slice(start, end);
+  const fenceMatch = sectionText.match(/(`{3,})([^\n`]*)\n?/);
+  if (!fenceMatch || fenceMatch.index === undefined) return null;
+
+  const normalizedContent = nextContent.replace(/\r\n/g, '\n').replace(/\s+$/, '');
+  const prefix = sectionText.slice(0, fenceMatch.index);
+  const fence = getSafeFenceForContent(normalizedContent, fenceMatch[1] || '```');
+  const info = fenceMatch[2] || '';
+  const contentBlock = normalizedContent ? `${normalizedContent}\n` : '';
+  const nextSection = `${prefix}${fence}${info}\n${contentBlock}${fence}`;
+  const suffix = source.slice(end);
+  const separator = suffix && !suffix.startsWith('\n') ? '\n' : '';
+
+  return `${source.slice(0, start)}${nextSection}${separator}${suffix}`;
+};
+
+const findArtifactReplacementTarget = (artifact: ChatArtifact) => {
+  const source = generatedAnswer.value;
+  const generatedTarget = extractGeneratedArtifactSections(source)
+    .map((section) => ({
+      id: createArtifactId(section.title),
+      title: section.title,
+      sourceStart: section.start,
+      sourceEnd: section.end,
+    }))
+    .find((candidate) => candidate.id === artifact.id || candidate.title === artifact.title);
+
+  if (generatedTarget) return generatedTarget;
+
+  return extractArtifactsFromAnswer(source)
+    .find((candidate) => candidate.id === artifact.id || candidate.title === artifact.title)
+    ?? null;
+};
+
+const persistEditedArtifactConversation = () => {
+  const previousAnswer = activeHistoryItem.value?.answer;
+  const cachedItem = updateConversationAnswer(activeHistoryId.value, completedQuestion.value, {
+    content: generatedAnswer.value,
+    model: answerModel.value || previousAnswer?.model,
+    cachedAt: new Date().toISOString(),
+    createdSkillId: createdSkillResult.value?.id || previousAnswer?.createdSkillId,
+    thinkingContent: liveThinkingContent.value || previousAnswer?.thinkingContent,
+  });
+
+  if (cachedItem) {
+    activeHistoryId.value = cachedItem.id;
+  }
+};
+
+const persistEditedSkillArtifact = (artifact: ChatArtifact, nextContent: string) => {
+  if (!isSkillCreatorConversation.value) return false;
+
+  const skill = skillCompletionSkill.value;
+  if (!skill) return false;
+
+  const nextFiles = skill.files.map((file) => (
+    file.path === artifact.title || file.name === artifact.title || createArtifactId(file.path) === artifact.id
+      ? { ...file, content: nextContent.replace(/\r\n/g, '\n') }
+      : file
+  ));
+  const hasChangedFile = nextFiles.some((file, index) => file.content !== skill.files[index]?.content);
+  if (!hasChangedFile) return false;
+
+  const updatedSkill = upsertCustomSkill({
+    ...skill,
+    files: nextFiles,
+    status: skill.status || 'active',
+  });
+
+  if (updatedSkill) {
+    createdSkillResult.value = updatedSkill;
+  }
+
+  return Boolean(updatedSkill);
+};
+
+const startArtifactEdit = () => {
+  const artifact = activeArtifact.value;
+  if (!artifact) return;
+
+  artifactEditContent.value = artifact.content;
+  isArtifactEditing.value = true;
+  void nextTick(() => artifactEditorRef.value?.focus());
+};
+
+const cancelArtifactEdit = () => {
+  artifactEditContent.value = activeArtifact.value?.content || '';
+  isArtifactEditing.value = false;
+};
+
+const saveArtifactEdit = () => {
+  const artifact = activeArtifact.value;
+  if (!artifact || isSavingArtifactEdit.value) return;
+
+  isSavingArtifactEdit.value = true;
+
+  try {
+    generatedAnswer.value = normalizeGeneratedArtifactBoundaries(generatedAnswer.value);
+    const target = findArtifactReplacementTarget(artifact);
+    const updatedAnswer = target
+      ? replaceFencedArtifactContent(generatedAnswer.value, target.sourceStart, target.sourceEnd, artifactEditContent.value)
+      : null;
+
+    if (!updatedAnswer) {
+      showToast('未找到可保存的 Artifact 内容');
+      return;
+    }
+
+    generatedAnswer.value = updatedAnswer;
+    persistEditedArtifactConversation();
+    persistEditedSkillArtifact(artifact, artifactEditContent.value);
+    isArtifactEditing.value = false;
+    showToast('Artifact 已保存');
+  } finally {
+    isSavingArtifactEdit.value = false;
+  }
+};
+
+const openArtifactPreview = (artifactId: string) => {
+  isArtifactEditing.value = false;
+  artifactEditContent.value = '';
+  activeArtifactId.value = artifactId;
+  isReferenceDrawerOpen.value = false;
+  isDocxPreviewOpen.value = false;
+  isArtifactPreviewOpen.value = true;
+};
+
+const handleLiveAnswerClick = (event: MouseEvent) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+
+  const card = target.closest<HTMLElement>('[data-artifact-id]');
+  const artifactId = card?.dataset.artifactId;
+  if (!artifactId) return;
+
+  openArtifactPreview(artifactId);
+};
+
+const openFirstGeneratedArtifact = () => {
+  const firstArtifact = generatedArtifacts.value[0];
+  if (!firstArtifact) {
+    isArtifactPreviewOpen.value = false;
+    activeArtifactId.value = '';
+    return;
+  }
+
+  openArtifactPreview(firstArtifact.id);
+};
+
+const useCreatedSkillNow = () => {
+  const skill = skillCompletionSkill.value;
+  if (!skill) return;
+
+  void router.push({
+    name: 'home',
+    query: {
+      composerAction: 'use-skill',
+      skillName: skill.id,
+      composerTick: Date.now().toString(),
+    },
+  });
+};
+
+const closeArtifactPreview = () => {
+  isArtifactEditing.value = false;
+  artifactEditContent.value = '';
+  isArtifactPreviewOpen.value = false;
 };
 
 const selectTemplateFromShortcut = (template: TemplateAsset) => {
@@ -798,20 +1696,144 @@ const closeDropdown = () => {
   showTemplateMenu.value = false;
 };
 
+const showToast = (message: string) => {
+  toastMessage.value = message;
+  if (toastTimer) {
+    window.clearTimeout(toastTimer);
+  }
+  toastTimer = window.setTimeout(() => {
+    toastMessage.value = '';
+    toastTimer = undefined;
+  }, 1800);
+};
+
+const copyText = async (text: string, successMessage: string) => {
+  const value = text.trim();
+  if (!value) {
+    showToast('暂无可复制内容');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(value);
+    showToast(successMessage);
+  } catch {
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    showToast(copied ? successMessage : '复制失败，请手动复制');
+  }
+};
+
+const getShareUrl = () => {
+  if (typeof window === 'undefined') return '';
+  return window.location.href;
+};
+
+const getAnswerPlainText = () => {
+  if (isLiveConversation.value) {
+    return generatedAnswer.value || answerError.value || answerNotice.value;
+  }
+
+  return [
+    reportMock.title,
+    reportMock.summary,
+    ...reportMock.sections.flatMap((section) => [
+      section.title,
+      ...(section.paragraphs ?? []),
+      ...(section.bullets ?? []),
+    ]),
+  ].join('\n\n');
+};
+
+const copyQuestion = () => {
+  void copyText(completedQuestion.value, '问题已复制');
+};
+
+const copyAnswer = () => {
+  void copyText(getAnswerPlainText(), '回答已复制');
+};
+
+const copyShareLink = () => {
+  void copyText(getShareUrl(), '分享链接已复制');
+};
+
+const deleteCurrentConversation = () => {
+  const removed = activeHistoryId.value ? deleteConversation(activeHistoryId.value) : false;
+
+  completedQuestion.value = '';
+  hasCompletedMock.value = false;
+  generatedAnswer.value = '';
+  liveThinkingContent.value = '';
+  isLiveThinkingExpanded.value = false;
+  skillValidationStatus.value = 'idle';
+  skillValidationMessage.value = '';
+  createdSkillResult.value = null;
+  answerError.value = '';
+  answerNotice.value = '';
+  activeHistoryId.value = '';
+  isDocxPreviewOpen.value = false;
+  isArtifactPreviewOpen.value = false;
+  activeArtifactId.value = '';
+  isReferenceDrawerOpen.value = false;
+  showToast(removed ? '会话已删除' : '当前内容已删除');
+  void router.push({ name: 'home' });
+};
+
+const addCurrentAnswerToKnowledgeBase = () => {
+  showToast('已加入知识库');
+};
+
 onMounted(() => {
   document.addEventListener('click', closeDropdown);
   void openRoutePrompt();
 });
 
 onBeforeUnmount(() => {
-  stopAnswerRenderer();
   document.removeEventListener('click', closeDropdown);
-  document.body.classList.remove('docx-preview-mode');
+  if (toastTimer) {
+    window.clearTimeout(toastTimer);
+  }
 });
 
-watch(isDocxPreviewOpen, (isOpen) => {
-  document.body.classList.toggle('docx-preview-mode', isOpen);
+watch(generatedArtifacts, (artifacts) => {
+  if (!artifacts.length) return;
+
+  if (isSkillCreatorConversation.value) {
+    const latestArtifact = artifacts[artifacts.length - 1];
+    if (latestArtifact && latestArtifact.id !== lastAutoOpenedArtifactId.value) {
+      lastAutoOpenedArtifactId.value = latestArtifact.id;
+      openArtifactPreview(latestArtifact.id);
+    }
+    return;
+  }
+
+  if (!activeArtifactId.value) return;
+  if (!artifacts.some((artifact) => artifact.id === activeArtifactId.value)) {
+    activeArtifactId.value = artifacts[0]?.id || '';
+  }
 });
+
+watch(
+  () => [activeArtifact.value?.id, activeArtifact.value?.content] as const,
+  ([artifactId, content]) => {
+    if (!artifactId) {
+      artifactEditContent.value = '';
+      isArtifactEditing.value = false;
+      return;
+    }
+
+    if (!isArtifactEditing.value) {
+      artifactEditContent.value = content || '';
+    }
+  },
+);
 
 watch(
   () => [route.query.mock, route.query.prompt, route.query.historyId],
@@ -822,7 +1844,7 @@ watch(
 </script>
 
 <template>
-  <div class="chat-page" :class="{ 'preview-split': isDocxPreviewOpen }" @click.self="closeDropdown">
+  <div class="chat-page" :class="{ 'preview-split': hasPreviewPanel }" @click.self="closeDropdown">
     <main class="chat-main">
       <header class="chat-header">
         <div class="header-title-icon">
@@ -865,14 +1887,14 @@ watch(
                 </template>
               </p>
               <div class="question-actions">
-                <button type="button"><Copy :size="13" />复制</button>
-                <button type="button"><Trash2 :size="13" />删除</button>
+                <button type="button" @click="copyQuestion"><Copy :size="13" />复制</button>
+                <button type="button" @click="deleteCurrentConversation"><Trash2 :size="13" />删除</button>
               </div>
             </div>
           </div>
 
           <article class="answer-card">
-            <header class="answer-card-header">
+            <header v-if="!isSkillCreatorConversation" class="answer-card-header">
               <button class="answer-status-button" type="button">
                 {{ answerStatusLabel }}
                 <ChevronDown :size="14" />
@@ -892,66 +1914,82 @@ watch(
 
             <div class="answer-content">
               <section v-if="isLiveConversation" class="live-answer-section" aria-label="DeepSeek 生成结果">
-                <p v-if="answerModel" class="live-model">DeepSeek · {{ answerModel }}</p>
                 <div v-if="isGeneratingAnswer && !generatedAnswer" class="live-loading">
-                  <Brain :size="17" />
-                  <span>正在调用 DeepSeek 生成回答...</span>
+                  <Puzzle v-if="isSkillCreatorConversation" :size="17" />
+                  <Brain v-else :size="17" />
+                  <span>{{ isSkillCreatorConversation ? '正在创建技能...' : '正在调用 DeepSeek 生成回答...' }}</span>
                 </div>
-                <div v-if="generatedAnswer" class="live-answer-text">
-                  <template v-for="(block, blockIndex) in liveAnswerBlocks" :key="`${block.type}-${blockIndex}`">
-                    <h3 v-if="block.type === 'heading'" class="live-answer-heading">
-                      <template
-                        v-for="(segment, segmentIndex) in block.segments"
-                        :key="`${blockIndex}-${segment.type}-${segmentIndex}`"
-                      >
-                        <strong v-if="segment.type === 'strong'" class="live-answer-strong">{{ segment.value }}</strong>
-                        <code v-else-if="segment.type === 'code'" class="live-answer-code">{{ segment.value }}</code>
-                        <span v-else-if="segment.type === 'source'" class="live-source-token">[{{ segment.value }}]</span>
-                        <span v-else>{{ segment.value }}</span>
-                      </template>
-                    </h3>
-
-                    <p v-else-if="block.type === 'paragraph'" class="live-answer-paragraph">
-                      <template
-                        v-for="(segment, segmentIndex) in block.segments"
-                        :key="`${blockIndex}-${segment.type}-${segmentIndex}`"
-                      >
-                        <strong v-if="segment.type === 'strong'" class="live-answer-strong">{{ segment.value }}</strong>
-                        <code v-else-if="segment.type === 'code'" class="live-answer-code">{{ segment.value }}</code>
-                        <span v-else-if="segment.type === 'source'" class="live-source-token">[{{ segment.value }}]</span>
-                        <span v-else>{{ segment.value }}</span>
-                      </template>
-                    </p>
-
-                    <ol v-else-if="block.type === 'ordered-list'" class="live-answer-list ordered">
-                      <li v-for="(item, itemIndex) in getLiveAnswerListItems(block)" :key="`${blockIndex}-item-${itemIndex}`">
-                        <template
-                          v-for="(segment, segmentIndex) in item.segments"
-                          :key="`${blockIndex}-${itemIndex}-${segment.type}-${segmentIndex}`"
-                        >
-                          <strong v-if="segment.type === 'strong'" class="live-answer-strong">{{ segment.value }}</strong>
-                          <code v-else-if="segment.type === 'code'" class="live-answer-code">{{ segment.value }}</code>
-                          <span v-else-if="segment.type === 'source'" class="live-source-token">[{{ segment.value }}]</span>
-                          <span v-else>{{ segment.value }}</span>
-                        </template>
-                      </li>
-                    </ol>
-
-                    <ul v-else class="live-answer-list">
-                      <li v-for="(item, itemIndex) in getLiveAnswerListItems(block)" :key="`${blockIndex}-item-${itemIndex}`">
-                        <template
-                          v-for="(segment, segmentIndex) in item.segments"
-                          :key="`${blockIndex}-${itemIndex}-${segment.type}-${segmentIndex}`"
-                        >
-                          <strong v-if="segment.type === 'strong'" class="live-answer-strong">{{ segment.value }}</strong>
-                          <code v-else-if="segment.type === 'code'" class="live-answer-code">{{ segment.value }}</code>
-                          <span v-else-if="segment.type === 'source'" class="live-source-token">[{{ segment.value }}]</span>
-                          <span v-else>{{ segment.value }}</span>
-                        </template>
-                      </li>
-                    </ul>
-                  </template>
-                  <span v-if="isGeneratingAnswer" class="live-answer-cursor" aria-hidden="true"></span>
+                <div
+                  v-if="hasLiveThinking"
+                  class="live-thinking-card"
+                  :class="{ expanded: isLiveThinkingExpanded, streaming: isGeneratingAnswer }"
+                >
+                  <button
+                    type="button"
+                    class="live-thinking-header"
+                    :aria-expanded="isLiveThinkingExpanded"
+                    :aria-label="`${liveThinkingLabel}，${liveThinkingHint}`"
+                    @click="isLiveThinkingExpanded = !isLiveThinkingExpanded"
+                  >
+                    <span class="live-thinking-copy">
+                      <strong class="live-thinking-shine">{{ liveThinkingLabel }}</strong>
+                    </span>
+                    <ChevronDown :size="16" class="live-thinking-arrow" />
+                  </button>
+                  <div
+                    v-if="isLiveThinkingExpanded"
+                    class="live-thinking-body"
+                    v-html="liveThinkingBodyHtml"
+                  ></div>
+                </div>
+                <div
+                  v-if="generatedAnswer"
+                  class="live-answer-text"
+                  v-html="liveAnswerHtml"
+                  @click="handleLiveAnswerClick"
+                ></div>
+                <div v-if="generatedArtifacts.length && !isSkillCreatorConversation" class="artifact-list" aria-label="生成文件">
+                  <button
+                    v-for="artifact in generatedArtifacts"
+                    :key="artifact.id"
+                    type="button"
+                    class="artifact-card"
+                    :class="{ active: activeArtifact?.id === artifact.id && isArtifactPreviewOpen }"
+                    @click="openArtifactPreview(artifact.id)"
+                  >
+                    <span class="artifact-card-icon">
+                      <FileText :size="20" />
+                    </span>
+                    <span class="artifact-card-main">
+                      <strong>{{ artifact.title }}</strong>
+                      <span>{{ artifact.summary || '已生成可预览文件' }}</span>
+                    </span>
+                    <span class="artifact-card-kind">{{ artifact.kind === 'code' ? artifact.language : '预览' }}</span>
+                  </button>
+                </div>
+                <div v-if="shouldShowSkillValidation" class="skill-validation-card">
+                  <span class="skill-validation-spinner" aria-hidden="true"></span>
+                  <div>
+                    <strong>校验技能完整度</strong>
+                    <span>{{ skillValidationMessage || '正在解析技能结构、文件完整性和持久化状态。' }}</span>
+                  </div>
+                </div>
+                <div v-if="shouldShowSkillCompletion && skillCompletionSkill" class="skill-completion-card">
+                  <span class="skill-completion-icon">
+                    <Check :size="18" />
+                  </span>
+                  <div class="skill-completion-copy">
+                    <strong>技能创建完成：{{ skillCompletionSkill.name }}</strong>
+                    <span>
+                      已保存到{{ skillCompletionSkill.scope === 'team' ? '团队技能库' : '个人技能库' }}，可在「技能」中查看、编辑和使用；输入
+                      <code>/{{ skillCompletionSkill.id }}</code>
+                      即可调用。
+                    </span>
+                  </div>
+                  <button type="button" class="skill-completion-cta" @click="useCreatedSkillNow">
+                    <Zap :size="15" />
+                    立即使用
+                  </button>
                 </div>
                 <p v-if="answerNotice" class="live-notice">{{ answerNotice }}</p>
                 <p v-if="answerError" class="live-error">{{ answerError }}</p>
@@ -1052,11 +2090,11 @@ watch(
               </template>
             </div>
 
-            <div class="answer-actions">
-              <button type="button"><Copy :size="14" />复制</button>
-              <button type="button"><Trash2 :size="14" />删除</button>
-              <button type="button"><Share2 :size="14" />分享</button>
-              <button type="button"><Zap :size="14" />加入知识库</button>
+            <div v-if="shouldShowAnswerActions" class="answer-actions">
+              <button type="button" @click="copyAnswer"><Copy :size="14" />复制</button>
+              <button type="button" @click="deleteCurrentConversation"><Trash2 :size="14" />删除</button>
+              <button type="button" @click="copyShareLink"><Share2 :size="14" />分享</button>
+              <button type="button" @click="addCurrentAnswerToKnowledgeBase"><Zap :size="14" />加入知识库</button>
             </div>
           </article>
         </div>
@@ -1127,11 +2165,87 @@ watch(
             </dl>
             <blockquote v-if="source.quote">{{ source.quote }}</blockquote>
           </div>
-          <button type="button" class="source-kb-button" @click.stop>
+          <button type="button" class="source-kb-button" @click.stop="addCurrentAnswerToKnowledgeBase">
             <Zap :size="13" />
             加入知识库
           </button>
         </article>
+      </div>
+    </aside>
+
+    <aside v-if="hasCompletedMock && isArtifactPreviewOpen && activeArtifact" class="artifact-preview-panel" aria-label="Artifact 文件预览">
+      <header class="artifact-preview-header">
+        <div class="artifact-preview-title">
+          <span class="artifact-preview-icon">
+            <FileText :size="18" />
+          </span>
+          <div>
+            <strong>{{ activeArtifact.title }}</strong>
+            <span>{{ isArtifactEditing ? 'Artifact 编辑' : activeArtifact.kind === 'code' ? activeArtifact.language : 'Artifact 预览' }}</span>
+          </div>
+        </div>
+        <div class="artifact-preview-actions">
+          <template v-if="isArtifactEditing">
+            <button
+              type="button"
+              class="artifact-preview-action"
+              aria-label="取消编辑"
+              title="取消编辑"
+              :disabled="isSavingArtifactEdit"
+              @click="cancelArtifactEdit"
+            >
+              <X :size="15" />
+              <span>取消</span>
+            </button>
+            <button
+              type="button"
+              class="artifact-preview-action primary"
+              aria-label="保存 Artifact"
+              title="保存 Artifact"
+              :disabled="isSavingArtifactEdit"
+              @click="saveArtifactEdit"
+            >
+              <Check :size="15" />
+              <span>{{ isSavingArtifactEdit ? '保存中' : '保存' }}</span>
+            </button>
+          </template>
+          <button
+            v-else
+            type="button"
+            class="artifact-preview-action"
+            aria-label="编辑 Artifact"
+            title="编辑 Artifact"
+            @click="startArtifactEdit"
+          >
+            <Pencil :size="15" />
+            <span>编辑</span>
+          </button>
+          <button type="button" class="artifact-preview-close" aria-label="关闭文件预览" title="关闭文件预览" @click="closeArtifactPreview">
+            <X :size="18" />
+          </button>
+        </div>
+      </header>
+
+      <div class="artifact-preview-scroll" :class="{ 'is-editing': isArtifactEditing }">
+        <textarea
+          v-if="isArtifactEditing"
+          ref="artifactEditorRef"
+          v-model="artifactEditContent"
+          class="artifact-editor"
+          :aria-label="`编辑 ${activeArtifact.title}`"
+          spellcheck="false"
+        ></textarea>
+        <template v-else>
+          <iframe
+            v-if="activeArtifact.kind === 'html'"
+            class="artifact-html-frame"
+            title="HTML Artifact 预览"
+            sandbox=""
+            :srcdoc="activeArtifact.content"
+          ></iframe>
+          <pre v-else-if="activeArtifact.kind === 'code'" class="artifact-code-page"><code>{{ activeArtifact.content }}</code></pre>
+          <article v-else class="artifact-document-page" v-html="renderLiveAnswerMarkdown(activeArtifact.content)"></article>
+        </template>
       </div>
     </aside>
 
@@ -1222,6 +2336,11 @@ watch(
         </article>
       </div>
     </aside>
+
+    <div v-if="toastMessage" class="app-toast" role="status" aria-live="polite">
+      <Check :size="16" />
+      <span>{{ toastMessage }}</span>
+    </div>
   </div>
 </template>
 
@@ -1230,6 +2349,7 @@ watch(
   --line: var(--border-color);
   --line-soft: var(--border-soft);
   --paper: var(--card-bg);
+  position: relative;
   display: flex;
   width: 100%;
   min-height: 100%;
@@ -1743,6 +2863,33 @@ watch(
   color: var(--primary-color);
 }
 
+.app-toast {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  z-index: 1200;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(420px, calc(100vw - 32px));
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid var(--diff-added-border);
+  border-radius: 10px;
+  color: var(--diff-added);
+  background: color-mix(in srgb, var(--diff-added-soft) 88%, var(--card-bg));
+  box-shadow: 0 12px 30px rgba(22, 163, 74, 0.14);
+  transform: translateX(-50%);
+  backdrop-filter: blur(10px);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.app-toast svg {
+  flex-shrink: 0;
+  color: var(--diff-added);
+}
+
 .answer-card {
   width: min(850px, 100%);
   margin: 0 auto;
@@ -1879,13 +3026,6 @@ watch(
   font-family: inherit;
 }
 
-.live-model {
-  margin: 0 0 14px;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
 .live-loading {
   display: inline-flex;
   align-items: center;
@@ -1899,58 +3039,272 @@ watch(
   color: var(--primary-color);
 }
 
-.live-answer-text {
+.live-thinking-card,
+.skill-validation-card,
+.skill-completion-card {
+  width: 100%;
+  margin: 0 0 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+}
+
+.live-thinking-card {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.live-thinking-header {
+  width: auto;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  text-align: left;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.live-thinking-copy {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+}
+
+.live-thinking-shine {
+  display: inline-block;
+  background: linear-gradient(110deg, #9ca3af 0%, #9ca3af 35%, #ffffff 50%, #9ca3af 75%, #9ca3af 100%);
+  background-size: 200% 100%;
+  background-position: 200% 0;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1.35;
+  animation: thinking-shine 2s linear infinite;
+}
+
+.live-thinking-card:not(.streaming) .live-thinking-shine {
+  background: none;
+  color: var(--text-muted);
+  -webkit-text-fill-color: currentColor;
+  animation: none;
+}
+
+.live-thinking-arrow {
+  color: var(--text-muted);
+  opacity: 0.72;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.live-thinking-header:hover .live-thinking-arrow,
+.live-thinking-header:focus-visible .live-thinking-arrow {
+  opacity: 1;
+}
+
+.live-thinking-header:focus {
+  outline: none;
+}
+
+.live-thinking-header:focus-visible {
+  outline: none;
+}
+
+.live-thinking-header:focus-visible .live-thinking-shine {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.live-thinking-card.expanded .live-thinking-arrow {
+  transform: rotate(180deg);
+}
+
+.live-thinking-body {
+  max-height: 320px;
+  overflow: auto;
+  margin: 6px 0 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+.live-thinking-body :deep(.live-answer-paragraph) {
+  margin: 0 0 10px;
+}
+
+@keyframes thinking-shine {
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skill-validation-card,
+.skill-completion-card {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+}
+
+.skill-validation-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--primary-soft);
+  border-top-color: var(--primary-color);
+  border-radius: 999px;
+  animation: skill-spin 0.9s linear infinite;
+}
+
+.skill-validation-card div,
+.skill-completion-copy {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
+  gap: 4px;
+}
+
+.skill-validation-card strong,
+.skill-completion-copy strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.skill-validation-card span,
+.skill-completion-copy span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.skill-completion-card {
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  border-color: color-mix(in srgb, var(--primary-color) 30%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-soft) 26%, var(--card-bg));
+}
+
+.skill-completion-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+}
+
+.skill-completion-copy code {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--card-bg);
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: 0.95em;
+  font-weight: 750;
+}
+
+.skill-completion-cta {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 13px;
+  border-radius: 8px;
+  color: #fff;
+  background: var(--primary-color);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+@keyframes skill-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.live-answer-text {
   color: var(--text-main);
   font-family: inherit;
   font-size: 15px;
   line-height: 1.86;
 }
 
-.live-answer-heading {
-  margin: 10px 0 0;
-  color: var(--text-strong);
-  font-size: 15.5px;
-  font-weight: 750;
-  line-height: 1.65;
-}
-
-.live-answer-heading:first-child {
+.live-answer-text :deep(*:first-child) {
   margin-top: 0;
 }
 
-.live-answer-paragraph {
-  margin: 0;
-  color: var(--text-main);
-  font: inherit;
-  white-space: pre-line;
+.live-answer-text :deep(*:last-child) {
+  margin-bottom: 0;
 }
 
-.live-answer-list {
-  margin: 0;
+.live-answer-text :deep(.live-answer-heading) {
+  margin: 16px 0 8px;
+  color: var(--text-strong);
+  font-weight: 750;
+  line-height: 1.55;
+}
+
+.live-answer-text :deep(.live-answer-heading.level-1) {
+  font-size: 20px;
+}
+
+.live-answer-text :deep(.live-answer-heading.level-2) {
+  font-size: 17.5px;
+}
+
+.live-answer-text :deep(.live-answer-heading.level-3),
+.live-answer-text :deep(.live-answer-heading.level-4) {
+  font-size: 15.5px;
+}
+
+.live-answer-text :deep(.live-answer-paragraph) {
+  margin: 0 0 10px;
+  color: var(--text-main);
+  font: inherit;
+}
+
+.live-answer-text :deep(.live-answer-list) {
+  margin: 0 0 12px;
   padding-left: 1.35em;
   color: var(--text-main);
 }
 
-.live-answer-list li {
+.live-answer-text :deep(.live-answer-list li) {
   margin: 0 0 6px;
   padding-left: 2px;
   line-height: 1.86;
 }
 
-.live-answer-list li:last-child {
+.live-answer-text :deep(.live-answer-list li:last-child) {
   margin-bottom: 0;
 }
 
-.live-answer-strong {
+.live-answer-text :deep(.live-answer-strong) {
   color: var(--text-strong);
   font-weight: 750;
 }
 
-.live-answer-code {
+.live-answer-text :deep(.live-answer-code) {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -1965,31 +3319,215 @@ watch(
   line-height: 22px;
 }
 
-.live-source-token {
+.live-answer-text :deep(.live-answer-link) {
+  color: var(--primary-color);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.live-answer-text :deep(.live-answer-link:hover) {
+  text-decoration: underline;
+}
+
+.live-answer-text :deep(.live-source-token) {
   color: var(--text-muted);
   font-size: 0.9em;
 }
 
-.live-answer-cursor {
-  width: 7px;
-  height: 1.24em;
-  display: inline-block;
-  margin-left: 2px;
-  border-radius: 999px;
-  background: var(--primary-color);
-  animation: live-cursor-blink 0.9s steps(2, start) infinite;
+.live-answer-text :deep(.live-answer-codeblock) {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre;
 }
 
-@keyframes live-cursor-blink {
-  0%,
-  45% {
-    opacity: 1;
-  }
+.live-answer-text :deep(.live-answer-codeblock > span) {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
 
-  46%,
-  100% {
-    opacity: 0;
-  }
+.live-answer-text :deep(.live-answer-codeblock code) {
+  font-family: inherit;
+}
+
+.live-answer-text :deep(.live-answer-table-wrap) {
+  width: 100%;
+  margin: 0 0 14px;
+  overflow-x: auto;
+}
+
+.live-answer-text :deep(.live-answer-table) {
+  min-width: 520px;
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.live-answer-text :deep(.live-answer-table th),
+.live-answer-text :deep(.live-answer-table td) {
+  padding: 9px 10px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+}
+
+.live-answer-text :deep(.live-answer-table th) {
+  background: var(--surface-soft);
+  color: var(--text-strong);
+  font-weight: 750;
+}
+
+.live-answer-text :deep(.live-answer-quote) {
+  margin: 0 0 12px;
+  padding: 8px 0 8px 14px;
+  border-left: 3px solid var(--primary-color);
+  color: var(--text-secondary);
+}
+
+.live-answer-text :deep(.live-answer-rule) {
+  width: 100%;
+  height: 1px;
+  margin: 16px 0;
+  border: 0;
+  background: var(--border-color);
+}
+
+.live-answer-text :deep(.live-answer-collapse),
+.artifact-document-page :deep(.live-answer-collapse) {
+  margin: 12px 0 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.live-answer-text :deep(.live-answer-collapse summary),
+.artifact-document-page :deep(.live-answer-collapse summary) {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 13px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.live-answer-text :deep(.live-answer-collapse-body),
+.artifact-document-page :deep(.live-answer-collapse-body) {
+  padding: 0 13px 13px;
+}
+
+.artifact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0 4px;
+}
+
+.artifact-card,
+.live-answer-text :deep(.artifact-card) {
+  width: 100%;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 13px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  text-align: left;
+  color: var(--text-main);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.artifact-card:hover,
+.artifact-card.active,
+.live-answer-text :deep(.artifact-card:hover),
+.live-answer-text :deep(.artifact-card.active) {
+  border-color: var(--primary-border);
+  background: color-mix(in srgb, var(--primary-soft) 34%, var(--card-bg));
+}
+
+.artifact-card-icon,
+.live-answer-text :deep(.artifact-card-icon) {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+}
+
+.artifact-card-main,
+.live-answer-text :deep(.artifact-card-main) {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.artifact-card-main strong,
+.live-answer-text :deep(.artifact-card-main strong) {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-card-main span,
+.live-answer-text :deep(.artifact-card-main span) {
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-card-kind,
+.live-answer-text :deep(.artifact-card-kind) {
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.live-answer-text :deep(.inline-artifact-card) {
+  margin: 10px 0 14px;
+}
+
+.live-answer-text :deep(.inline-artifact-card .artifact-card-icon) {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
 }
 
 .live-notice {
@@ -2589,7 +4127,8 @@ watch(
   border-color: var(--primary-border);
 }
 
-.docx-preview-panel {
+.docx-preview-panel,
+.artifact-preview-panel {
   flex: 0 0 50%;
   width: 50%;
   min-width: 0;
@@ -2600,7 +4139,8 @@ watch(
   background: var(--bg-color);
 }
 
-.docx-preview-header {
+.docx-preview-header,
+.artifact-preview-header {
   height: 60px;
   flex-shrink: 0;
   display: flex;
@@ -2613,14 +4153,17 @@ watch(
   backdrop-filter: blur(10px);
 }
 
-.docx-preview-title {
+.docx-preview-title,
+.artifact-preview-title {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.docx-preview-icon {
+.docx-preview-icon,
+.artifact-preview-icon {
   width: 34px;
   height: 34px;
   flex-shrink: 0;
@@ -2632,14 +4175,16 @@ watch(
   background: var(--primary-soft);
 }
 
-.docx-preview-title div {
+.docx-preview-title div,
+.artifact-preview-title div {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.docx-preview-title strong {
+.docx-preview-title strong,
+.artifact-preview-title strong {
   overflow: hidden;
   color: var(--text-strong);
   font-size: 14px;
@@ -2649,12 +4194,14 @@ watch(
   white-space: nowrap;
 }
 
-.docx-preview-title span {
+.docx-preview-title span,
+.artifact-preview-title span {
   color: var(--text-secondary);
   font-size: 12px;
 }
 
-.docx-preview-header button {
+.docx-preview-header > button,
+.artifact-preview-close {
   width: 30px;
   height: 30px;
   flex-shrink: 0;
@@ -2665,16 +4212,271 @@ watch(
   color: var(--text-muted);
 }
 
-.docx-preview-header button:hover {
+.docx-preview-header > button:hover,
+.artifact-preview-close:hover {
   color: var(--text-secondary);
   background: var(--surface-soft);
 }
 
-.docx-preview-scroll {
+.artifact-preview-actions {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.artifact-preview-action {
+  min-width: 0;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--card-bg);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.artifact-preview-action:hover {
+  color: var(--primary-color);
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+}
+
+.artifact-preview-action.primary {
+  border-color: var(--primary-color);
+  color: #fff;
+  background: var(--primary-color);
+}
+
+.artifact-preview-action.primary:hover {
+  color: #fff;
+  background: color-mix(in srgb, var(--primary-color) 88%, #000);
+}
+
+.artifact-preview-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.docx-preview-scroll,
+.artifact-preview-scroll {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+}
+
+.docx-preview-scroll {
   padding: 22px;
+}
+
+.artifact-preview-scroll {
+  padding: 30px 38px;
+}
+
+.artifact-preview-scroll.is-editing {
+  overflow: hidden;
+  padding: 0;
+}
+
+.artifact-document-page,
+.artifact-code-page,
+.artifact-html-frame {
+  width: 100%;
+  min-height: calc(100vh - 104px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.artifact-document-page {
+  padding: 0 0 28px;
+  color: var(--text-main);
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+.artifact-document-page :deep(*:first-child) {
+  margin-top: 0;
+}
+
+.artifact-document-page :deep(*:last-child) {
+  margin-bottom: 0;
+}
+
+.artifact-document-page :deep(.live-answer-heading) {
+  margin: 18px 0 10px;
+  color: var(--text-strong);
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.artifact-document-page :deep(.live-answer-heading.level-1) {
+  font-size: 22px;
+}
+
+.artifact-document-page :deep(.live-answer-heading.level-2) {
+  font-size: 18px;
+}
+
+.artifact-document-page :deep(.live-answer-heading.level-3),
+.artifact-document-page :deep(.live-answer-heading.level-4) {
+  font-size: 16px;
+}
+
+.artifact-document-page :deep(.live-answer-paragraph) {
+  margin: 0 0 12px;
+  color: var(--text-main);
+}
+
+.artifact-document-page :deep(.live-answer-list) {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+
+.artifact-document-page :deep(.live-answer-list li) {
+  margin: 0 0 7px;
+}
+
+.artifact-document-page :deep(.live-answer-strong) {
+  color: var(--text-strong);
+  font-weight: 750;
+}
+
+.artifact-document-page :deep(.live-answer-code) {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin: 0 2px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.94em;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.artifact-document-page :deep(.live-answer-link) {
+  color: var(--primary-color);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.artifact-document-page :deep(.live-answer-codeblock) {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre;
+}
+
+.artifact-document-page :deep(.live-answer-codeblock > span) {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.artifact-document-page :deep(.live-answer-table-wrap) {
+  width: 100%;
+  margin: 0 0 14px;
+  overflow-x: auto;
+}
+
+.artifact-document-page :deep(.live-answer-table) {
+  min-width: 520px;
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-main);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.artifact-document-page :deep(.live-answer-table th),
+.artifact-document-page :deep(.live-answer-table td) {
+  padding: 8px 9px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+  vertical-align: top;
+}
+
+.artifact-document-page :deep(.live-answer-table th) {
+  background: var(--surface-soft);
+  color: var(--text-strong);
+  font-weight: 750;
+}
+
+.artifact-document-page :deep(.live-answer-quote) {
+  margin: 0 0 12px;
+  padding: 8px 0 8px 14px;
+  border-left: 3px solid var(--primary-color);
+  color: var(--text-secondary);
+}
+
+.artifact-document-page :deep(.live-answer-rule) {
+  width: 100%;
+  height: 1px;
+  margin: 16px 0;
+  border: 0;
+  background: var(--border-color);
+}
+
+.artifact-code-page {
+  margin: 0;
+  padding: 0 0 28px;
+  overflow: auto;
+  color: var(--text-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.72;
+  white-space: pre;
+}
+
+.artifact-code-page code {
+  font-family: inherit;
+}
+
+.artifact-html-frame {
+  display: block;
+  background: white;
+}
+
+.artifact-editor {
+  width: 100%;
+  height: 100%;
+  min-height: calc(100vh - 60px);
+  padding: 24px 28px;
+  border: 0;
+  outline: 0;
+  resize: none;
+  color: var(--text-main);
+  background: var(--card-bg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.72;
+}
+
+.artifact-editor:focus {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--primary-color) 36%, transparent);
 }
 
 .docx-preview-page {
@@ -2762,50 +4564,6 @@ watch(
   margin-bottom: 8px;
 }
 
-:global(body.docx-preview-mode .sidebar) {
-  width: 54px;
-  padding: 12px 6px;
-}
-
-:global(body.docx-preview-mode .sidebar-header) {
-  margin-bottom: 24px;
-  padding: 0;
-}
-
-:global(body.docx-preview-mode .logo-area) {
-  justify-content: center;
-}
-
-:global(body.docx-preview-mode .logo-icon) {
-  width: 36px;
-  height: 36px;
-}
-
-:global(body.docx-preview-mode .logo-text),
-:global(body.docx-preview-mode .nav-label),
-:global(body.docx-preview-mode .hot-badge-fire),
-:global(body.docx-preview-mode .submenu-arrow),
-:global(body.docx-preview-mode .knowledge-submenu) {
-  display: none;
-}
-
-:global(body.docx-preview-mode .nav-item) {
-  justify-content: center;
-  padding: 9px 0;
-}
-
-:global(body.docx-preview-mode .nav-icon) {
-  margin-right: 0;
-}
-
-:global(body.docx-preview-mode .sidebar-footer) {
-  align-items: center;
-}
-
-:global(body.docx-preview-mode .sidebar-collapse) {
-  display: none;
-}
-
 @media (max-width: 900px) {
   .chat-page.preview-split .chat-main {
     flex: 1 1 auto;
@@ -2830,7 +4588,8 @@ watch(
   }
 
   .source-drawer,
-  .docx-preview-panel {
+  .docx-preview-panel,
+  .artifact-preview-panel {
     position: fixed;
     top: 0;
     right: 0;
@@ -2845,8 +4604,22 @@ watch(
     padding: 14px;
   }
 
-  .docx-preview-page {
+  .artifact-preview-scroll {
+    padding: 22px;
+  }
+
+  .artifact-preview-scroll.is-editing {
+    padding: 0;
+  }
+
+  .docx-preview-page,
+  .artifact-document-page,
+  .artifact-code-page,
+  .artifact-html-frame {
     min-height: calc(100vh - 88px);
+  }
+
+  .docx-preview-page {
     padding: 26px 24px;
   }
 

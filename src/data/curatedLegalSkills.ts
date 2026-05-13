@@ -18,6 +18,7 @@ const renderBullets = (items: string[]) => items.map((item) => `- ${item}`).join
 const renderNumbered = (items: string[]) => items.map((item, index) => `${index + 1}. ${item}`).join('\n');
 
 const getFileType = (path: string): SkillFileType => {
+  if (path.endsWith('.yaml') || path.endsWith('.yml')) return 'yaml';
   if (path.endsWith('.ts')) return 'typescript';
   if (path.endsWith('.json')) return 'json';
   return 'markdown';

@@ -5,6 +5,9 @@ const STORAGE_KEY = 'legal-demo-chat-history';
 const MAX_HISTORY_ITEMS = 20;
 const DOCX_MOCK_HISTORY_ID = 'mock-docx-nda';
 const LEGACY_NDA_MOCK_HISTORY_ID = 'mock-nda-default';
+const DEFAULT_CONVERSATION_TITLE = '新会话';
+const DOCX_MOCK_CREATED_AT = '2000-01-01 00:00';
+const HIDDEN_MOCKS_STORAGE_KEY = 'legal-demo-chat-history-hidden-mocks';
 
 export type ChatHistoryItem = {
   id: string;
@@ -19,39 +22,108 @@ export type ChatHistoryAnswer = {
   content: string;
   model?: string;
   cachedAt: string;
+  createdSkillId?: string;
+  thinkingContent?: string;
 };
 
 const createInitialHistory = (): ChatHistoryItem[] => [
   createDocxMockHistoryItem(),
-  {
-    id: 'mock-labor-default',
-    title: '劳动赔偿怎么算？',
-    prompt: '劳动赔偿怎么算？',
-    createdAt: '昨天 16:20',
-  },
 ];
 
 const normalizePrompt = (prompt: string) => prompt.replace(/\s+/g, ' ').trim();
+
+const normalizeTitle = (title: string) => {
+  const normalized = title.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  return normalized.length > 18 ? normalized.slice(0, 18) : normalized;
+};
 
 function createDocxMockHistoryItem(): ChatHistoryItem {
   return {
     id: DOCX_MOCK_HISTORY_ID,
     title: '生成保密协议',
     prompt: normalizePrompt(docxLegalResearchMock.userPrompt),
-    createdAt: docxLegalResearchMock.createdAt,
+    createdAt: DOCX_MOCK_CREATED_AT,
     mock: 'docx',
   };
 }
 
+const readHiddenMockIds = () => {
+  const storage = getSafeStorage();
+  if (!storage) return new Set<string>();
+
+  try {
+    const parsed = JSON.parse(storage.getItem(HIDDEN_MOCKS_STORAGE_KEY) || '[]');
+    if (!Array.isArray(parsed)) return new Set<string>();
+    return new Set(parsed.filter((id): id is string => typeof id === 'string'));
+  } catch {
+    return new Set<string>();
+  }
+};
+
+const writeHiddenMockIds = (ids: Set<string>) => {
+  const storage = getSafeStorage();
+  if (!storage) return;
+  storage.setItem(HIDDEN_MOCKS_STORAGE_KEY, JSON.stringify([...ids]));
+};
+
+const hideMockHistoryItem = (id: string) => {
+  const hiddenMockIds = readHiddenMockIds();
+  hiddenMockIds.add(id);
+  writeHiddenMockIds(hiddenMockIds);
+};
+
+const parseHistoryTimestamp = (createdAt: string) => {
+  const value = createdAt.trim();
+  const directTimestamp = Date.parse(value.includes('T') ? value : value.replace(' ', 'T'));
+  if (!Number.isNaN(directTimestamp)) return directTimestamp;
+
+  const relativeMatch = value.match(/^(今天|昨天)\s+(\d{1,2}):(\d{2})$/);
+  if (relativeMatch) {
+    const date = new Date();
+    if (relativeMatch[1] === '昨天') {
+      date.setDate(date.getDate() - 1);
+    }
+    date.setHours(Number(relativeMatch[2]), Number(relativeMatch[3]), 0, 0);
+    return date.getTime();
+  }
+
+  return 0;
+};
+
+const sortHistoryItems = (items: ChatHistoryItem[]) => {
+  return [...items].sort((left, right) => {
+    if (left.mock === 'docx' && right.mock !== 'docx') return 1;
+    if (right.mock === 'docx' && left.mock !== 'docx') return -1;
+    return parseHistoryTimestamp(right.createdAt) - parseHistoryTimestamp(left.createdAt);
+  });
+};
+
 const ensureDocxMockHistory = (items: ChatHistoryItem[]) => {
-  const docxMockItem = createDocxMockHistoryItem();
-  const docxPrompt = normalizePrompt(docxMockItem.prompt);
+  const hiddenMockIds = readHiddenMockIds();
+  const defaultDocxMockItem = createDocxMockHistoryItem();
+  const docxPrompt = normalizePrompt(defaultDocxMockItem.prompt);
+  const existingDocxMockItem = items.find((item) => item.id === DOCX_MOCK_HISTORY_ID);
   const keptItems = items.filter((item) => {
     if (item.id === DOCX_MOCK_HISTORY_ID || item.id === LEGACY_NDA_MOCK_HISTORY_ID) return false;
-    return normalizePrompt(item.prompt) !== docxPrompt;
+    return hiddenMockIds.has(DOCX_MOCK_HISTORY_ID) || normalizePrompt(item.prompt) !== docxPrompt;
   });
 
-  return [docxMockItem, ...keptItems].slice(0, MAX_HISTORY_ITEMS);
+  const sortedItems = sortHistoryItems(keptItems).slice(0, MAX_HISTORY_ITEMS - 1);
+  if (hiddenMockIds.has(DOCX_MOCK_HISTORY_ID)) {
+    return sortedItems.slice(0, MAX_HISTORY_ITEMS);
+  }
+
+  const docxMockItem: ChatHistoryItem = {
+    ...defaultDocxMockItem,
+    ...(existingDocxMockItem ? { title: existingDocxMockItem.title, answer: existingDocxMockItem.answer } : {}),
+    id: DOCX_MOCK_HISTORY_ID,
+    prompt: docxPrompt,
+    createdAt: DOCX_MOCK_CREATED_AT,
+    mock: 'docx',
+  };
+
+  return [...sortedItems, docxMockItem].slice(0, MAX_HISTORY_ITEMS);
 };
 
 const getSafeStorage = () => {
@@ -88,6 +160,8 @@ const readHistory = (): ChatHistoryItem[] => {
               content: item.answer.content,
               model: typeof item.answer.model === 'string' ? item.answer.model : undefined,
               cachedAt: item.answer.cachedAt,
+              createdSkillId: typeof item.answer.createdSkillId === 'string' ? item.answer.createdSkillId : undefined,
+              thinkingContent: typeof item.answer.thinkingContent === 'string' ? item.answer.thinkingContent : undefined,
             }
           : undefined;
 
@@ -133,21 +207,18 @@ const persistRemoteHistoryItem = (item: ChatHistoryItem) => {
   });
 };
 
-const formatHistoryTime = () => {
-  const date = new Date();
-  const time = new Intl.DateTimeFormat('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date);
+const deleteRemoteHistoryItem = (id: string) => {
+  if (typeof window === 'undefined') return;
 
-  return `今天 ${time}`;
+  void fetch(`/api/chat-history?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  }).catch(() => {
+    // Local storage remains the source of truth when the remote store is unavailable.
+  });
 };
 
-const createTitleFromPrompt = (prompt: string) => {
-  const normalized = prompt.replace(/\s+/g, ' ').trim();
-  if (!normalized) return '新法律咨询';
-  return normalized.length > 18 ? `${normalized.slice(0, 18)}...` : normalized;
+const formatHistoryTime = () => {
+  return new Date().toISOString();
 };
 
 const createId = () => {
@@ -193,7 +264,25 @@ export const useChatHistory = () => {
         }, []);
 
         if (normalizedItems.length) {
-          historyItems.value = ensureDocxMockHistory(normalizedItems);
+          const localItemsById = new Map(historyItems.value.map((item) => [item.id, item]));
+          const mergedItems = normalizedItems.map((item) => {
+            const localAnswer = localItemsById.get(item.id)?.answer;
+            if (!item.answer || !localAnswer) return item;
+
+            return {
+              ...item,
+              answer: {
+                ...item.answer,
+                createdSkillId: item.answer.createdSkillId || localAnswer.createdSkillId,
+                thinkingContent: item.answer.thinkingContent || localAnswer.thinkingContent,
+              },
+            };
+          });
+          const hasRemoteDocxMock = normalizedItems.some((item) => item.id === DOCX_MOCK_HISTORY_ID);
+          const localMockItems = hasRemoteDocxMock
+            ? []
+            : historyItems.value.filter((item) => item.mock === 'docx');
+          historyItems.value = ensureDocxMockHistory([...localMockItems, ...mergedItems]);
           persistHistory();
         }
       })
@@ -210,14 +299,73 @@ export const useChatHistory = () => {
   const findHistoryItem = (historyId?: string | null, prompt?: string | null) => {
     const normalizedPrompt = prompt ? normalizePrompt(prompt) : '';
 
-    return historyItems.value.find((item) => item.id === historyId)
-      ?? historyItems.value.find((item) => normalizedPrompt && item.prompt === normalizedPrompt)
+    const itemById = historyItems.value.find((item) => item.id === historyId);
+    if (itemById && (!normalizedPrompt || normalizePrompt(itemById.prompt) === normalizedPrompt)) {
+      return itemById;
+    }
+
+    return historyItems.value.find((item) => normalizedPrompt && normalizePrompt(item.prompt) === normalizedPrompt)
       ?? null;
   };
 
   const getCachedConversation = (historyId?: string | null, prompt?: string | null) => {
     const item = findHistoryItem(historyId, prompt);
     return item?.answer?.content.trim() ? item : null;
+  };
+
+  const updateConversationTitle = (
+    historyId: string | null | undefined,
+    prompt: string | null | undefined,
+    title: string,
+  ) => {
+    const nextTitle = normalizeTitle(title);
+    if (!nextTitle) return null;
+
+    const existing = findHistoryItem(historyId, prompt);
+    if (!existing) return null;
+
+    const existingIndex = historyItems.value.findIndex((item) => item.id === existing.id);
+    if (existingIndex < 0) return null;
+
+    const updated: ChatHistoryItem = {
+      ...existing,
+      title: nextTitle,
+    };
+
+    historyItems.value.splice(existingIndex, 1, updated);
+    historyItems.value = ensureDocxMockHistory(historyItems.value);
+    persistHistory();
+    persistRemoteHistoryItem(updated);
+    return updated;
+  };
+
+  const renameConversation = (historyId: string, title: string) => {
+    return updateConversationTitle(historyId, null, title);
+  };
+
+  const applyGeneratedConversationTitle = (
+    historyId: string | null | undefined,
+    prompt: string | null | undefined,
+    title: string,
+  ) => {
+    const existing = findHistoryItem(historyId, prompt);
+    if (!existing || existing.mock || normalizeTitle(existing.title) !== DEFAULT_CONVERSATION_TITLE) return null;
+    return updateConversationTitle(historyId, prompt, title);
+  };
+
+  const deleteConversation = (historyId: string) => {
+    const existingIndex = historyItems.value.findIndex((item) => item.id === historyId);
+    const existing = historyItems.value[existingIndex];
+    if (existingIndex < 0 || !existing) return false;
+
+    if (existing.mock) {
+      hideMockHistoryItem(existing.id);
+    }
+    historyItems.value.splice(existingIndex, 1);
+    historyItems.value = ensureDocxMockHistory(historyItems.value);
+    persistHistory();
+    deleteRemoteHistoryItem(historyId);
+    return true;
   };
 
   const addMockConversation = (prompt: string) => {
@@ -231,10 +379,10 @@ export const useChatHistory = () => {
       historyItems.value.splice(existingIndex, 1);
       const updated: ChatHistoryItem = {
         ...existing,
-        title: existing.mock === 'docx' ? existing.title : createTitleFromPrompt(normalizedPrompt),
+        title: existing.mock === 'docx' ? existing.title : DEFAULT_CONVERSATION_TITLE,
         createdAt: existing.mock === 'docx' ? existing.createdAt : formatHistoryTime(),
       };
-      historyItems.value.unshift(updated);
+      historyItems.value = ensureDocxMockHistory([updated, ...historyItems.value]);
       persistHistory();
       persistRemoteHistoryItem(updated);
       return updated;
@@ -242,12 +390,12 @@ export const useChatHistory = () => {
 
     const item: ChatHistoryItem = {
       id: createId(),
-      title: createTitleFromPrompt(normalizedPrompt),
+      title: DEFAULT_CONVERSATION_TITLE,
       prompt: normalizedPrompt,
       createdAt: formatHistoryTime(),
     };
 
-    historyItems.value = [item, ...historyItems.value].slice(0, MAX_HISTORY_ITEMS);
+    historyItems.value = ensureDocxMockHistory([item, ...historyItems.value]);
     persistHistory();
     persistRemoteHistoryItem(item);
     return item;
@@ -276,14 +424,13 @@ export const useChatHistory = () => {
 
     const updated: ChatHistoryItem = {
       ...existing,
-      title: existing.mock === 'docx' ? existing.title : createTitleFromPrompt(normalizedPrompt),
+      title: existing.mock === 'docx' ? existing.title : normalizeTitle(existing.title) || DEFAULT_CONVERSATION_TITLE,
       prompt: normalizedPrompt,
       answer,
     };
 
-    historyItems.value.splice(existingIndex, 1);
-    historyItems.value.unshift(updated);
-    historyItems.value = historyItems.value.slice(0, MAX_HISTORY_ITEMS);
+    historyItems.value.splice(existingIndex, 1, updated);
+    historyItems.value = ensureDocxMockHistory(historyItems.value);
     persistHistory();
     persistRemoteHistoryItem(updated);
     return updated;
@@ -295,6 +442,10 @@ export const useChatHistory = () => {
     addMockConversation,
     findHistoryItem,
     getCachedConversation,
+    updateConversationTitle,
+    applyGeneratedConversationTitle,
+    renameConversation,
+    deleteConversation,
     updateConversationAnswer,
   };
 };

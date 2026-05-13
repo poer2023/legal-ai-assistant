@@ -1,7 +1,8 @@
-export type OpenRouterChatOptions = {
+export type DeepSeekChatOptions = {
   mode: string;
   thinkingMode: string;
   searchModes: string[];
+  purpose?: 'chat' | 'conversation-title';
   templateName?: string;
   selectedSkills?: Array<{
     id: string;
@@ -14,7 +15,7 @@ export type OpenRouterChatOptions = {
   }>;
 };
 
-export type OpenRouterChatResult = {
+export type DeepSeekChatResult = {
   content: string;
   model?: string;
   usage?: {
@@ -24,7 +25,7 @@ export type OpenRouterChatResult = {
   } | null;
 };
 
-type OpenRouterStreamEvent = {
+type DeepSeekStreamEvent = {
   content?: string;
   model?: string;
   error?: string;
@@ -35,7 +36,7 @@ type StreamCallbacks = {
   onMeta?: (model: string) => void;
 };
 
-const normalizeOpenRouterError = (message: string) => {
+const normalizeDeepSeekError = (message: string) => {
   if (/provider returned error/i.test(message)) {
     return 'DeepSeek 上游模型返回异常，请稍后重试或切换模型';
   }
@@ -46,13 +47,27 @@ const normalizeOpenRouterError = (message: string) => {
 const readErrorMessage = (data: unknown, fallback: string) => {
   if (data && typeof data === 'object' && 'error' in data) {
     const error = (data as { error?: unknown }).error;
-    if (typeof error === 'string' && error.trim()) return normalizeOpenRouterError(error);
+    if (typeof error === 'string' && error.trim()) return normalizeDeepSeekError(error);
   }
 
-  return normalizeOpenRouterError(fallback);
+  return normalizeDeepSeekError(fallback);
 };
 
-const readStreamPayload = (frame: string): { event: string; data: OpenRouterStreamEvent | null } => {
+const normalizeConversationTitle = (value: string) => {
+  const title = value
+    .split('\n')[0]
+    ?.replace(/^#+\s*/, '')
+    .replace(/^(标题|会话标题|历史标题)\s*[:：]\s*/, '')
+    .replace(/[《》“”"'`]/g, '')
+    .replace(/[。.!！?？；;，,、]+$/g, '')
+    .replace(/\s+/g, ' ')
+    .trim() ?? '';
+
+  if (!title || title === '新会话') return '';
+  return title.length > 18 ? title.slice(0, 18) : title;
+};
+
+const readStreamPayload = (frame: string): { event: string; data: DeepSeekStreamEvent | null } => {
   let event = 'message';
   const dataLines: string[] = [];
 
@@ -72,7 +87,7 @@ const readStreamPayload = (frame: string): { event: string; data: OpenRouterStre
 
   return {
     event,
-    data: JSON.parse(dataLines.join('\n')) as OpenRouterStreamEvent,
+    data: JSON.parse(dataLines.join('\n')) as DeepSeekStreamEvent,
   };
 };
 
@@ -90,18 +105,18 @@ const createRequestTimeout = (controller: AbortController, timeoutMs = 120_000) 
   };
 };
 
-export const streamOpenRouterMessage = async (
+export const streamDeepSeekMessage = async (
   prompt: string,
-  options: OpenRouterChatOptions,
+  options: DeepSeekChatOptions,
   callbacks: StreamCallbacks = {},
-): Promise<OpenRouterChatResult> => {
+): Promise<DeepSeekChatResult> => {
   const controller = new AbortController();
   const timeout = createRequestTimeout(controller);
 
   let response: Response;
 
   try {
-    response = await fetch('/api/openrouter-chat', {
+    response = await fetch('/api/deepseek-chat', {
       method: 'POST',
       headers: {
         'Accept': 'text/event-stream',
@@ -159,7 +174,7 @@ export const streamOpenRouterMessage = async (
           const payload = readStreamPayload(frame);
 
           if (payload.event === 'error') {
-            throw new Error(normalizeOpenRouterError(payload.data?.error || 'DeepSeek 调用失败'));
+            throw new Error(normalizeDeepSeekError(payload.data?.error || 'DeepSeek 调用失败'));
           }
 
           if (payload.event === 'meta' && payload.data?.model) {
@@ -183,7 +198,7 @@ export const streamOpenRouterMessage = async (
       const payload = readStreamPayload(buffer.trim());
 
       if (payload.event === 'error') {
-        throw new Error(normalizeOpenRouterError(payload.data?.error || 'DeepSeek 调用失败'));
+        throw new Error(normalizeDeepSeekError(payload.data?.error || 'DeepSeek 调用失败'));
       }
 
       if (payload.event === 'meta' && payload.data?.model) {
@@ -213,17 +228,17 @@ export const streamOpenRouterMessage = async (
   return { content, model };
 };
 
-export const sendOpenRouterMessage = async (
+export const sendDeepSeekMessage = async (
   prompt: string,
-  options: OpenRouterChatOptions,
-): Promise<OpenRouterChatResult> => {
+  options: DeepSeekChatOptions,
+): Promise<DeepSeekChatResult> => {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 90_000);
 
   let response: Response;
 
   try {
-    response = await fetch('/api/openrouter-chat', {
+    response = await fetch('/api/deepseek-chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -244,7 +259,7 @@ export const sendOpenRouterMessage = async (
     window.clearTimeout(timeout);
   }
 
-  const data = await response.json().catch(() => null) as OpenRouterChatResult | { error?: string } | null;
+  const data = await response.json().catch(() => null) as DeepSeekChatResult | { error?: string } | null;
 
   if (!response.ok) {
     throw new Error(readErrorMessage(data, `DeepSeek 请求失败 (${response.status})`));
@@ -255,4 +270,28 @@ export const sendOpenRouterMessage = async (
   }
 
   return data;
+};
+
+export const generateDeepSeekConversationTitle = async (
+  prompt: string,
+  answer: string,
+) => {
+  const compactPrompt = prompt.replace(/\s+/g, ' ').trim().slice(0, 700);
+  const compactAnswer = answer.replace(/\s+/g, ' ').trim().slice(0, 900);
+  const titlePrompt = [
+    '请为下面这段法律 AI 会话生成一个最适合放在历史会话列表里的中文标题。',
+    '要求：只输出标题本身；不要解释；不要加引号；不要使用“新会话”；优先 6 到 14 个汉字。',
+    '',
+    `用户提问：${compactPrompt}`,
+    compactAnswer ? `AI回答摘要：${compactAnswer}` : '',
+  ].filter(Boolean).join('\n');
+
+  const result = await sendDeepSeekMessage(titlePrompt, {
+    mode: 'research',
+    thinkingMode: 'fast',
+    searchModes: [],
+    purpose: 'conversation-title',
+  });
+
+  return normalizeConversationTitle(result.content);
 };

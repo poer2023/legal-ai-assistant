@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
   ChevronDown,
@@ -10,10 +10,13 @@ import {
   History,
   Home,
   Lock,
+  MoreHorizontal,
   Network,
+  Pencil,
   Plus,
   Scale,
   Sparkles,
+  Trash2,
   Users,
   User,
 } from 'lucide-vue-next';
@@ -23,11 +26,30 @@ import { useChatHistory, type ChatHistoryItem } from '../stores/chatHistory';
 
 const router = useRouter();
 const route = useRoute();
-const { recentHistory } = useChatHistory();
+const { recentHistory, renameConversation, deleteConversation } = useChatHistory();
 
 const isCollapsed = ref(false);
+const openHistoryMenuId = ref('');
+const historyMenuPosition = ref({ top: 0, left: 0 });
+const renamingHistoryId = ref('');
+const historyRenameValue = ref('');
+const pendingDeleteHistoryItem = ref<ChatHistoryItem | null>(null);
+
+const activeHistoryMenuItem = computed(() =>
+  recentHistory.value.find((item) => item.id === openHistoryMenuId.value) ?? null
+);
+
+const closeHistoryMenu = () => {
+  openHistoryMenuId.value = '';
+};
+
+const closeDeleteConfirm = () => {
+  pendingDeleteHistoryItem.value = null;
+};
+
 const handleItemClick = (routeName: string) => {
   if (routeName) {
+    closeHistoryMenu();
     router.push({ name: routeName });
   }
 };
@@ -59,6 +81,7 @@ const toggleSidebarCollapsed = () => {
   isCollapsed.value = !isCollapsed.value;
   if (isCollapsed.value) {
     isKnowledgeExpanded.value = false;
+    closeHistoryMenu();
   }
 };
 
@@ -71,6 +94,7 @@ const handleKnowledgeClick = () => {
 };
 
 const handleHistoryClick = (item: ChatHistoryItem) => {
+  closeHistoryMenu();
   const query: Record<string, string> = {
     prompt: item.prompt,
     historyId: item.id,
@@ -85,6 +109,100 @@ const handleHistoryClick = (item: ChatHistoryItem) => {
     query,
   });
 };
+
+const openHistoryMenu = (item: ChatHistoryItem, event: MouseEvent) => {
+  event.stopPropagation();
+
+  if (openHistoryMenuId.value === item.id) {
+    closeHistoryMenu();
+    return;
+  }
+
+  const trigger = event.currentTarget as HTMLElement | null;
+  const rect = trigger?.getBoundingClientRect();
+  const menuWidth = 144;
+  const menuHeight = 94;
+  const left = rect ? rect.right + 6 : 0;
+  const top = rect ? rect.top - 8 : 0;
+
+  historyMenuPosition.value = {
+    left: Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8)),
+    top: Math.max(8, Math.min(top, window.innerHeight - menuHeight - 8)),
+  };
+  openHistoryMenuId.value = item.id;
+};
+
+const startRenameHistory = (item: ChatHistoryItem) => {
+  historyRenameValue.value = item.title === '新会话' ? '' : item.title;
+  renamingHistoryId.value = item.id;
+  closeHistoryMenu();
+
+  void nextTick(() => {
+    const input = document.querySelector<HTMLInputElement>('[data-history-rename-input="true"]');
+    input?.focus();
+    input?.select();
+  });
+};
+
+const cancelHistoryRename = () => {
+  renamingHistoryId.value = '';
+  historyRenameValue.value = '';
+};
+
+const submitHistoryRename = (item: ChatHistoryItem) => {
+  if (renamingHistoryId.value !== item.id) return;
+
+  const nextTitle = historyRenameValue.value.trim();
+  if (nextTitle) {
+    renameConversation(item.id, nextTitle);
+  }
+
+  cancelHistoryRename();
+};
+
+const removeHistoryItem = (item: ChatHistoryItem) => {
+  closeHistoryMenu();
+  pendingDeleteHistoryItem.value = item;
+};
+
+const confirmRemoveHistoryItem = () => {
+  const item = pendingDeleteHistoryItem.value;
+  if (!item) return;
+
+  const wasActive = isHistoryActive(item);
+  const removed = deleteConversation(item.id);
+  closeDeleteConfirm();
+
+  if (removed && wasActive) {
+    void router.push({ name: 'home' });
+  }
+};
+
+const handleDocumentClick = (event: MouseEvent) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    closeHistoryMenu();
+    return;
+  }
+
+  if (
+    target.closest('.history-menu-popover')
+    || target.closest('.history-more')
+    || target.closest('.history-rename-input')
+  ) {
+    return;
+  }
+
+  closeHistoryMenu();
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick);
+});
 
 const knowledgeItems = [
   { icon: Network, label: '团队知识库', routeName: 'knowledge', activeOnKnowledge: true },
@@ -209,16 +327,43 @@ const bottomItems = [
           <History :size="18" class="nav-icon" />
           <span class="nav-label">历史会话</span>
         </div>
-        <button
+        <div
           v-for="item in recentHistory"
           :key="item.id"
-          class="history-item"
-          :class="{ active: isHistoryActive(item) }"
-          :title="isCollapsed ? item.title : undefined"
-          @click="handleHistoryClick(item)"
+          class="history-row"
+          :class="{ active: isHistoryActive(item), 'menu-open': openHistoryMenuId === item.id }"
         >
-          <span class="history-title">{{ item.title }}</span>
-        </button>
+          <input
+            v-if="renamingHistoryId === item.id"
+            v-model="historyRenameValue"
+            class="history-rename-input"
+            data-history-rename-input="true"
+            maxlength="18"
+            aria-label="重命名历史会话"
+            @click.stop
+            @keydown.enter.prevent="submitHistoryRename(item)"
+            @keydown.esc.prevent="cancelHistoryRename"
+            @blur="submitHistoryRename(item)"
+          />
+          <button
+            v-else
+            class="history-item"
+            :title="isCollapsed ? item.title : undefined"
+            @click="handleHistoryClick(item)"
+          >
+            <span class="history-title">{{ item.title }}</span>
+          </button>
+          <button
+            v-if="renamingHistoryId !== item.id"
+            class="history-more"
+            type="button"
+            :aria-label="`打开 ${item.title} 的更多操作`"
+            :aria-expanded="openHistoryMenuId === item.id"
+            @click="openHistoryMenu(item, $event)"
+          >
+            <MoreHorizontal :size="16" />
+          </button>
+        </div>
       </section>
     </nav>
 
@@ -238,6 +383,67 @@ const bottomItems = [
     </div>
 
   </aside>
+
+  <Teleport to="body">
+    <div
+      v-if="activeHistoryMenuItem"
+      class="history-menu-popover"
+      :style="{ top: `${historyMenuPosition.top}px`, left: `${historyMenuPosition.left}px` }"
+      role="menu"
+      @click.stop
+    >
+      <button
+        type="button"
+        class="history-menu-item"
+        role="menuitem"
+        @click="startRenameHistory(activeHistoryMenuItem)"
+      >
+        <Pencil :size="16" />
+        <span>重命名</span>
+      </button>
+      <button
+        type="button"
+        class="history-menu-item danger"
+        role="menuitem"
+        @click="removeHistoryItem(activeHistoryMenuItem)"
+      >
+        <Trash2 :size="16" />
+        <span>删除</span>
+      </button>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="pendingDeleteHistoryItem"
+      class="history-confirm-backdrop"
+      role="presentation"
+      @click.self="closeDeleteConfirm"
+    >
+      <section
+        class="history-confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="history-delete-title"
+      >
+        <div class="history-confirm-icon">
+          <Trash2 :size="22" />
+        </div>
+        <div class="history-confirm-copy">
+          <h2 id="history-delete-title">删除历史会话</h2>
+          <p>确定删除“{{ pendingDeleteHistoryItem.title }}”吗？删除后将无法在历史会话中恢复。</p>
+        </div>
+        <div class="history-confirm-actions">
+          <button type="button" class="history-confirm-cancel" @click="closeDeleteConfirm">
+            取消
+          </button>
+          <button type="button" class="history-confirm-delete" @click="confirmRemoveHistoryItem">
+            删除
+          </button>
+        </div>
+      </section>
+    </div>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -515,22 +721,33 @@ const bottomItems = [
   color: var(--text-sidebar);
 }
 
-.history-item {
+.history-row {
+  position: relative;
   display: flex;
   align-items: center;
   width: 100%;
   min-height: 32px;
-  padding: 5px 10px 5px 40px;
   border-radius: 8px;
   color: var(--text-sidebar);
-  text-align: left;
   transition: all 0.2s ease;
 }
 
-.history-item:hover,
-.history-item.active {
+.history-row:hover,
+.history-row.active,
+.history-row.menu-open {
   background: var(--sidebar-active-bg);
   color: var(--sidebar-active-text);
+}
+
+.history-item {
+  min-width: 0;
+  flex: 1;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  padding: 5px 34px 5px 40px;
+  color: inherit;
+  text-align: left;
 }
 
 .history-title {
@@ -544,8 +761,177 @@ const bottomItems = [
   line-height: 1.25;
 }
 
-.sidebar.collapsed .history-item {
+.history-more {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateY(-50%);
+  transition:
+    opacity 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.history-row:hover .history-more,
+.history-row.menu-open .history-more,
+.history-more:focus-visible {
+  opacity: 1;
+}
+
+.history-more:hover,
+.history-more[aria-expanded="true"] {
+  background: var(--card-bg);
+  color: var(--text-secondary);
+}
+
+.history-rename-input {
+  min-width: 0;
+  flex: 1;
+  height: 28px;
+  margin: 2px 34px 2px 34px;
+  padding: 0 7px;
+  border: 1px solid var(--primary-border);
+  border-radius: 7px;
+  outline: 0;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.history-rename-input:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus-ring) 20%, transparent);
+}
+
+.sidebar.collapsed .history-row {
   display: none;
+}
+
+.history-menu-popover {
+  position: fixed;
+  z-index: 1000;
+  width: 144px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-popover);
+}
+
+.history-menu-item {
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text-main);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.history-menu-item:hover,
+.history-menu-item:focus-visible {
+  background: var(--surface-soft);
+  outline: 0;
+}
+
+.history-menu-item.danger {
+  color: var(--diff-removed);
+}
+
+.history-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(6px);
+}
+
+.history-confirm-dialog {
+  width: min(380px, 100%);
+  padding: 22px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-popover);
+}
+
+.history-confirm-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  color: var(--diff-removed);
+  background: var(--diff-removed-soft);
+}
+
+.history-confirm-copy h2 {
+  margin: 0 0 8px;
+  color: var(--text-strong);
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.history-confirm-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.history-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.history-confirm-actions button {
+  min-width: 78px;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.history-confirm-cancel {
+  color: var(--text-secondary);
+  background: var(--surface-soft);
+}
+
+.history-confirm-cancel:hover {
+  color: var(--text-main);
+  background: var(--border-soft);
+}
+
+.history-confirm-delete {
+  color: #ffffff;
+  background: var(--diff-removed);
+}
+
+.history-confirm-delete:hover {
+  background: color-mix(in srgb, var(--diff-removed) 88%, #000000);
 }
 
 .footer-item {
@@ -595,7 +981,7 @@ const bottomItems = [
   .submenu-arrow,
   .hot-badge-fire,
   .knowledge-submenu,
-  .history-item {
+  .history-row {
     display: none;
   }
 

@@ -8,6 +8,10 @@ import { availableSkills, type SkillCatalogItem } from '../data/skillCatalog';
 
 export type SkillDropdownSelection = string;
 
+type SkillDropdownItem = Pick<SkillCatalogItem, 'id' | 'name' | 'description'> & {
+  selection: string;
+};
+
 const props = withDefaults(defineProps<{
   inlineQuery?: string;
   showCreate?: boolean;
@@ -25,12 +29,33 @@ const emit = defineEmits<{
 
 const hiddenDefaultSkillIds = new Set(['docx', 'pdf', 'xlsx']);
 
+const builtInCommandSkills: SkillDropdownItem[] = [
+  {
+    id: 'skill-creator',
+    name: 'skill-creator',
+    description: '创建一个可复用的法律工作流技能。',
+    selection: 'skill-creator',
+  },
+];
+
+const skillItems = computed<SkillDropdownItem[]>(() => [
+  ...builtInCommandSkills,
+  ...availableSkills.value
+    .filter((skill) => !hiddenDefaultSkillIds.has(skill.id))
+    .map((skill) => ({
+      id: skill.id,
+      name: skill.name,
+      description: skill.description,
+      selection: skill.name,
+    })),
+]);
+
 const filteredSkills = computed(() => {
   const keyword = props.inlineQuery.trim().toLowerCase();
 
-  if (!keyword) return availableSkills.value.filter((skill) => !hiddenDefaultSkillIds.has(skill.id));
+  if (!keyword) return skillItems.value;
 
-  return availableSkills.value.filter((skill) => {
+  return skillItems.value.filter((skill) => {
     const searchable = [
       skill.name,
       skill.id,
@@ -43,8 +68,8 @@ const filteredSkills = computed(() => {
   });
 });
 
-const selectSkill = (skill: SkillCatalogItem) => {
-  emit('select', skill.name);
+const selectSkill = (skill: SkillDropdownItem) => {
+  emit('select', skill.selection);
 };
 
 const createSkill = () => {

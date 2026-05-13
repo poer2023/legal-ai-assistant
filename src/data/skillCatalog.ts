@@ -5,7 +5,7 @@ import {
 } from './nonLitigationDocuments';
 import { curatedLegalSkills } from './curatedLegalSkills';
 
-export type SkillFileType = 'markdown' | 'typescript' | 'json';
+export type SkillFileType = 'markdown' | 'typescript' | 'json' | 'yaml';
 
 export type SkillFile = {
   id: string;
@@ -177,7 +177,7 @@ const readStoredSkillIds = (
 };
 
 const normalizeSkillFileType = (type: unknown): SkillFileType => {
-  if (type === 'typescript' || type === 'json') return type;
+  if (type === 'typescript' || type === 'json' || type === 'yaml') return type;
   return 'markdown';
 };
 
@@ -258,8 +258,7 @@ const readStoredCustomSkills = () => {
   if (typeof window === 'undefined') return [];
 
   try {
-    const skills = normalizeCustomSkills(JSON.parse(window.localStorage.getItem(customSkillStorageKey) || '[]'))
-      .map((skill) => ({ ...skill, scope: 'team' as const }));
+    const skills = normalizeCustomSkills(JSON.parse(window.localStorage.getItem(customSkillStorageKey) || '[]'));
     writeStoredCustomSkills(skills);
     return skills;
   } catch {
@@ -396,16 +395,27 @@ export const publishSkillToTeamMarket = (skillId: string) => {
   return true;
 };
 
-const persistCustomSkillRemote = (skill: SkillCatalogItem) => {
-  if (typeof window === 'undefined') return;
+export const persistCustomSkillNow = async (skill: SkillCatalogItem) => {
+  if (typeof window === 'undefined') return skill;
 
-  void fetch('/api/skills', {
+  const response = await fetch('/api/skills', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(skill),
-  }).catch(() => {
+  });
+
+  const data = await response.json().catch(() => null) as { skill?: SkillCatalogItem; error?: string } | null;
+  if (!response.ok) {
+    throw new Error(data?.error || `技能持久化失败 (${response.status})`);
+  }
+
+  return data?.skill ?? skill;
+};
+
+const persistCustomSkillRemote = (skill: SkillCatalogItem) => {
+  void persistCustomSkillNow(skill).catch(() => {
     // localStorage is the product fallback when the remote store is unavailable.
   });
 };
@@ -442,11 +452,12 @@ export const loadCustomSkills = async () => {
     .then(async (response) => {
       if (!response.ok) return;
       const data = await response.json().catch(() => null) as { skills?: unknown[] } | null;
-      const remoteSkills = normalizeCustomSkills(data?.skills)
-        .map((skill) => ({ ...skill, scope: 'team' as const }));
+      const remoteSkills = normalizeCustomSkills(data?.skills);
       if (remoteSkills.length) {
         customSkills.value = remoteSkills;
         writeStoredCustomSkills(remoteSkills);
+      } else if (customSkills.value.length) {
+        customSkills.value.forEach(persistCustomSkillRemote);
       }
     })
     .catch(() => {
@@ -459,7 +470,7 @@ export const loadCustomSkills = async () => {
   await remoteCustomSkillLoadPromise;
 };
 
-export const upsertCustomSkill = (skill: SkillCatalogItem) => {
+export const upsertCustomSkill = (skill: SkillCatalogItem, options: { persist?: boolean } = {}) => {
   const normalized = normalizeCustomSkill({
     ...skill,
     source: 'custom',
@@ -470,10 +481,14 @@ export const upsertCustomSkill = (skill: SkillCatalogItem) => {
   const existingIndex = customSkills.value.findIndex((item) => item.id === normalized.id);
   if (existingIndex >= 0) {
     customSkills.value.splice(existingIndex, 1, normalized);
-    patchCustomSkillRemote(normalized);
+    if (options.persist !== false) {
+      patchCustomSkillRemote(normalized);
+    }
   } else {
     customSkills.value = [normalized, ...customSkills.value];
-    persistCustomSkillRemote(normalized);
+    if (options.persist !== false) {
+      persistCustomSkillRemote(normalized);
+    }
   }
 
   writeStoredCustomSkills(customSkills.value);
