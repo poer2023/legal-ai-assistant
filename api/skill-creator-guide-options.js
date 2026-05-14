@@ -40,6 +40,25 @@ const fallbackPlanSteps = [
   {
     field: 'source',
     title: '技能运行时主要读取什么材料？',
+    assetSlots: [
+      {
+        id: 'runtime-drafts',
+        type: 'draft',
+        title: '建议补充运行底稿',
+        description: '可以上传或选择一份典型材料，帮助技能明确启动时要读取哪些文件。',
+        optional: true,
+        allowLocal: true,
+        allowKnowledge: true,
+      },
+      {
+        id: 'output-template',
+        type: 'template',
+        title: '建议选择输出模板',
+        description: '如果技能要稳定复用某种文书结构，可以选择一个模板作为格式约束。',
+        optional: true,
+        allowTemplate: true,
+      },
+    ],
     options: [
       {
         id: 'plain-text-rules',
@@ -185,6 +204,85 @@ const normalizeOptions = (options, fallback, fallbackPrefix) => {
   return normalized.length >= 3 ? normalized : fallback;
 };
 
+const normalizeAssetSlotType = (value) => {
+  const type = String(value || '').trim().toLowerCase();
+  return type === 'template' ? 'template' : 'draft';
+};
+
+const normalizeAssetSlot = (slot, index, stepField) => {
+  if (!slot || typeof slot !== 'object') return null;
+
+  const type = normalizeAssetSlotType(slot.type || slot.kind);
+  const title = typeof slot.title === 'string' ? slot.title.trim() : '';
+  const description = typeof slot.description === 'string' ? slot.description.trim() : '';
+
+  return {
+    id: slugify(slot.id || title || `${stepField}-${type}`, `asset-${index + 1}`),
+    type,
+    title: (title || (type === 'template' ? '建议选择输出模板' : '建议补充底稿')).slice(0, 32),
+    description: (description || (type === 'template'
+      ? '选择一个模板作为技能的输出格式约束。'
+      : '补充一份典型材料，帮助技能明确输入要求。')).slice(0, 120),
+    optional: slot.optional !== false,
+    allowLocal: type === 'draft' && slot.allowLocal !== false,
+    allowKnowledge: type === 'draft' && slot.allowKnowledge !== false,
+    allowTemplate: type === 'template' || slot.allowTemplate === true,
+  };
+};
+
+const inferAssetSlots = (step) => {
+  const text = [
+    step?.field,
+    step?.title,
+    ...(Array.isArray(step?.options) ? step.options.flatMap((option) => [
+      option?.label,
+      option?.description,
+    ]) : []),
+  ].filter(Boolean).join('\n');
+  const slots = [];
+
+  if (/材料|底稿|上传|文件|证据|合同|附件|来源|source|input/i.test(text)) {
+    slots.push({
+      id: 'runtime-drafts',
+      type: 'draft',
+      title: '建议补充运行底稿',
+      description: '可以上传本地文件或从知识库选择一份典型材料；非必填。',
+      optional: true,
+      allowLocal: true,
+      allowKnowledge: true,
+    });
+  }
+
+  if (/模板|格式|样例|文书|输出|条款库|template|output/i.test(text)) {
+    slots.push({
+      id: 'output-template',
+      type: 'template',
+      title: '建议选择输出模板',
+      description: '可以选择一个模板，让技能学习稳定的输出结构；非必填。',
+      optional: true,
+      allowTemplate: true,
+    });
+  }
+
+  return slots;
+};
+
+const normalizeAssetSlots = (step, field) => {
+  const source = Array.isArray(step?.assetSlots) ? step.assetSlots : [];
+  const normalized = source
+    .map((slot, index) => normalizeAssetSlot(slot, index, field))
+    .filter(Boolean);
+
+  const slots = normalized.length ? normalized : inferAssetSlots(step);
+  const seen = new Set();
+  return slots.filter((slot) => {
+    const key = `${slot.type}:${slot.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 2);
+};
+
 const normalizeStep = (step, index) => {
   if (!step || typeof step !== 'object') return null;
 
@@ -200,6 +298,7 @@ const normalizeStep = (step, index) => {
     field,
     title: title.replace(/[？?]?$/, '？'),
     options,
+    assetSlots: normalizeAssetSlots({ ...step, options }, field),
   };
 };
 
@@ -262,9 +361,11 @@ const buildFollowupPlanMessages = ({ currentText, rootNeed }) => [
       '总步数包含根需求步骤最多 5 步，所以你只能生成 2 到 4 个后续步骤。',
       '不要每一步都问泛泛分类；每一步必须能减少真实技能创建的不确定性。',
       '优先覆盖：运行时输入材料、期望输出、生成物复杂度/是否需要 references/examples/scripts/assets、使用范围或质量边界。根据根需求取舍，不要机械凑满。',
+      '如果某一步适合让用户补充典型底稿、知识库文件或输出模板，请在该 step 上返回 assetSlots。assetSlots 是非必填上传/选择框，不是选项。',
+      'assetSlots 只在确实有帮助时返回；材料/证据/合同/底稿/尽调类步骤通常返回 draft，输出格式/文书结构/模板类步骤通常返回 template。',
       '每个步骤给 3 到 5 个候选项，第一项 recommended=true。',
       '你只生成问题和选项，不创建技能，不输出解释，不输出 Markdown。',
-      '返回 JSON object，格式固定为 {"steps":[{"field":"lowercase-hyphen","title":"中文问题","options":[{"id":"lowercase-hyphen","label":"中文短标签","description":"中文一句说明","recommended":true}]}]}。',
+      '返回 JSON object，格式固定为 {"steps":[{"field":"lowercase-hyphen","title":"中文问题","options":[{"id":"lowercase-hyphen","label":"中文短标签","description":"中文一句说明","recommended":true}],"assetSlots":[{"id":"runtime-drafts","type":"draft","title":"建议补充运行底稿","description":"中文一句说明","optional":true,"allowLocal":true,"allowKnowledge":true}]}]}。',
       'field 和 option.id 必须 ASCII lowercase hyphen-case。',
     ].join('\n'),
   },

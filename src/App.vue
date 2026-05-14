@@ -1,17 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Sidebar from './components/Sidebar.vue'
-import { useChatHistory } from './stores/chatHistory'
-import { loadCustomSkills } from './data/skillCatalog'
+import AppToast from './components/AppToast.vue'
+import { syncHistoryForCurrentOrganization, useChatHistory } from './stores/chatHistory'
+import { loadCustomSkills, syncSkillCatalogForCurrentOrganization } from './data/skillCatalog'
+import { useOrgSession } from './stores/orgSession'
 
 const route = useRoute()
 const isFullScreen = computed(() => route.meta.fullScreen === true)
 const { loadHistory } = useChatHistory()
+const { currentOrganizationId, hasActiveOrganization } = useOrgSession()
 
-onMounted(() => {
+watch(currentOrganizationId, () => {
+  if (!hasActiveOrganization.value) return
+
+  syncHistoryForCurrentOrganization()
+  syncSkillCatalogForCurrentOrganization()
   void loadHistory()
   void loadCustomSkills()
+}, {
+  immediate: true,
 })
 </script>
 
@@ -21,6 +30,7 @@ onMounted(() => {
     <main class="main-content" :class="{ 'full-screen': isFullScreen }">
       <router-view />
     </main>
+    <AppToast />
   </div>
 </template>
 

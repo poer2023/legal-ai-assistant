@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { Library, Plus, Search } from 'lucide-vue-next';
+import { FileText, Plus, Search } from 'lucide-vue-next';
 import { defaultTemplateAssets, type TemplateAsset } from '../data/legalAssets';
 
 const props = withDefaults(defineProps<{
@@ -100,12 +100,12 @@ const manageTemplates = () => {
       @click.stop="createTemplate"
     >
       <Plus :size="16" :stroke-width="2.2" class="template-row-icon" />
-      <span>新建模版</span>
+      <span>新建模板</span>
     </button>
 
     <button v-if="showManage" class="template-footer-row" type="button" @click.stop="manageTemplates">
-      <Library :size="16" :stroke-width="2.2" class="template-row-icon" />
-      <span>管理模版</span>
+      <FileText :size="16" :stroke-width="2.2" class="template-row-icon" />
+      <span>管理模板</span>
     </button>
   </div>
 </template>

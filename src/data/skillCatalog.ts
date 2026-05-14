@@ -4,6 +4,7 @@ import {
   type NonLitigationDocument,
 } from './nonLitigationDocuments';
 import { curatedLegalSkills } from './curatedLegalSkills';
+import { getCurrentOrganizationId, getOrganizationScopedStorageKey } from '../stores/orgSession';
 
 export type SkillFileType = 'markdown' | 'typescript' | 'json' | 'yaml';
 
@@ -157,7 +158,7 @@ const normalizePersonalSkillIds = (ids: string[]) =>
   Array.from(new Set(ids.filter((id) => recommendedSkillIds.has(id))));
 
 const normalizeTeamMarketSkillIds = (ids: string[]) =>
-  Array.from(new Set(ids.filter((id) => allSkillIds.has(id))));
+  Array.from(new Set(ids.filter((id) => allSkillIds.has(id) && !recommendedSkillIds.has(id))));
 
 const readStoredSkillIds = (
   storageKey: string,
@@ -167,7 +168,7 @@ const readStoredSkillIds = (
   if (typeof window === 'undefined') return [];
 
   try {
-    const raw = window.localStorage.getItem(storageKey);
+    const raw = window.localStorage.getItem(getOrganizationScopedStorageKey(storageKey));
     if (!raw) return normalize(fallbackIds);
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? normalize(parsed.filter((item) => typeof item === 'string')) : normalize(fallbackIds);
@@ -258,7 +259,7 @@ const readStoredCustomSkills = () => {
   if (typeof window === 'undefined') return [];
 
   try {
-    const skills = normalizeCustomSkills(JSON.parse(window.localStorage.getItem(customSkillStorageKey) || '[]'));
+    const skills = normalizeCustomSkills(JSON.parse(window.localStorage.getItem(getOrganizationScopedStorageKey(customSkillStorageKey)) || '[]'));
     writeStoredCustomSkills(skills);
     return skills;
   } catch {
@@ -268,32 +269,41 @@ const readStoredCustomSkills = () => {
 
 const writeStoredCustomSkills = (skills: SkillCatalogItem[]) => {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(customSkillStorageKey, JSON.stringify(skills));
+  window.localStorage.setItem(getOrganizationScopedStorageKey(customSkillStorageKey), JSON.stringify(skills));
 };
 
 const writeStoredSkillIds = (storageKey: string, ids: string[]) => {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(storageKey, JSON.stringify(ids));
+  window.localStorage.setItem(getOrganizationScopedStorageKey(storageKey), JSON.stringify(ids));
 };
 
 const personalSkillIds = ref<string[]>(
-  [],
+  readStoredSkillIds(personalSkillStorageKey, normalizePersonalSkillIds),
 );
 
 const teamMarketSkillIds = ref<string[]>(
   normalizeTeamMarketSkillIds([
     ...initialTeamMarketSkillIds,
     ...readStoredSkillIds(teamMarketSkillStorageKey, normalizeTeamMarketSkillIds, initialTeamMarketSkillIds),
-    ...readStoredSkillIds(personalSkillStorageKey, normalizeTeamMarketSkillIds),
   ]),
 );
 
-writeStoredSkillIds(personalSkillStorageKey, []);
 writeStoredSkillIds(teamMarketSkillStorageKey, teamMarketSkillIds.value);
 
 const customSkills = ref<SkillCatalogItem[]>(readStoredCustomSkills());
-const hasLoadedRemoteCustomSkills = ref(false);
-let remoteCustomSkillLoadPromise: Promise<void> | null = null;
+const loadedRemoteCustomSkillOrganizationIds = new Set<string>();
+const remoteCustomSkillLoadPromises = new Map<string, Promise<void>>();
+
+const getSkillsApiUrl = (
+  organizationId: string,
+  params: Record<string, string> = {},
+) => {
+  const searchParams = new URLSearchParams({
+    orgId: organizationId,
+    ...params,
+  });
+  return `/api/skills?${searchParams.toString()}`;
+};
 
 const skillsByIds = (ids: string[]) =>
   ids
@@ -311,6 +321,7 @@ const dedupeSkills = (skills: SkillCatalogItem[]) => {
 
 export const personalSkills = computed<SkillCatalogItem[]>(() =>
   dedupeSkills([
+    ...skillsByIds(personalSkillIds.value),
     ...customSkills.value.filter((skill) => skill.scope !== 'team'),
   ]),
 );
@@ -354,11 +365,11 @@ export const isAddedRecommendedSkill = isSkillAvailable;
 
 export const addPersonalSkill = (skillId: string) => {
   if (!recommendedSkillIds.has(skillId)) return false;
-  if (teamMarketSkillIds.value.includes(skillId)) return false;
+  if (personalSkillIds.value.includes(skillId)) return false;
 
-  const nextIds = normalizeTeamMarketSkillIds([...teamMarketSkillIds.value, skillId]);
-  teamMarketSkillIds.value = nextIds;
-  writeStoredSkillIds(teamMarketSkillStorageKey, nextIds);
+  const nextIds = normalizePersonalSkillIds([...personalSkillIds.value, skillId]);
+  personalSkillIds.value = nextIds;
+  writeStoredSkillIds(personalSkillStorageKey, nextIds);
   return true;
 };
 
@@ -397,13 +408,18 @@ export const publishSkillToTeamMarket = (skillId: string) => {
 
 export const persistCustomSkillNow = async (skill: SkillCatalogItem) => {
   if (typeof window === 'undefined') return skill;
+  const organizationId = getCurrentOrganizationId();
+  if (!organizationId) return skill;
 
-  const response = await fetch('/api/skills', {
+  const response = await fetch(getSkillsApiUrl(organizationId), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(skill),
+    body: JSON.stringify({
+      ...skill,
+      organizationId,
+    }),
   });
 
   const data = await response.json().catch(() => null) as { skill?: SkillCatalogItem; error?: string } | null;
@@ -422,13 +438,18 @@ const persistCustomSkillRemote = (skill: SkillCatalogItem) => {
 
 const patchCustomSkillRemote = (skill: SkillCatalogItem) => {
   if (typeof window === 'undefined') return;
+  const organizationId = getCurrentOrganizationId();
+  if (!organizationId) return;
 
-  void fetch(`/api/skills?id=${encodeURIComponent(skill.id)}`, {
+  void fetch(getSkillsApiUrl(organizationId, { id: skill.id }), {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(skill),
+    body: JSON.stringify({
+      ...skill,
+      organizationId,
+    }),
   }).catch(() => {
     // localStorage is the product fallback when the remote store is unavailable.
   });
@@ -436,23 +457,39 @@ const patchCustomSkillRemote = (skill: SkillCatalogItem) => {
 
 const deleteCustomSkillRemote = (skillId: string) => {
   if (typeof window === 'undefined') return;
+  const organizationId = getCurrentOrganizationId();
+  if (!organizationId) return;
 
-  void fetch(`/api/skills?id=${encodeURIComponent(skillId)}`, {
+  void fetch(getSkillsApiUrl(organizationId, { id: skillId }), {
     method: 'DELETE',
   }).catch(() => {
     // localStorage is the product fallback when the remote store is unavailable.
   });
 };
 
+export const syncSkillCatalogForCurrentOrganization = () => {
+  personalSkillIds.value = readStoredSkillIds(personalSkillStorageKey, normalizePersonalSkillIds);
+  teamMarketSkillIds.value = normalizeTeamMarketSkillIds([
+    ...initialTeamMarketSkillIds,
+    ...readStoredSkillIds(teamMarketSkillStorageKey, normalizeTeamMarketSkillIds, initialTeamMarketSkillIds),
+  ]);
+  writeStoredSkillIds(teamMarketSkillStorageKey, teamMarketSkillIds.value);
+  customSkills.value = readStoredCustomSkills();
+};
+
 export const loadCustomSkills = async () => {
   if (typeof window === 'undefined') return;
-  if (hasLoadedRemoteCustomSkills.value) return;
+  const organizationId = getCurrentOrganizationId();
+  if (!organizationId) return;
+  if (loadedRemoteCustomSkillOrganizationIds.has(organizationId)) return;
 
-  remoteCustomSkillLoadPromise ??= fetch('/api/skills')
+  if (!remoteCustomSkillLoadPromises.has(organizationId)) {
+    remoteCustomSkillLoadPromises.set(organizationId, fetch(getSkillsApiUrl(organizationId))
     .then(async (response) => {
       if (!response.ok) return;
       const data = await response.json().catch(() => null) as { skills?: unknown[] } | null;
       const remoteSkills = normalizeCustomSkills(data?.skills);
+      if (getCurrentOrganizationId() !== organizationId) return;
       if (remoteSkills.length) {
         customSkills.value = remoteSkills;
         writeStoredCustomSkills(remoteSkills);
@@ -464,10 +501,11 @@ export const loadCustomSkills = async () => {
       // Keep the local copy as the available demo/runtime source.
     })
     .finally(() => {
-      hasLoadedRemoteCustomSkills.value = true;
-    });
+      loadedRemoteCustomSkillOrganizationIds.add(organizationId);
+    }));
+  }
 
-  await remoteCustomSkillLoadPromise;
+  await remoteCustomSkillLoadPromises.get(organizationId);
 };
 
 export const upsertCustomSkill = (skill: SkillCatalogItem, options: { persist?: boolean } = {}) => {

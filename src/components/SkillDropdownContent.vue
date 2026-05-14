@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import {
-  MessageCirclePlus,
-  SlidersHorizontal,
+  Puzzle,
 } from 'lucide-vue-next';
 import { availableSkills, type SkillCatalogItem } from '../data/skillCatalog';
 
@@ -108,12 +107,12 @@ const manageSkills = () => {
 
     <section v-if="showManage" class="skill-footer-actions" aria-label="技能操作">
       <button v-if="showCreate" class="skill-footer-row" type="button" @click.stop="createSkill">
-        <MessageCirclePlus :size="16" :stroke-width="2.2" class="skill-row-icon" />
+        <Puzzle :size="16" :stroke-width="2.2" class="skill-row-icon" />
         <span>创建技能</span>
       </button>
 
       <button class="skill-footer-row" type="button" @click.stop="manageSkills">
-        <SlidersHorizontal :size="16" :stroke-width="2.2" class="skill-row-icon" />
+        <Puzzle :size="16" :stroke-width="2.2" class="skill-row-icon" />
         <span>管理技能</span>
       </button>
     </section>

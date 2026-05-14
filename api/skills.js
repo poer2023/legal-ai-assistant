@@ -119,6 +119,32 @@ const deleteLocalRow = async (skillId) => {
 
 const normalizeText = (value) => typeof value === 'string' ? value.trim() : '';
 
+const normalizeOrganizationId = (value) => {
+  const organizationId = normalizeText(value);
+  if (/^[a-zA-Z0-9_-]{1,80}$/.test(organizationId)) return organizationId;
+  return 'default';
+};
+
+const getRequestOrganizationId = (request, body = null) => {
+  const requestUrl = new URL(request.url || '/', 'http://localhost');
+  return normalizeOrganizationId(body?.organizationId || body?.orgId || requestUrl.searchParams.get('orgId'));
+};
+
+const getStorageId = (organizationId, id) => {
+  const normalizedId = normalizeText(id);
+  if (!normalizedId) return '';
+  const prefix = `${organizationId}:`;
+  return normalizedId.startsWith(prefix) ? normalizedId : `${prefix}${normalizedId}`;
+};
+
+const stripStorageId = (organizationId, id) => {
+  const prefix = `${organizationId}:`;
+  return typeof id === 'string' && id.startsWith(prefix) ? id.slice(prefix.length) : id;
+};
+
+const isOrganizationRow = (organizationId, row) =>
+  typeof row?.id === 'string' && row.id.startsWith(`${organizationId}:`);
+
 const normalizeTags = (tags) => Array.isArray(tags)
   ? tags.filter((tag) => typeof tag === 'string' && tag.trim()).map((tag) => tag.trim())
   : [];
@@ -152,8 +178,8 @@ const normalizeDate = (value) => {
   return Number.isNaN(timestamp) ? new Date().toISOString() : new Date(timestamp).toISOString();
 };
 
-const toClientSkill = (row) => ({
-  id: row.id,
+const toClientSkill = (row, organizationId) => ({
+  id: stripStorageId(organizationId, row.id),
   name: row.name,
   description: row.description,
   category: row.category,
@@ -169,8 +195,8 @@ const toClientSkill = (row) => ({
   usageCount: typeof row.usage_count === 'number' ? row.usage_count : 0,
 });
 
-const toStorageRow = (payload) => {
-  const id = normalizeText(payload.id);
+const toStorageRow = (payload, organizationId) => {
+  const id = getStorageId(organizationId, payload.id);
   const name = normalizeText(payload.name);
   const description = normalizeText(payload.description);
   const files = normalizeFiles(payload.files);
@@ -202,11 +228,11 @@ const toStorageRow = (payload) => {
   };
 };
 
-const readSkills = async () => {
-  const localRows = await readLocalRows();
+const readSkills = async (organizationId) => {
+  const localRows = (await readLocalRows()).filter((row) => isOrganizationRow(organizationId, row));
   const config = getSupabaseConfig();
   if (!config) {
-    return sortRowsByUpdatedAt(localRows).map(toClientSkill);
+    return sortRowsByUpdatedAt(localRows).map((row) => toClientSkill(row, organizationId));
   }
 
   const fields = [
@@ -228,22 +254,25 @@ const readSkills = async () => {
   ].join(',');
   let rows = [];
   try {
+    const idFilter = encodeURIComponent(`${organizationId}:%`);
     rows = await supabaseFetch(
-      `${TABLE_NAME}?select=${fields}&order=updated_at.desc`,
+      `${TABLE_NAME}?select=${fields}&id=like.${idFilter}&order=updated_at.desc`,
     );
   } catch (error) {
     rows = localRows;
   }
 
-  return mergeRowsByLatest(Array.isArray(rows) ? rows : [], localRows).map(toClientSkill);
+  return mergeRowsByLatest(Array.isArray(rows) ? rows : [], localRows)
+    .filter((row) => isOrganizationRow(organizationId, row))
+    .map((row) => toClientSkill(row, organizationId));
 };
 
-const upsertSkill = async (payload) => {
-  const row = toStorageRow(payload);
+const upsertSkill = async (payload, organizationId) => {
+  const row = toStorageRow(payload, organizationId);
   const config = getSupabaseConfig();
   if (!config) {
     const localRow = await upsertLocalRow(row);
-    return toClientSkill(localRow);
+    return toClientSkill(localRow, organizationId);
   }
 
   let rows = null;
@@ -257,16 +286,16 @@ const upsertSkill = async (payload) => {
     });
   } catch (error) {
     const localRow = await upsertLocalRow(row);
-    return toClientSkill(localRow);
+    return toClientSkill(localRow, organizationId);
   }
 
   const storedRow = Array.isArray(rows) ? rows[0] : rows;
   await upsertLocalRow(storedRow || row);
-  return toClientSkill(storedRow || row);
+  return toClientSkill(storedRow || row, organizationId);
 };
 
-const deleteSkill = async (id) => {
-  const skillId = normalizeText(id);
+const deleteSkill = async (id, organizationId) => {
+  const skillId = getStorageId(organizationId, id);
   if (!skillId) {
     const error = new Error('缺少技能 id');
     error.statusCode = 400;
@@ -296,19 +325,22 @@ const deleteSkill = async (id) => {
 export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
-      sendJson(response, 200, { skills: await readSkills() });
+      const organizationId = getRequestOrganizationId(request);
+      sendJson(response, 200, { skills: await readSkills(organizationId) });
       return;
     }
 
     if (request.method === 'POST' || request.method === 'PATCH') {
       const body = await readJsonBody(request);
-      sendJson(response, 200, { skill: await upsertSkill(body) });
+      const organizationId = getRequestOrganizationId(request, body);
+      sendJson(response, 200, { skill: await upsertSkill(body, organizationId) });
       return;
     }
 
     if (request.method === 'DELETE') {
       const requestUrl = new URL(request.url || '/', 'http://localhost');
-      await deleteSkill(requestUrl.searchParams.get('id'));
+      const organizationId = getRequestOrganizationId(request);
+      await deleteSkill(requestUrl.searchParams.get('id'), organizationId);
       sendJson(response, 200, { ok: true });
       return;
     }

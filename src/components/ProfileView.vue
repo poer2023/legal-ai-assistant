@@ -1,178 +1,244 @@
 <script setup lang="ts">
-const navItems = [
-  { label: '个人信息', path: '/profile/basic', active: true },
-  { label: '提问记录', path: '/profile/questions', active: false },
-  { label: '使用记录', path: '/profile/creations', active: false },
-];
+import { computed } from 'vue';
+import {
+  BadgeCheck,
+  Building2,
+  KeyRound,
+  ShieldCheck,
+  Smartphone,
+  UserRound,
+} from 'lucide-vue-next';
+import { useOrgSession } from '../stores/orgSession';
 
-const accountRows = [
-  { label: '昵称', value: '892830', hasAction: false },
-  { label: '用户ID', value: '2000516763502120962', hasAction: true },
-  { label: '绑定手机号', value: '18852892830', hasAction: false },
-  { label: '密码', value: '修改密码', hasAction: false },
-];
+const { currentOrganization, currentUser } = useOrgSession();
+
+const accountRows = computed(() => [
+  {
+    icon: UserRound,
+    label: '昵称',
+    value: currentUser.value?.displayName ?? '未设置',
+    meta: '协作场景中的展示名称',
+  },
+  {
+    icon: BadgeCheck,
+    label: '用户ID',
+    value: currentUser.value?.id ?? '未生成',
+    meta: '账号唯一标识',
+  },
+  {
+    icon: Smartphone,
+    label: '绑定手机号',
+    value: currentUser.value?.phone ?? '未绑定',
+    meta: '登录与安全验证手机号',
+  },
+  {
+    icon: Building2,
+    label: '当前组织',
+    value: currentOrganization.value?.name ?? '未选择组织',
+    meta: currentOrganization.value
+      ? `${currentOrganization.value.role} · ${currentOrganization.value.planName}`
+      : '可在个人中心弹窗中管理',
+  },
+  {
+    icon: ShieldCheck,
+    label: '账号安全',
+    value: '密码已启用',
+    meta: '建议定期更新登录密码',
+    actionLabel: '修改密码',
+  },
+]);
 </script>
 
 <template>
   <div class="profile-page">
     <main class="profile-main">
-      <header class="profile-header">
-        <h1>个人信息</h1>
-        <p>管理您的个人信息和账户设置</p>
-      </header>
+      <section class="profile-card" aria-label="个人信息">
+        <header class="profile-header">
+          <span class="profile-avatar">{{ currentUser?.avatarText ?? '用' }}</span>
+          <span class="profile-title-copy">
+            <h1>个人信息</h1>
+            <p>{{ currentUser?.displayName ?? '未登录账号' }}</p>
+          </span>
+        </header>
 
-      <section class="info-list" aria-label="个人信息">
-        <div v-for="row in accountRows" :key="row.label" class="info-row">
-          <span class="info-label">{{ row.label }}</span>
-          <strong class="info-value">{{ row.value }}</strong>
-          <button v-if="row.hasAction" class="icon-action" aria-label="更多操作"></button>
-        </div>
+        <section class="info-grid">
+          <article v-for="row in accountRows" :key="row.label" class="info-item">
+            <span class="info-icon">
+              <component :is="row.icon" :size="18" />
+            </span>
+            <span class="info-copy">
+              <span class="info-label">{{ row.label }}</span>
+              <strong class="info-value">{{ row.value }}</strong>
+              <span class="info-meta">{{ row.meta }}</span>
+            </span>
+            <button v-if="row.actionLabel" class="inline-action" type="button">
+              <KeyRound :size="15" />
+              <span>{{ row.actionLabel }}</span>
+            </button>
+          </article>
+        </section>
       </section>
     </main>
-
-    <nav class="profile-links" aria-label="个人中心导航">
-      <a
-        v-for="item in navItems"
-        :key="item.label"
-        :href="item.path"
-        class="profile-link"
-        :class="{ active: item.active }"
-      >
-        {{ item.label }}
-      </a>
-      <button class="more-entry">更多</button>
-    </nav>
   </div>
 </template>
 
 <style scoped>
 .profile-page {
   min-height: 100%;
-  display: flex;
-  flex-direction: column;
   background: var(--bg-color);
+  color: var(--text-main);
 }
 
 .profile-main {
-  width: min(760px, calc(100% - 72px));
+  width: min(840px, calc(100% - 56px));
   margin: 0 auto;
-  padding: 46px 0 24px;
+  padding: 42px 0;
+}
+
+.profile-card {
+  padding: 28px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-soft);
 }
 
 .profile-header {
-  margin-bottom: 26px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 22px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
-.profile-header h1 {
-  margin: 0 0 8px;
+.profile-avatar {
+  width: 54px;
+  height: 54px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  background: var(--primary-color);
+  color: var(--on-primary);
+  font-size: 20px;
+  font-weight: 750;
+}
+
+.profile-title-copy {
+  min-width: 0;
+}
+
+.profile-title-copy h1 {
+  margin: 0 0 5px;
   color: var(--text-strong);
-  font-size: 28px;
-  font-weight: 700;
+  font-size: 24px;
+  font-weight: 650;
 }
 
-.profile-header p {
+.profile-title-copy p {
   margin: 0;
   color: var(--text-secondary);
   font-size: 14px;
 }
 
-.info-list {
-  background: transparent;
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding-top: 22px;
 }
 
-.info-row {
-  position: relative;
+.info-item {
+  min-width: 0;
+  min-height: 112px;
   display: grid;
-  grid-template-columns: 128px minmax(0, 1fr) 40px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--surface-muted);
+}
+
+.info-item:last-child {
+  grid-column: 1 / -1;
+  min-height: 96px;
+}
+
+.info-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
   align-items: center;
-  min-height: 70px;
-  border-bottom: 1px solid var(--border-soft);
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary-color);
+}
+
+.info-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 .info-label {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .info-value {
+  overflow: hidden;
   color: var(--text-strong);
   font-size: 15px;
-  font-weight: 500;
-  word-break: break-word;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.icon-action {
-  justify-self: end;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+.info-meta {
   color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
-.icon-action::before {
-  content: '...';
-  display: block;
-  line-height: 18px;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.icon-action:hover {
-  background: var(--border-soft);
-}
-
-.profile-links {
-  width: min(760px, calc(100% - 72px));
-  margin: 6px auto 0;
-  padding: 18px 0 28px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.profile-link,
-.more-entry {
-  min-height: 36px;
+.inline-action {
+  grid-column: 2;
+  width: fit-content;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--primary-border);
   border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.profile-link {
-  padding: 0 2px;
-}
-
-.profile-link.active {
   color: var(--primary-color);
+  font-size: 13px;
   font-weight: 600;
 }
 
-.more-entry {
-  margin-left: auto;
-  padding: 0 12px;
-  color: var(--text-secondary);
+.inline-action:hover {
+  background: var(--primary-soft);
 }
 
-.profile-link:hover,
-.more-entry:hover {
-  color: var(--primary-color);
-}
-
-@media (max-width: 720px) {
-  .profile-main,
-  .profile-links {
-    width: calc(100% - 28px);
-  }
-
+@media (max-width: 760px) {
   .profile-main {
-    padding-top: 28px;
+    width: calc(100% - 28px);
+    padding: 24px 0;
   }
 
-  .info-row {
-    grid-template-columns: 96px minmax(0, 1fr) 32px;
+  .profile-card {
+    padding: 20px;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

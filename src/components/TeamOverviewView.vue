@@ -1,20 +1,27 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Camera, Edit3 } from 'lucide-vue-next';
+import { useOrgSession } from '../stores/orgSession';
 
 const canEdit = ref(true);
+const { currentOrganization } = useOrgSession();
 
-const teamInfo = [
-  { label: '团队名称', value: '演示团队' },
-  { label: '团队简称', value: '涌见AI' },
-  { label: '团队标语', value: 'AI法律助手' },
-  { label: '团队规模', value: '10人/100人' },
-  { label: '团队有效期', value: '无' },
-  { label: '学术搜索次数', value: '95次/100次' },
-  { label: '共享硬币', value: '0/0硬币' },
-  { label: '提问次数', value: '1,040次/5万次' },
-  { label: '知识库空间', value: '1.40GB/100GB' },
-];
+const teamInfo = computed(() => {
+  const organization = currentOrganization.value;
+
+  return [
+    { label: '团队名称', value: organization?.name ?? '未选择组织' },
+    { label: '团队简称', value: organization?.shortName ?? '-' },
+    { label: '当前角色', value: organization?.role ?? '-' },
+    { label: '团队规模', value: organization ? `${organization.memberCount}人` : '-' },
+    { label: '团队套餐', value: organization?.planName ?? '-' },
+    { label: '团队有效期', value: '无' },
+    { label: '学术搜索次数', value: '95次/100次' },
+    { label: '共享硬币', value: '0/0硬币' },
+    { label: '提问次数', value: organization?.questionUsage ?? '-' },
+    { label: '知识库空间', value: organization?.storageUsage ?? '-' },
+  ];
+});
 </script>
 
 <template>
@@ -36,7 +43,7 @@ const teamInfo = [
         <div class="info-label">团队LOGO</div>
         <div class="logo-editor">
           <div class="team-logo">
-            <span>涌</span>
+            <span>{{ currentOrganization?.avatarText ?? '组' }}</span>
           </div>
           <div class="logo-overlay">
             <Camera :size="22" />

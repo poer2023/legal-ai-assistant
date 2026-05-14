@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import LoginView from '../components/LoginView.vue';
+import OrgSelectView from '../components/OrgSelectView.vue';
 import HomeView from '../components/HomeView.vue';
 import AgentsView from '../components/AgentsView.vue';
 import SkillTemplateView from '../components/SkillTemplateView.vue';
@@ -38,6 +40,7 @@ import TeamThemeView from '../components/team/TeamThemeView.vue';
 import ProfileView from '../components/ProfileView.vue';
 import GuideView from '../components/GuideView.vue';
 import InvestigationAgentDemoView from '../components/InvestigationAgentDemoView.vue';
+import { useOrgSession } from '../stores/orgSession';
 
 // Placeholder views - can be replaced with actual components later
 const PlaceholderView = {
@@ -50,6 +53,18 @@ const PlaceholderView = {
 };
 
 const routes = [
+  {
+    path: '/login',
+    name: 'login',
+    component: LoginView,
+    meta: { title: '登录', fullScreen: true, public: true }
+  },
+  {
+    path: '/org/select',
+    name: 'org-select',
+    component: OrgSelectView,
+    meta: { title: '管理我的组织' }
+  },
   {
     path: '/',
     name: 'home',
@@ -400,6 +415,49 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+router.beforeEach((to) => {
+  const { currentOrganization, hasActiveOrganization, isAuthenticated } = useOrgSession();
+  const isPublicRoute = to.meta.public === true;
+
+  if (!isAuthenticated.value && !isPublicRoute) {
+    return {
+      name: 'login',
+      query: {
+        redirect: to.fullPath,
+      },
+    };
+  }
+
+  if (
+    isAuthenticated.value
+    && !hasActiveOrganization.value
+    && to.name !== 'org-select'
+    && to.name !== 'login'
+  ) {
+    return {
+      name: 'org-select',
+      query: {
+        redirect: to.fullPath,
+      },
+    };
+  }
+
+  if (isAuthenticated.value && hasActiveOrganization.value && to.name === 'login') {
+    return { name: 'home' };
+  }
+
+  if (
+    isAuthenticated.value
+    && hasActiveOrganization.value
+    && String(to.path).startsWith('/team')
+    && currentOrganization.value?.role !== '管理员'
+  ) {
+    return { name: 'home' };
+  }
+
+  return true;
 });
 
 export default router;

@@ -74,6 +74,12 @@ const handleThemeSelect = (themeId: ThemeId) => {
 .team-theme-page {
   width: 100%;
   max-width: 940px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin: 0 auto;
+  padding: 32px 24px;
   color: var(--text-main);
 }
 
@@ -276,6 +282,11 @@ const handleThemeSelect = (themeId: ThemeId) => {
 }
 
 @media (max-width: 900px) {
+  .team-theme-page {
+    justify-content: flex-start;
+    padding: 20px 16px 28px;
+  }
+
   .theme-grid {
     grid-template-columns: 1fr;
   }

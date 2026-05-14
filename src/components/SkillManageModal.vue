@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   Check,
   ChevronDown,
@@ -7,11 +8,11 @@ import {
   Copy,
   Download,
   FileText,
-  Info,
   MoreHorizontal,
   Pencil,
   Play,
   Plus,
+  Search,
   Trash2,
   UsersRound,
   X,
@@ -28,12 +29,16 @@ import {
   type SkillCatalogItem,
   type SkillFile,
 } from '../data/skillCatalog';
+import { getSkillAvatarStyle } from '../data/skillAvatars';
 import { createSkillWithSkillCreator } from '../services/skillCreator';
+import LibraryTypeDropdown from './LibraryTypeDropdown.vue';
 
 const props = withDefaults(defineProps<{
   startInCreate?: boolean;
+  createBehavior?: 'inline' | 'emit';
 }>(), {
   startInCreate: false,
+  createBehavior: 'inline',
 });
 
 const emit = defineEmits<{
@@ -42,8 +47,11 @@ const emit = defineEmits<{
   (event: 'use', skillName?: string): void;
 }>();
 
+const router = useRouter();
 const selectedSkill = ref<SkillCatalogItem | null>(null);
 const activeListPage = ref<'personal' | 'team-market' | 'recommended'>('personal');
+const modalSearchKeyword = ref('');
+const selectedListCategory = ref('全部');
 const isCreateMode = ref(false);
 const activeFileId = ref('');
 const expandedTreeKeys = ref<Record<string, boolean>>({});
@@ -76,7 +84,7 @@ type TreeGroup = {
 
 const isRecommendedListPage = computed(() => activeListPage.value === 'recommended');
 const isTeamMarketListPage = computed(() => activeListPage.value === 'team-market');
-const visibleListSkills = computed(() =>
+const activeListSkills = computed(() =>
   ({
     personal: personalSkills.value,
     'team-market': teamMarketSkills.value,
@@ -84,16 +92,43 @@ const visibleListSkills = computed(() =>
   })[activeListPage.value],
 );
 
-const activeListTitle = computed(() => {
-  if (isTeamMarketListPage.value) return '团队共享';
-  if (isRecommendedListPage.value) return '推荐';
-  return '我的技能';
+const activeListCategoryOptions = computed(() => {
+  const counts = new Map<string, number>();
+  activeListSkills.value.forEach((skill) => {
+    counts.set(skill.category, (counts.get(skill.category) ?? 0) + 1);
+  });
+
+  return [
+    { name: '全部', count: activeListSkills.value.length },
+    ...Array.from(counts, ([name, count]) => ({ name, count })).sort((left, right) =>
+      left.name.localeCompare(right.name, 'zh-Hans-CN'),
+    ),
+  ];
 });
 
-const activeListSubtitle = computed(() => {
-  if (isTeamMarketListPage.value) return '团队共享中的技能对全员可见，可直接使用，也可添加到自己的技能库。';
-  if (isRecommendedListPage.value) return '从推荐技能中挑选常用工作流，一键添加后即可使用。';
-  return '这里是已添加和创建的可复用技能。';
+const visibleListSkills = computed(() => {
+  const keyword = modalSearchKeyword.value.trim().toLowerCase();
+
+  return activeListSkills.value.filter((skill) => {
+    const matchesCategory = selectedListCategory.value === '全部' || skill.category === selectedListCategory.value;
+    const searchable = [
+      skill.name,
+      skill.description,
+      skill.category,
+      ...skill.tags,
+      ...skill.files.map((file) => `${file.name} ${file.path}`),
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    return matchesCategory && (!keyword || searchable.includes(keyword));
+  });
+});
+
+const activeListTitle = computed(() => {
+  if (isTeamMarketListPage.value) return '团队共享';
+  if (isRecommendedListPage.value) return '官方推荐';
+  return '我的技能';
 });
 
 const selectedFiles = computed(() => selectedSkill.value?.files ?? []);
@@ -205,6 +240,7 @@ const resetDetailState = (skill: SkillCatalogItem) => {
 
 const setListPage = (page: 'personal' | 'team-market' | 'recommended') => {
   activeListPage.value = page;
+  selectedListCategory.value = '全部';
   selectedSkill.value = null;
   isCreateMode.value = false;
   activeFileId.value = '';
@@ -235,8 +271,13 @@ const createSkill = () => {
   createError.value = '';
 };
 
-const requestCreateSkill = () => {
-  emit('create');
+const handleCreateSkillAction = () => {
+  if (props.createBehavior === 'emit') {
+    emit('create');
+    return;
+  }
+
+  createSkill();
 };
 
 const useSkill = (skillName?: string) => {
@@ -319,7 +360,16 @@ const useSkillFromMenu = (skill: SkillCatalogItem) => {
 
 const editSkill = (skill: SkillCatalogItem) => {
   openCardMenuId.value = null;
-  openSkill(skill);
+  closeModal();
+  void router.push({
+    name: 'skills',
+    query: {
+      skillMode: activeListPage.value,
+      skillId: skill.id,
+      edit: '1',
+      skillTick: Date.now().toString(),
+    },
+  });
 };
 
 const isSkillAdded = (skill: SkillCatalogItem) => isSkillAvailable(skill.id);
@@ -461,10 +511,17 @@ onBeforeUnmount(() => {
           <span v-else>{{ activeListTitle }}</span>
         </h2>
         <div v-if="!isCreateMode" class="modal-toolbar">
-          <p class="modal-subtitle">
-            <span>{{ activeListSubtitle }}</span>
-            <Info :size="17" :stroke-width="2" />
-          </p>
+          <div class="modal-filter-group">
+            <label class="modal-search-control">
+              <Search :size="16" />
+              <input v-model="modalSearchKeyword" type="text" placeholder="搜索技能、描述、标签" />
+            </label>
+            <LibraryTypeDropdown
+              v-model="selectedListCategory"
+              :options="activeListCategoryOptions"
+              label="类型"
+            />
+          </div>
           <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
           <div class="modal-tabs" aria-label="技能分类">
             <button
@@ -489,12 +546,12 @@ onBeforeUnmount(() => {
               type="button"
               @click="setListPage('recommended')"
             >
-              推荐
+              官方推荐
             </button>
             <button
-              class="modal-tab"
+              class="modal-create-btn"
               type="button"
-              @click.stop="requestCreateSkill"
+              @click.stop="handleCreateSkillAction"
             >
               创建技能
             </button>
@@ -563,7 +620,11 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <div v-if="!selectedSkill && !isCreateMode" class="skill-card-grid">
+      <p v-if="!selectedSkill && !isCreateMode && !visibleListSkills.length" class="empty-list">
+        暂无匹配技能
+      </p>
+
+      <div v-else-if="!selectedSkill && !isCreateMode" class="skill-card-grid">
         <article
           v-for="skill in visibleListSkills"
           :key="skill.id"
@@ -618,8 +679,11 @@ onBeforeUnmount(() => {
             </button>
           </div>
 
-          <h3>{{ skill.name }}</h3>
-          <p>{{ skill.description }}</p>
+          <div class="skill-card-avatar" :style="getSkillAvatarStyle(skill)" aria-hidden="true"></div>
+          <div class="skill-card-copy">
+            <h3>{{ skill.name }}</h3>
+            <p>{{ skill.description }}</p>
+          </div>
         </article>
       </div>
 
@@ -823,20 +887,47 @@ onBeforeUnmount(() => {
   gap: 14px;
 }
 
-.modal-subtitle {
+.modal-filter-group {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.35;
+  gap: 10px;
+  flex: 1;
 }
 
-.modal-subtitle svg {
+.modal-search-control {
+  width: min(320px, 100%);
+  min-width: 220px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 11px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.modal-search-control:focus-within {
+  border-color: var(--primary-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+.modal-search-control svg {
   flex-shrink: 0;
+}
+
+.modal-search-control input {
+  width: 100%;
+  min-width: 0;
+  color: var(--text-main);
+  background: transparent;
+  font-size: 13.5px;
+}
+
+.modal-search-control input::placeholder {
   color: var(--text-muted);
 }
 
@@ -881,6 +972,31 @@ onBeforeUnmount(() => {
 .modal-tab.active:hover {
   color: var(--primary-hover);
   background: var(--primary-soft-strong);
+}
+
+.modal-create-btn {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 14px;
+  border: 1px solid var(--primary-color);
+  border-radius: 10px;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-color) 11%, transparent);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.modal-create-btn:hover {
+  transform: translateY(-1px);
+  color: var(--on-primary);
+  background: var(--primary-hover);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--primary-color) 15%, transparent);
 }
 
 .list-back-btn {
@@ -979,10 +1095,28 @@ onBeforeUnmount(() => {
   margin-top: 20px;
 }
 
+.empty-list {
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 20px 0 0;
+  border: 1px dashed var(--border-color);
+  border-radius: 14px;
+  color: var(--text-secondary);
+  background: var(--surface-muted);
+  font-size: 14px;
+  font-weight: 650;
+}
+
 .managed-skill-card {
   position: relative;
-  min-height: 108px;
-  padding: 20px 48px 18px 20px;
+  min-height: 118px;
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  padding: 16px 48px 16px 16px;
   border: 1px solid var(--border-color);
   border-radius: 14px;
   background: var(--card-bg);
@@ -1002,6 +1136,22 @@ onBeforeUnmount(() => {
 
 .managed-skill-card.recommendation-card {
   padding-right: 104px;
+}
+
+.skill-card-avatar {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 11px;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.skill-card-copy {
+  min-width: 0;
+  padding-top: 1px;
 }
 
 .managed-skill-card h3 {
@@ -1121,6 +1271,7 @@ onBeforeUnmount(() => {
 
 .modal-close-btn:focus-visible,
 .modal-tab:focus-visible,
+.modal-create-btn:focus-visible,
 .list-back-btn:focus-visible,
 .card-more-btn:focus-visible,
 .add-skill-btn:focus-visible,
@@ -1484,9 +1635,19 @@ onBeforeUnmount(() => {
     flex-direction: column;
   }
 
+  .modal-filter-group,
+  .modal-search-control {
+    width: 100%;
+  }
+
+  .modal-search-control {
+    min-width: 0;
+  }
+
   .modal-tabs {
     width: 100%;
     justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .skill-card-grid {
@@ -1514,11 +1675,13 @@ onBeforeUnmount(() => {
     border-radius: 18px;
   }
 
-  .modal-subtitle {
-    font-size: 14px;
+  .modal-filter-group {
+    align-items: stretch;
+    flex-direction: column;
   }
 
-  .modal-tab {
+  .modal-tab,
+  .modal-create-btn {
     min-height: 38px;
     font-size: 14px;
   }

@@ -2,7 +2,6 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import {
   Brain,
-  ChevronDown,
   File,
   FileText,
   FolderOpen,
@@ -19,8 +18,8 @@ import {
   Check,
   BookOpen,
   Paperclip,
-  Plus,
   Puzzle,
+  SlidersHorizontal,
   X,
   Zap,
 } from 'lucide-vue-next';
@@ -37,6 +36,7 @@ import {
 import {
   generateSkillCreatorQuestionPlan,
   generateSkillCreatorRootOptions,
+  type SkillCreatorGuideAssetSlot as GeneratedSkillCreatorAssetSlot,
   type SkillCreatorGuideField,
   type SkillCreatorGuideOption as GeneratedSkillCreatorOption,
   type SkillCreatorGuideStep as GeneratedSkillCreatorStep,
@@ -57,7 +57,6 @@ const showActionMenu = ref(false);
 const showDraftMenu = ref(false);
 const showSkillMenu = ref(false);
 const showTemplateMenu = ref(false);
-const showThinkingMenu = ref(false);
 const showInlineSkillMenu = ref(false);
 const showInlineTemplateMenu = ref(false);
 const showKnowledgeDraftPicker = ref(false);
@@ -65,6 +64,7 @@ const showSkillManageModal = ref(false);
 const skillManageStartsInCreate = ref(false);
 const showTemplateManageModal = ref(false);
 const showSkillCreatorGuide = ref(false);
+const showSkillCreatorForm = ref(false);
 const skillCreatorGuideStep = ref(0);
 const skillTokenCount = ref(0);
 const hasSkillCreatorToken = ref(false);
@@ -86,18 +86,47 @@ const skillPromptSuffix = ' 帮我完成以下任务，我的需求如下：';
 const skillCreatorPromptSuffix = ' 帮我创建一个可复用的技能，我的需求如下：';
 const templatePromptSuffix = ' 帮我按照这个格式模板完成写作，我的需求/源文件如下：';
 const templateCreatorPromptSuffix = ' 帮我创建一个可复用的输出格式模板，我的需求/源文件如下：';
-const inlineTokenSelector = '.skill-inline-code, .template-inline-code';
+const inlineTokenSelector = '.skill-inline-code, .template-inline-code, .asset-inline-code';
+// Keep the previous multi-step guide in this file, but route new creation to the fixed form.
+const useFixedSkillCreatorForm = true;
+const showLegacySkillCreatorGuide = computed(() =>
+  showSkillCreatorGuide.value && !useFixedSkillCreatorForm
+);
+const isSkillCreatorCreationActive = computed(() =>
+  showSkillCreatorForm.value || showLegacySkillCreatorGuide.value
+);
 
 type SkillCreatorField = SkillCreatorGuideField;
 
 type SkillCreatorOption = GeneratedSkillCreatorOption;
+
+type SkillCreatorAssetSlot = GeneratedSkillCreatorAssetSlot;
 
 type SkillCreatorStep = {
   field: SkillCreatorField;
   title: string;
   eyebrow: string;
   options: SkillCreatorOption[];
+  assetSlots?: SkillCreatorAssetSlot[];
 };
+
+type SkillCreatorReferenceAssetKind = 'local-file' | 'knowledge-file' | 'template';
+
+type SkillCreatorReferenceAsset = {
+  id: string;
+  kind: SkillCreatorReferenceAssetKind;
+  name: string;
+  sourceLabel: string;
+  stepField?: SkillCreatorField;
+  slotId?: string;
+  templateId?: string;
+};
+
+type SkillCreatorAssetTarget = {
+  stepField: SkillCreatorField;
+  slotId: string;
+  slotType: SkillCreatorAssetSlot['type'];
+} | null;
 
 const rootSkillCreatorStep: SkillCreatorStep = {
   field: 'root-need',
@@ -138,6 +167,25 @@ const fallbackFollowupSkillCreatorSteps: SkillCreatorStep[] = [
     field: 'source',
     eyebrow: '2 / 4',
     title: '技能运行时主要读取什么材料？',
+    assetSlots: [
+      {
+        id: 'runtime-drafts',
+        type: 'draft',
+        title: '建议补充运行底稿',
+        description: '上传或选择一份典型材料，帮助技能明确启动时要读取的文件。',
+        optional: true,
+        allowLocal: true,
+        allowKnowledge: true,
+      },
+      {
+        id: 'output-template',
+        type: 'template',
+        title: '建议选择输出模板',
+        description: '选择一个模板作为技能的稳定格式约束；可以跳过。',
+        optional: true,
+        allowTemplate: true,
+      },
+    ],
     options: [
       {
         id: 'uploaded-files',
@@ -166,6 +214,16 @@ const fallbackFollowupSkillCreatorSteps: SkillCreatorStep[] = [
     field: 'output',
     eyebrow: '3 / 4',
     title: '希望这项技能稳定产出什么？',
+    assetSlots: [
+      {
+        id: 'output-template',
+        type: 'template',
+        title: '建议选择输出模板',
+        description: '如果希望输出格式稳定，可以选择一个模板作为参考。',
+        optional: true,
+        allowTemplate: true,
+      },
+    ],
     options: [
       {
         id: 'word-draft',
@@ -242,6 +300,7 @@ const normalizeGeneratedSkillCreatorSteps = (steps: GeneratedSkillCreatorStep[])
     title: step.title,
     eyebrow: '',
     options: step.options.map((option) => ({ ...option })),
+    assetSlots: step.assetSlots?.map((slot) => ({ ...slot })),
   }));
 
 const skillCreatorSteps = ref<SkillCreatorStep[]>(cloneSkillCreatorSteps());
@@ -296,7 +355,7 @@ watch(inputValue, (value) => {
 });
 
 watch(
-  showSkillCreatorGuide,
+  isSkillCreatorCreationActive,
   (active) => {
     emit('skill-guide-active-change', active);
   },
@@ -315,6 +374,7 @@ const selectRole = (roleId: string) => {
   if (roleId !== 'research') {
     showSkillMenu.value = false;
     showSkillCreatorGuide.value = false;
+    showSkillCreatorForm.value = false;
     showTemplateMenu.value = false;
     showInlineSkillMenu.value = false;
     showInlineTemplateMenu.value = false;
@@ -337,12 +397,7 @@ const thinkingModes = [
 
 const selectThinkingMode = (modeId: string) => {
   selectedThinkingMode.value = modeId;
-  showThinkingMenu.value = false;
 };
-
-const selectedThinkingModeItem = computed(() =>
-  thinkingModes.find((mode) => mode.id === selectedThinkingMode.value) ?? thinkingModes[0]!
-);
 
 // Multi-select mode: users can enable multiple search modes
 const enabledSearchModes = ref<Set<string>>(new Set(['legal']));
@@ -365,10 +420,6 @@ const toggleSearchMode = (modeId: string) => {
 const isEnabled = (modeId: string) => {
   return enabledSearchModes.value.has(modeId);
 };
-
-const selectedSearchModes = computed(() =>
-  searchModes.filter((mode) => enabledSearchModes.value.has(mode.id))
-);
 
 const hasComposerContent = computed(() =>
   inputValue.value.trim().length > 0 || skillTokenCount.value > 0 || templateTokenCount.value > 0
@@ -394,9 +445,17 @@ const shouldShowSkillCreatorNavigation = computed(() =>
   !isActiveSkillCreatorStepLoading.value && skillCreatorGuidePlanReady.value && followupSkillCreatorStepCount.value > 0
 );
 const shouldShowSkillCreatorProgress = computed(() => shouldShowSkillCreatorNavigation.value);
+const activeSkillCreatorAssetSlots = computed(() =>
+  activeSkillCreatorStep.value.assetSlots?.filter((slot) => slot.optional !== false) ?? []
+);
 
-const removeSearchMode = (modeId: string) => {
-  enabledSearchModes.value.delete(modeId);
+const getSkillCreatorAssetsForSlot = (slot: SkillCreatorAssetSlot) =>
+  skillCreatorReferenceAssets.value.filter((asset) =>
+    asset.stepField === activeSkillCreatorStep.value.field && asset.slotId === slot.id
+  );
+
+const removeSkillCreatorReferenceAsset = (asset: SkillCreatorReferenceAsset) => {
+  skillCreatorReferenceAssets.value = skillCreatorReferenceAssets.value.filter((item) => item !== asset);
 };
 
 type UploadActionId = 'image' | 'file' | 'folder' | 'knowledge';
@@ -435,14 +494,131 @@ const selectedKnowledgeDraftIds = ref<string[]>([]);
 const selectedKnowledgeDraftAssets = computed(() =>
   knowledgeDraftAssets.filter((asset) => selectedKnowledgeDraftIds.value.includes(asset.id))
 );
+const skillCreatorReferenceAssets = ref<SkillCreatorReferenceAsset[]>([]);
+const activeSkillCreatorAssetTarget = ref<SkillCreatorAssetTarget>(null);
+const fixedSkillCreatorName = ref('');
+const fixedSkillCreatorDescription = ref('');
+const fixedSkillCreatorTemplates = ref<SkillCreatorReferenceAsset[]>([]);
+const fixedSkillCreatorFiles = ref<SkillCreatorReferenceAsset[]>([]);
+const isFixedSkillCreatorTemplatePicker = ref(false);
+const isFixedSkillCreatorFilePicker = ref(false);
+const isFixedSkillCreatorLocalFilePicker = ref(false);
+const isFixedSkillCreatorFormReady = computed(() =>
+  fixedSkillCreatorName.value.trim().length > 0
+);
+const knowledgeDraftPickerTitle = computed(() =>
+  isFixedSkillCreatorFilePicker.value ? '选择关联知识库' : '从知识库选择底稿'
+);
+const knowledgeDraftPickerKicker = computed(() =>
+  isFixedSkillCreatorFilePicker.value ? '关联知识库' : '底稿来源'
+);
+const knowledgeDraftPickerConfirmText = computed(() =>
+  isFixedSkillCreatorFilePicker.value ? '添加到关联知识库' : '添加到底稿'
+);
+
+const makeAssetId = (prefix: string, value: string) =>
+  `${prefix}-${value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 42) || Date.now().toString(36)}`;
+
+const formatFileSize = (size: number) => {
+  if (!Number.isFinite(size) || size <= 0) return '本地文件';
+  if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+  return `${(size / 1024 / 1024).toFixed(size < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+};
+
+const createLocalFileAsset = (file: File, target = activeSkillCreatorAssetTarget.value): SkillCreatorReferenceAsset => ({
+  id: `${makeAssetId('local', file.name)}-${file.lastModified || Date.now()}`,
+  kind: 'local-file',
+  name: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
+  sourceLabel: formatFileSize(file.size),
+  stepField: target?.stepField,
+  slotId: target?.slotId,
+});
+
+const createKnowledgeFileAsset = (
+  asset: (typeof knowledgeDraftAssets)[number],
+  target = activeSkillCreatorAssetTarget.value,
+): SkillCreatorReferenceAsset => ({
+  id: makeAssetId('knowledge', asset.id),
+  kind: 'knowledge-file',
+  name: asset.name,
+  sourceLabel: asset.meta,
+  stepField: target?.stepField,
+  slotId: target?.slotId,
+});
+
+const createTemplateReferenceAsset = (
+  template: TemplateAsset,
+  target = activeSkillCreatorAssetTarget.value,
+): SkillCreatorReferenceAsset => ({
+  id: makeAssetId('template', template.id),
+  kind: 'template',
+  name: template.name,
+  sourceLabel: template.source,
+  stepField: target?.stepField,
+  slotId: target?.slotId,
+  templateId: template.id,
+});
+
+const addSkillCreatorReferenceAssets = (assets: SkillCreatorReferenceAsset[]) => {
+  if (!assets.length) return;
+  const existingKeys = new Set(
+    skillCreatorReferenceAssets.value.map((asset) => `${asset.kind}:${asset.id}:${asset.stepField ?? ''}:${asset.slotId ?? ''}`)
+  );
+  const nextAssets = assets.filter((asset) => {
+    const key = `${asset.kind}:${asset.id}:${asset.stepField ?? ''}:${asset.slotId ?? ''}`;
+    if (existingKeys.has(key)) return false;
+    existingKeys.add(key);
+    return true;
+  });
+  if (!nextAssets.length) return;
+  skillCreatorReferenceAssets.value = [...skillCreatorReferenceAssets.value, ...nextAssets];
+};
+
+const mergeFixedSkillCreatorAssets = (
+  currentAssets: SkillCreatorReferenceAsset[],
+  nextAssets: SkillCreatorReferenceAsset[],
+) => {
+  const existingKeys = new Set(currentAssets.map((asset) => `${asset.kind}:${asset.id}`));
+  return [
+    ...currentAssets,
+    ...nextAssets.filter((asset) => {
+      const key = `${asset.kind}:${asset.id}`;
+      if (existingKeys.has(key)) return false;
+      existingKeys.add(key);
+      return true;
+    }),
+  ];
+};
+
+const addFixedSkillCreatorTemplates = (assets: SkillCreatorReferenceAsset[]) => {
+  fixedSkillCreatorTemplates.value = mergeFixedSkillCreatorAssets(
+    fixedSkillCreatorTemplates.value,
+    assets.filter((asset) => asset.kind === 'template'),
+  );
+};
+
+const addFixedSkillCreatorFiles = (assets: SkillCreatorReferenceAsset[]) => {
+  fixedSkillCreatorFiles.value = mergeFixedSkillCreatorAssets(
+    fixedSkillCreatorFiles.value,
+    assets.filter((asset) => asset.kind !== 'template'),
+  );
+};
+
+const removeFixedSkillCreatorTemplate = (asset: SkillCreatorReferenceAsset) => {
+  fixedSkillCreatorTemplates.value = fixedSkillCreatorTemplates.value.filter((item) => item !== asset);
+};
+
+const removeFixedSkillCreatorFile = (asset: SkillCreatorReferenceAsset) => {
+  fixedSkillCreatorFiles.value = fixedSkillCreatorFiles.value.filter((item) => item !== asset);
+};
 
 const toggleActionMenu = () => {
   showActionMenu.value = !showActionMenu.value;
   showDraftMenu.value = false;
   showSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
+  showSkillCreatorForm.value = false;
   showTemplateMenu.value = false;
-  showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
@@ -453,8 +629,8 @@ const toggleDraftMenu = () => {
   showActionMenu.value = false;
   showSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
+  showSkillCreatorForm.value = false;
   showTemplateMenu.value = false;
-  showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
@@ -465,10 +641,10 @@ const toggleSkillMenu = () => {
   if (!showSkillMenu.value) {
     showSkillCreatorGuide.value = false;
   }
+  showSkillCreatorForm.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
   showTemplateMenu.value = false;
-  showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
@@ -480,19 +656,7 @@ const toggleTemplateMenu = () => {
   showDraftMenu.value = false;
   showSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
-  showThinkingMenu.value = false;
-  showInlineSkillMenu.value = false;
-  showInlineTemplateMenu.value = false;
-  showKnowledgeDraftPicker.value = false;
-};
-
-const toggleThinkingMenu = () => {
-  showThinkingMenu.value = !showThinkingMenu.value;
-  showActionMenu.value = false;
-  showDraftMenu.value = false;
-  showSkillMenu.value = false;
-  showSkillCreatorGuide.value = false;
-  showTemplateMenu.value = false;
+  showSkillCreatorForm.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
@@ -518,6 +682,9 @@ const triggerUploadAction = (actionId: UploadActionId) => {
 
 const closeKnowledgeDraftPicker = () => {
   showKnowledgeDraftPicker.value = false;
+  selectedKnowledgeDraftIds.value = [];
+  activeSkillCreatorAssetTarget.value = null;
+  isFixedSkillCreatorFilePicker.value = false;
 };
 
 const toggleKnowledgeDraftAsset = (assetId: string) => {
@@ -529,16 +696,61 @@ const toggleKnowledgeDraftAsset = (assetId: string) => {
 const confirmKnowledgeDraftSelection = () => {
   if (selectedKnowledgeDraftAssets.value.length === 0) return;
 
-  const names = selectedKnowledgeDraftAssets.value.map((asset) => asset.name).join('、');
+  const selectedAssets = selectedKnowledgeDraftAssets.value.map((asset) =>
+    createKnowledgeFileAsset(asset, activeSkillCreatorAssetTarget.value)
+  );
   showKnowledgeDraftPicker.value = false;
+  selectedKnowledgeDraftIds.value = [];
+
+  if (isFixedSkillCreatorFilePicker.value) {
+    addFixedSkillCreatorFiles(selectedAssets.map((asset) => ({
+      ...asset,
+      stepField: undefined,
+      slotId: undefined,
+    })));
+    isFixedSkillCreatorFilePicker.value = false;
+    return;
+  }
+
+  if (activeSkillCreatorAssetTarget.value) {
+    addSkillCreatorReferenceAssets(selectedAssets);
+    activeSkillCreatorAssetTarget.value = null;
+    return;
+  }
+
   nextTick(() => {
-    insertPlainTextAtCaret(`已选择底稿：${names}\n`);
+    insertReferenceAssetTokens(selectedAssets);
   });
 };
 
 const handleLocalFileSelection = (event: Event) => {
   const input = event.target as HTMLInputElement | null;
   if (!input) return;
+
+  const files = Array.from(input.files ?? []);
+  const selectedAssets = files.slice(0, 12).map((file) =>
+    createLocalFileAsset(file, activeSkillCreatorAssetTarget.value)
+  );
+
+  if (isFixedSkillCreatorLocalFilePicker.value) {
+    addFixedSkillCreatorFiles(selectedAssets.map((asset) => ({
+      ...asset,
+      stepField: undefined,
+      slotId: undefined,
+    })));
+    isFixedSkillCreatorLocalFilePicker.value = false;
+    input.value = '';
+    return;
+  }
+
+  if (activeSkillCreatorAssetTarget.value) {
+    addSkillCreatorReferenceAssets(selectedAssets);
+    activeSkillCreatorAssetTarget.value = null;
+  } else if (selectedAssets.length) {
+    nextTick(() => {
+      insertReferenceAssetTokens(selectedAssets);
+    });
+  }
 
   input.value = '';
 };
@@ -563,7 +775,9 @@ const syncEditorState = () => {
 
   skillTokenCount.value = editor.querySelectorAll('.skill-inline-code').length;
   hasSkillCreatorToken.value = Boolean(editor.querySelector('.skill-inline-code[data-skill-name="skill-creator"]'));
-  templateTokenCount.value = editor.querySelectorAll('.template-inline-code').length;
+  templateTokenCount.value = editor.querySelectorAll(
+    '.template-inline-code, .asset-inline-code[data-asset-kind="template"]',
+  ).length;
   inputValue.value = getEditorText();
 };
 
@@ -623,14 +837,61 @@ const createSkillToken = (skillName: string) => {
 };
 
 const createTemplateToken = (template: TemplateAsset) => {
-  const token = document.createElement('code');
-  token.className = 'template-inline-code';
-  token.contentEditable = 'false';
-  token.tabIndex = 0;
+  const token = createReferenceAssetToken(createTemplateReferenceAsset(template, null));
   token.dataset.templateId = template.id;
-  token.textContent = `格式模板：${template.name}`;
   token.setAttribute('aria-label', `已选格式模板 ${template.name}`);
   return token;
+};
+
+const assetBadgeLabel = (kind: SkillCreatorReferenceAssetKind) => {
+  if (kind === 'template') return '模';
+  if (kind === 'knowledge-file') return '库';
+  return '稿';
+};
+
+const createReferenceAssetToken = (asset: SkillCreatorReferenceAsset) => {
+  const token = document.createElement('code');
+  token.className = 'asset-inline-code';
+  token.contentEditable = 'false';
+  token.tabIndex = 0;
+  token.dataset.assetKind = asset.kind;
+  token.dataset.assetName = asset.name;
+  token.dataset.badge = assetBadgeLabel(asset.kind);
+  token.title = asset.name;
+  token.setAttribute('aria-label', asset.name);
+
+  const name = document.createElement('span');
+  name.className = 'asset-inline-name';
+  name.textContent = asset.name;
+
+  token.append(name);
+  return token;
+};
+
+const insertReferenceAssetTokens = (assets: SkillCreatorReferenceAsset[], targetRange?: Range | null) => {
+  const editor = editorRef.value;
+  if (!editor || assets.length === 0) return;
+
+  editor.focus();
+  const range = targetRange ?? getCurrentEditorRange() ?? getEditorEndRange();
+  if (!range) return;
+
+  range.deleteContents();
+  assets.forEach((asset) => {
+    const token = createReferenceAssetToken(asset);
+    range.insertNode(token);
+    range.setStartAfter(token);
+    range.collapse(true);
+
+    const spacer = document.createTextNode(' ');
+    range.insertNode(spacer);
+    range.setStartAfter(spacer);
+    range.collapse(true);
+  });
+
+  setEditorRange(range);
+  clearSelectedSkillToken();
+  syncEditorState();
 };
 
 const placeCaretAfter = (node: Node) => {
@@ -893,6 +1154,7 @@ const updateInlineSkillMenu = () => {
   showDraftMenu.value = false;
   showSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
+  showSkillCreatorForm.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
   activeTemplateRange.value = null;
@@ -917,6 +1179,7 @@ const updateInlineTemplateMenu = () => {
   showTemplateMenu.value = false;
   showInlineSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
+  showSkillCreatorForm.value = false;
   showKnowledgeDraftPicker.value = false;
   activeSkillRange.value = null;
   inlineSkillQuery.value = '';
@@ -1077,6 +1340,7 @@ const handleEditorInteraction = () => {
 const handleEditorKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
     showSkillCreatorGuide.value = false;
+    showSkillCreatorForm.value = false;
     showSkillMenu.value = false;
     showInlineSkillMenu.value = false;
     showInlineTemplateMenu.value = false;
@@ -1111,6 +1375,8 @@ const resetSkillCreatorGuide = () => {
   skillCreatorGuideStep.value = 0;
   skillCreatorSelections.value = initialSkillCreatorSelections();
   customSkillCreatorInputs.value = initialCustomSkillCreatorInputs();
+  skillCreatorReferenceAssets.value = [];
+  activeSkillCreatorAssetTarget.value = null;
   skillCreatorGuideError.value = '';
   skillCreatorGuideLoading.value = false;
   skillCreatorGuideLoadingText.value = '';
@@ -1235,9 +1501,9 @@ const openSkillCreatorGuide = () => {
   showActionMenu.value = false;
   showDraftMenu.value = false;
   showSkillMenu.value = false;
+  showSkillCreatorForm.value = false;
   showSkillCreatorGuide.value = true;
   showTemplateMenu.value = false;
-  showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
@@ -1250,8 +1516,109 @@ const openSkillCreatorGuide = () => {
   void loadRootSkillCreatorOptions();
 };
 
+const resetFixedSkillCreatorForm = () => {
+  fixedSkillCreatorName.value = '';
+  fixedSkillCreatorDescription.value = '';
+  fixedSkillCreatorTemplates.value = [];
+  fixedSkillCreatorFiles.value = [];
+  isFixedSkillCreatorTemplatePicker.value = false;
+  isFixedSkillCreatorFilePicker.value = false;
+  isFixedSkillCreatorLocalFilePicker.value = false;
+};
+
+const openFixedSkillCreatorForm = (shouldReset = true) => {
+  showActionMenu.value = false;
+  showDraftMenu.value = false;
+  showSkillMenu.value = false;
+  showSkillCreatorGuide.value = false;
+  showTemplateMenu.value = false;
+  showInlineSkillMenu.value = false;
+  showInlineTemplateMenu.value = false;
+  showKnowledgeDraftPicker.value = false;
+  showTemplateManageModal.value = false;
+  activeSkillRange.value = null;
+  activeTemplateRange.value = null;
+  inlineSkillQuery.value = '';
+  inlineTemplateQuery.value = '';
+  activeSkillCreatorAssetTarget.value = null;
+  if (shouldReset) {
+    resetFixedSkillCreatorForm();
+  }
+  showSkillCreatorForm.value = true;
+  nextTick(() => {
+    inputContainerRef.value?.querySelector<HTMLInputElement>('.fixed-creator-input')?.focus();
+  });
+};
+
+const closeFixedSkillCreatorForm = () => {
+  showSkillCreatorForm.value = false;
+  showKnowledgeDraftPicker.value = false;
+  showTemplateManageModal.value = false;
+  isFixedSkillCreatorTemplatePicker.value = false;
+  isFixedSkillCreatorFilePicker.value = false;
+  isFixedSkillCreatorLocalFilePicker.value = false;
+};
+
 const closeSkillCreatorGuide = () => {
   showSkillCreatorGuide.value = false;
+  activeSkillCreatorAssetTarget.value = null;
+};
+
+const openFixedSkillCreatorTemplatePicker = () => {
+  isFixedSkillCreatorTemplatePicker.value = true;
+  isFixedSkillCreatorFilePicker.value = false;
+  activeSkillCreatorAssetTarget.value = null;
+  showTemplateManageModal.value = true;
+};
+
+const openFixedSkillCreatorFilePicker = () => {
+  isFixedSkillCreatorFilePicker.value = true;
+  isFixedSkillCreatorTemplatePicker.value = false;
+  activeSkillCreatorAssetTarget.value = null;
+  selectedKnowledgeDraftIds.value = [];
+  showKnowledgeDraftPicker.value = true;
+};
+
+const openFixedSkillCreatorLocalFilePicker = () => {
+  isFixedSkillCreatorLocalFilePicker.value = true;
+  isFixedSkillCreatorFilePicker.value = false;
+  activeSkillCreatorAssetTarget.value = null;
+  fileInputRef.value?.click();
+};
+
+const setSkillCreatorAssetTarget = (slot: SkillCreatorAssetSlot) => {
+  activeSkillCreatorAssetTarget.value = {
+    stepField: activeSkillCreatorStep.value.field,
+    slotId: slot.id,
+    slotType: slot.type,
+  };
+};
+
+const openCreatorLocalAssetPicker = (slot: SkillCreatorAssetSlot) => {
+  setSkillCreatorAssetTarget(slot);
+  fileInputRef.value?.click();
+};
+
+const openCreatorKnowledgeAssetPicker = (slot: SkillCreatorAssetSlot) => {
+  setSkillCreatorAssetTarget(slot);
+  selectedKnowledgeDraftIds.value = [];
+  showKnowledgeDraftPicker.value = true;
+};
+
+const openCreatorTemplateAssetPicker = (slot: SkillCreatorAssetSlot) => {
+  setSkillCreatorAssetTarget(slot);
+  showActionMenu.value = false;
+  showDraftMenu.value = false;
+  showTemplateMenu.value = false;
+  showInlineSkillMenu.value = false;
+  showInlineTemplateMenu.value = false;
+  showTemplateManageModal.value = true;
+};
+
+const closeTemplateManageModal = () => {
+  showTemplateManageModal.value = false;
+  activeSkillCreatorAssetTarget.value = null;
+  isFixedSkillCreatorTemplatePicker.value = false;
 };
 
 const isFinalSkillCreatorStep = () => skillCreatorGuideStep.value === skillCreatorSteps.value.length - 1;
@@ -1369,6 +1736,83 @@ const createSkillCreatorPromptBody = () => {
   ].join('\n');
 };
 
+const serializeSkillCreatorReferenceAssets = () => {
+  if (!skillCreatorReferenceAssets.value.length) return '';
+
+  const drafts = skillCreatorReferenceAssets.value.filter((asset) => asset.kind !== 'template');
+  const templates = skillCreatorReferenceAssets.value.filter((asset) => asset.kind === 'template');
+  const lines = [];
+
+  if (drafts.length) {
+    lines.push(`关联底稿：${drafts.map((asset) => `${asset.name}（${asset.sourceLabel}）`).join('、')}`);
+  }
+  if (templates.length) {
+    lines.push(`关联模板：${templates.map((asset) => `${asset.name}（${asset.sourceLabel}）`).join('、')}`);
+  }
+
+  return lines.length ? ` ${lines.join('；')} ` : '';
+};
+
+const createSkillCreatorReferenceAssetNodes = () => {
+  const assets = skillCreatorReferenceAssets.value;
+  if (!assets.length) return [] as Node[];
+
+  const nodes: Node[] = [];
+  const appendAssets = (label: string, groupAssets: SkillCreatorReferenceAsset[]) => {
+    if (!groupAssets.length) return;
+    nodes.push(document.createTextNode(` ${label} `));
+    groupAssets.forEach((asset, index) => {
+      if (index > 0) nodes.push(document.createTextNode('、'));
+      nodes.push(createReferenceAssetToken(asset));
+    });
+  };
+
+  appendAssets('关联底稿', assets.filter((asset) => asset.kind !== 'template'));
+  appendAssets('关联模板', assets.filter((asset) => asset.kind === 'template'));
+  nodes.push(document.createTextNode(' '));
+  return nodes;
+};
+
+const serializeFixedSkillCreatorAssets = (assets: SkillCreatorReferenceAsset[]) =>
+  assets.map((asset) => `${asset.name}（${asset.sourceLabel}）`).join('、');
+
+const createFixedSkillCreatorPrompt = () => {
+  const lines = [
+    `${selectedAssetPromptPrefix}/skill-creator 帮我创建一个可复用的技能，我的需求如下：`,
+    `技能名称：${fixedSkillCreatorName.value.trim()}`,
+  ];
+
+  const description = fixedSkillCreatorDescription.value.trim();
+  if (description) {
+    lines.push(`技能简介：${description}`);
+  }
+
+  if (fixedSkillCreatorTemplates.value.length) {
+    lines.push(`关联模板：${serializeFixedSkillCreatorAssets(fixedSkillCreatorTemplates.value)}`);
+  }
+
+  if (fixedSkillCreatorFiles.value.length) {
+    lines.push(`关联知识库：${serializeFixedSkillCreatorAssets(fixedSkillCreatorFiles.value)}`);
+  }
+
+  lines.push(
+    '请使用上述技能名称和技能简介作为技能草稿基础；关联模板仅作为输出结构参考，关联知识库仅作为创建时的知识材料参考。',
+  );
+
+  return lines.join('\n');
+};
+
+const submitFixedSkillCreatorForm = () => {
+  if (!isFixedSkillCreatorFormReady.value) return;
+
+  const prompt = createFixedSkillCreatorPrompt();
+  enabledSearchModes.value = new Set();
+  showSkillCreatorForm.value = false;
+  emit('submit', prompt, {
+    thinkingMode: selectedThinkingMode.value,
+  });
+};
+
 const insertGuidedSkillCreatorPrompt = () => {
   showSkillCreatorGuide.value = false;
   showSkillMenu.value = false;
@@ -1378,7 +1822,7 @@ const insertGuidedSkillCreatorPrompt = () => {
     const promptBody = createSkillCreatorPromptBody();
 
     if (!editor) {
-      inputValue.value = `${selectedAssetPromptPrefix}/skill-creator${promptBody}`;
+      inputValue.value = `${selectedAssetPromptPrefix}/skill-creator${serializeSkillCreatorReferenceAssets()}${promptBody}`;
       return;
     }
 
@@ -1386,6 +1830,7 @@ const insertGuidedSkillCreatorPrompt = () => {
     editor.replaceChildren(
       document.createTextNode(selectedAssetPromptPrefix),
       skillToken,
+      ...createSkillCreatorReferenceAssetNodes(),
       document.createTextNode(promptBody),
     );
     clearSelectedSkillToken();
@@ -1396,7 +1841,11 @@ const insertGuidedSkillCreatorPrompt = () => {
 
 const triggerSkillAction = (selection?: SkillDropdownSelection) => {
   if (selection === 'skill-creator') {
-    openSkillCreatorGuide();
+    if (useFixedSkillCreatorForm) {
+      openFixedSkillCreatorForm();
+    } else {
+      openSkillCreatorGuide();
+    }
   } else if (selection) {
     insertSkillPrompt(selection);
   }
@@ -1414,12 +1863,37 @@ const triggerInlineSkillAction = (selection?: SkillDropdownSelection) => {
   }
   showSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
+  showSkillCreatorForm.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
 };
 
 const triggerTemplateAction = (template: TemplateAsset) => {
+  if (isFixedSkillCreatorTemplatePicker.value) {
+    addFixedSkillCreatorTemplates([createTemplateReferenceAsset(template, null)]);
+    showTemplateManageModal.value = false;
+    isFixedSkillCreatorTemplatePicker.value = false;
+    showSkillCreatorForm.value = true;
+    return;
+  }
+
+  const target = activeSkillCreatorAssetTarget.value;
+  if (target) {
+    addSkillCreatorReferenceAssets([createTemplateReferenceAsset(template, target)]);
+    showTemplateManageModal.value = false;
+    showSkillCreatorGuide.value = true;
+    activeSkillCreatorAssetTarget.value = null;
+    return;
+  }
+
   showTemplateManageModal.value = false;
+  if (hasSkillCreatorCommand.value) {
+    nextTick(() => {
+      insertReferenceAssetTokens([createTemplateReferenceAsset(template, null)]);
+    });
+    return;
+  }
+
   insertTemplatePrompt(template);
 };
 
@@ -1433,10 +1907,11 @@ const openTemplateLibrary = () => {
   showDraftMenu.value = false;
   showSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
-  showThinkingMenu.value = false;
+  showSkillCreatorForm.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
+  activeSkillCreatorAssetTarget.value = null;
   activeTemplateRange.value = null;
   inlineTemplateQuery.value = '';
   showTemplateManageModal.value = true;
@@ -1448,7 +1923,7 @@ const createTemplateFromDropdown = () => {
   showDraftMenu.value = false;
   showSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
-  showThinkingMenu.value = false;
+  showSkillCreatorForm.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
@@ -1465,9 +1940,9 @@ const createTemplateFromDropdown = () => {
 const openSkillManageModal = () => {
   showSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
+  showSkillCreatorForm.value = false;
   showTemplateMenu.value = false;
   showDraftMenu.value = false;
-  showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
@@ -1483,7 +1958,11 @@ const createSkillFromModal = (skillName = 'skill-creator') => {
     showSkillManageModal.value = false;
     skillManageStartsInCreate.value = false;
     nextTick(() => {
-      openSkillCreatorGuide();
+      if (useFixedSkillCreatorForm) {
+        openFixedSkillCreatorForm();
+      } else {
+        openSkillCreatorGuide();
+      }
     });
     return;
   }
@@ -1519,7 +1998,6 @@ const closeDropdown = () => {
   showSkillMenu.value = false;
   showSkillCreatorGuide.value = false;
   showTemplateMenu.value = false;
-  showThinkingMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
   showKnowledgeDraftPicker.value = false;
@@ -1558,8 +2036,8 @@ onBeforeUnmount(() => {
   <div
     ref="inputContainerRef"
     class="chat-input-container"
-    :class="{ 'creator-guide-active': showSkillCreatorGuide }"
-    @click.self="!showSkillCreatorGuide && focusEditorFromShell()"
+    :class="{ 'creator-guide-active': isSkillCreatorCreationActive }"
+    @click.self="!isSkillCreatorCreationActive && focusEditorFromShell()"
   >
     <span v-if="!hasComposerContent" class="chat-editor-placeholder" aria-hidden="true">
       {{ placeholderText() }}
@@ -1595,7 +2073,141 @@ onBeforeUnmount(() => {
     </div>
 
     <section
-      v-if="showSkillCreatorGuide"
+      v-if="showSkillCreatorForm"
+      class="skill-creator-form"
+      role="dialog"
+      aria-label="创建技能表单"
+      @mousedown.stop
+      @click.stop
+      @keydown.escape.stop.prevent="closeFixedSkillCreatorForm"
+    >
+      <header class="fixed-creator-header">
+        <h3>创建技能</h3>
+        <button
+          class="creator-guide-close"
+          type="button"
+          aria-label="关闭创建技能表单"
+          @click="closeFixedSkillCreatorForm"
+        >
+          <span>退出创建</span>
+          <X :size="14" />
+        </button>
+      </header>
+
+      <div class="fixed-creator-fields">
+        <label class="fixed-creator-field">
+          <span>
+            技能名称
+            <em class="fixed-creator-required" aria-label="必填">*</em>
+          </span>
+          <input
+            v-model="fixedSkillCreatorName"
+            class="fixed-creator-input"
+            type="text"
+            placeholder="请输入技能名称"
+          />
+        </label>
+
+        <label class="fixed-creator-field">
+          <span>技能简介</span>
+          <textarea
+            v-model="fixedSkillCreatorDescription"
+            rows="2"
+            placeholder="请输入技能简介"
+          ></textarea>
+        </label>
+
+        <section class="fixed-creator-picker-field" aria-label="关联模板">
+          <div class="fixed-creator-picker-head">
+            <span>关联模板</span>
+          </div>
+          <div class="fixed-creator-picker-row" :class="{ populated: fixedSkillCreatorTemplates.length }">
+            <div class="fixed-creator-picker-main">
+              <span class="fixed-creator-resource-icon" aria-hidden="true">
+                <FileText :size="16" />
+              </span>
+              <div class="fixed-creator-resource-copy">
+                <strong v-if="fixedSkillCreatorTemplates.length">
+                  已关联 {{ fixedSkillCreatorTemplates.length }} 个模板
+                </strong>
+                <strong v-else>未关联模板</strong>
+                <div class="fixed-creator-chip-list">
+                  <button
+                    v-for="asset in fixedSkillCreatorTemplates"
+                    :key="`${asset.kind}:${asset.id}`"
+                    class="creator-selected-asset"
+                    type="button"
+                    :title="asset.name"
+                    @click="removeFixedSkillCreatorTemplate(asset)"
+                  >
+                    <span class="creator-selected-badge">{{ assetBadgeLabel(asset.kind) }}</span>
+                    <span class="creator-selected-name">{{ asset.name }}</span>
+                    <X :size="13" />
+                  </button>
+                  <span v-if="!fixedSkillCreatorTemplates.length" class="fixed-creator-empty">从模板库选择</span>
+                </div>
+              </div>
+            </div>
+            <button class="fixed-creator-picker-btn" type="button" @click="openFixedSkillCreatorTemplatePicker">
+              <FileText :size="14" />
+              <span>选择模板</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="fixed-creator-picker-field" aria-label="关联知识库">
+          <div class="fixed-creator-picker-head">
+            <span>关联知识库</span>
+          </div>
+          <div class="fixed-creator-picker-row" :class="{ populated: fixedSkillCreatorFiles.length }">
+            <div class="fixed-creator-picker-main">
+              <span class="fixed-creator-resource-icon" aria-hidden="true">
+                <BookOpen :size="16" />
+              </span>
+              <div class="fixed-creator-resource-copy">
+                <strong v-if="fixedSkillCreatorFiles.length">
+                  已关联 {{ fixedSkillCreatorFiles.length }} 个知识库文件
+                </strong>
+                <strong v-else>未关联知识库</strong>
+                <div class="fixed-creator-chip-list">
+                  <button
+                    v-for="asset in fixedSkillCreatorFiles"
+                    :key="`${asset.kind}:${asset.id}`"
+                    class="creator-selected-asset"
+                    type="button"
+                    :title="asset.name"
+                    @click="removeFixedSkillCreatorFile(asset)"
+                  >
+                    <span class="creator-selected-badge">{{ assetBadgeLabel(asset.kind) }}</span>
+                    <span class="creator-selected-name">{{ asset.name }}</span>
+                    <X :size="13" />
+                  </button>
+                  <span v-if="!fixedSkillCreatorFiles.length" class="fixed-creator-empty">从知识库选择文件</span>
+                </div>
+              </div>
+            </div>
+            <button class="fixed-creator-picker-btn" type="button" @click="openFixedSkillCreatorFilePicker">
+              <BookOpen :size="14" />
+              <span>选择文件</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <footer class="fixed-creator-actions">
+        <button
+          class="fixed-creator-submit"
+          type="button"
+          :disabled="!isFixedSkillCreatorFormReady"
+          @click="submitFixedSkillCreatorForm"
+        >
+          创建技能
+        </button>
+      </footer>
+    </section>
+
+    <section
+      v-if="showLegacySkillCreatorGuide"
       class="skill-creator-guide"
       :class="{ 'root-stage': isRootSkillCreatorStage, 'with-progress': shouldShowSkillCreatorProgress }"
       role="dialog"
@@ -1733,6 +2345,66 @@ onBeforeUnmount(() => {
             继续
           </button>
         </div>
+
+        <div v-if="activeSkillCreatorAssetSlots.length" class="creator-asset-slots">
+          <section
+            v-for="slot in activeSkillCreatorAssetSlots"
+            :key="slot.id"
+            class="creator-asset-slot"
+          >
+            <header class="creator-asset-slot-header">
+              <span class="creator-asset-title">{{ slot.title }}</span>
+              <span class="creator-asset-optional">非必填</span>
+            </header>
+            <p class="creator-asset-description">{{ slot.description }}</p>
+            <div class="creator-asset-actions">
+              <button
+                v-if="slot.allowLocal"
+                type="button"
+                class="creator-asset-action"
+                @click.stop="openCreatorLocalAssetPicker(slot)"
+              >
+                <File :size="14" />
+                <span>上传文件</span>
+              </button>
+              <button
+                v-if="slot.allowKnowledge"
+                type="button"
+                class="creator-asset-action"
+                @click.stop="openCreatorKnowledgeAssetPicker(slot)"
+              >
+                <BookOpen :size="14" />
+                <span>从知识库选择</span>
+              </button>
+              <button
+                v-if="slot.allowTemplate"
+                type="button"
+                class="creator-asset-action"
+                @click.stop="openCreatorTemplateAssetPicker(slot)"
+              >
+                <FileText :size="14" />
+                <span>选择模板</span>
+              </button>
+            </div>
+            <div
+              v-if="getSkillCreatorAssetsForSlot(slot).length"
+              class="creator-selected-assets"
+            >
+              <button
+                v-for="asset in getSkillCreatorAssetsForSlot(slot)"
+                :key="`${asset.kind}:${asset.id}`"
+                type="button"
+                class="creator-selected-asset"
+                :title="asset.name"
+                @click.stop="removeSkillCreatorReferenceAsset(asset)"
+              >
+                <span class="creator-selected-badge">{{ assetBadgeLabel(asset.kind) }}</span>
+                <span class="creator-selected-name">{{ asset.name }}</span>
+                <X :size="13" />
+              </button>
+            </div>
+          </section>
+        </div>
       </div>
 
     </section>
@@ -1766,13 +2438,13 @@ onBeforeUnmount(() => {
           />
 
           <button
-            class="plus-btn"
+            class="config-btn"
             type="button"
-            aria-label="打开更多功能"
+            aria-label="打开对话配置"
             :aria-expanded="showActionMenu"
             @click="toggleActionMenu"
           >
-            <Plus :size="18" />
+            <SlidersHorizontal :size="18" :stroke-width="2.2" />
           </button>
 
           <div v-if="showActionMenu" class="action-dropdown" role="menu">
@@ -1789,6 +2461,25 @@ onBeforeUnmount(() => {
                 <component :is="role.icon" :size="16" class="action-icon" />
                 <span>{{ role.label }}</span>
                 <Check v-if="selectedRole === role.id" :size="15" class="check-icon" />
+              </button>
+            </section>
+
+            <section v-if="isResearchMode" class="action-group" aria-label="推理方式">
+              <p class="action-group-title">推理方式</p>
+              <button
+                v-for="mode in thinkingModes"
+                :key="mode.id"
+                class="action-menu-item has-description"
+                :class="{ selected: selectedThinkingMode === mode.id }"
+                type="button"
+                @click.stop="selectThinkingMode(mode.id)"
+              >
+                <component :is="mode.icon" :size="16" class="action-icon" />
+                <span class="action-item-copy">
+                  <span class="action-item-label">{{ mode.label }}</span>
+                  <span class="action-item-desc">{{ mode.description }}</span>
+                </span>
+                <Check v-if="selectedThinkingMode === mode.id" :size="15" class="check-icon" />
               </button>
             </section>
 
@@ -1866,54 +2557,9 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div v-if="isResearchMode" class="selected-option-tags" aria-label="已选检索设置">
-          <button
-            v-for="mode in selectedSearchModes"
-            :key="mode.id"
-            class="selected-option-tag"
-            type="button"
-            :aria-label="`取消${mode.label}`"
-            @click.stop="removeSearchMode(mode.id)"
-          >
-            <span class="option-icon-stack" aria-hidden="true">
-              <component :is="mode.icon" :size="15" class="option-icon" />
-              <X :size="14" class="option-remove-icon" />
-            </span>
-            <span>{{ mode.label }}</span>
-          </button>
-        </div>
       </div>
 
       <div class="right-actions">
-        <div v-if="isResearchMode" class="thinking-select" @click.stop>
-          <button
-            class="thinking-select-btn"
-            type="button"
-            aria-label="选择思考模式"
-            :aria-expanded="showThinkingMenu"
-            @click="toggleThinkingMenu"
-          >
-            <span>{{ selectedThinkingModeItem?.label ?? '快速' }}</span>
-            <ChevronDown :size="14" :stroke-width="2.4" />
-          </button>
-
-          <div v-if="showThinkingMenu" class="thinking-select-dropdown" role="menu">
-            <button
-              v-for="mode in thinkingModes"
-              :key="mode.id"
-              class="thinking-select-option"
-              :class="{ selected: selectedThinkingMode === mode.id }"
-              type="button"
-              @click="selectThinkingMode(mode.id)"
-            >
-              <span class="thinking-option-copy">
-                <span class="thinking-option-label">{{ mode.label }}</span>
-                <span class="thinking-option-desc">{{ mode.description }}</span>
-              </span>
-              <Check v-if="selectedThinkingMode === mode.id" :size="14" />
-            </button>
-          </div>
-        </div>
         <button class="icon-tool-btn" type="button" aria-label="语音输入">
           <Mic :size="20" />
         </button>
@@ -1931,90 +2577,97 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div
-      v-if="showKnowledgeDraftPicker"
-      class="knowledge-draft-backdrop"
-      @click.self="closeKnowledgeDraftPicker"
-    >
-      <section
-        class="knowledge-draft-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="knowledge-draft-title"
-        @click.stop
-        @keydown.escape.stop.prevent="closeKnowledgeDraftPicker"
+    <Teleport to="body">
+      <div
+        v-if="showKnowledgeDraftPicker"
+        class="knowledge-draft-backdrop"
+        @click.self="closeKnowledgeDraftPicker"
       >
-        <header class="knowledge-draft-header">
-          <div>
-            <p class="knowledge-draft-kicker">底稿来源</p>
-            <h2 id="knowledge-draft-title">从知识库选择底稿</h2>
-          </div>
-          <button
-            class="knowledge-draft-close"
-            type="button"
-            aria-label="关闭知识库底稿选择"
-            @click="closeKnowledgeDraftPicker"
-          >
-            <X :size="17" />
-          </button>
-        </header>
-
-        <div class="knowledge-draft-list" role="listbox" aria-label="知识库底稿列表">
-          <button
-            v-for="asset in knowledgeDraftAssets"
-            :key="asset.id"
-            class="knowledge-draft-item"
-            :class="{ selected: selectedKnowledgeDraftIds.includes(asset.id) }"
-            type="button"
-            role="option"
-            :aria-selected="selectedKnowledgeDraftIds.includes(asset.id)"
-            @click="toggleKnowledgeDraftAsset(asset.id)"
-          >
-            <FileText :size="17" class="knowledge-draft-file-icon" />
-            <span class="knowledge-draft-copy">
-              <strong>{{ asset.name }}</strong>
-              <small>{{ asset.meta }}</small>
-            </span>
-            <Check
-              v-if="selectedKnowledgeDraftIds.includes(asset.id)"
-              :size="16"
-              class="knowledge-draft-check"
-            />
-          </button>
-        </div>
-
-        <footer class="knowledge-draft-footer">
-          <span>{{ selectedKnowledgeDraftAssets.length }} 个底稿已选</span>
-          <div class="knowledge-draft-actions">
-            <button type="button" class="knowledge-draft-secondary" @click="closeKnowledgeDraftPicker">
-              取消
-            </button>
+        <section
+          class="knowledge-draft-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="knowledge-draft-title"
+          @click.stop
+          @keydown.escape.stop.prevent="closeKnowledgeDraftPicker"
+        >
+          <header class="knowledge-draft-header">
+            <div>
+              <p class="knowledge-draft-kicker">{{ knowledgeDraftPickerKicker }}</p>
+              <h2 id="knowledge-draft-title">{{ knowledgeDraftPickerTitle }}</h2>
+            </div>
             <button
+              class="knowledge-draft-close"
               type="button"
-              class="knowledge-draft-primary"
-              :disabled="selectedKnowledgeDraftAssets.length === 0"
-              @click="confirmKnowledgeDraftSelection"
+              aria-label="关闭知识库底稿选择"
+              @click="closeKnowledgeDraftPicker"
             >
-              添加到底稿
+              <X :size="17" />
+            </button>
+          </header>
+
+          <div class="knowledge-draft-list" role="listbox" aria-label="知识库底稿列表">
+            <button
+              v-for="asset in knowledgeDraftAssets"
+              :key="asset.id"
+              class="knowledge-draft-item"
+              :class="{ selected: selectedKnowledgeDraftIds.includes(asset.id) }"
+              type="button"
+              role="option"
+              :aria-selected="selectedKnowledgeDraftIds.includes(asset.id)"
+              @click="toggleKnowledgeDraftAsset(asset.id)"
+            >
+              <FileText :size="17" class="knowledge-draft-file-icon" />
+              <span class="knowledge-draft-copy">
+                <strong>{{ asset.name }}</strong>
+                <small>{{ asset.meta }}</small>
+              </span>
+              <Check
+                v-if="selectedKnowledgeDraftIds.includes(asset.id)"
+                :size="16"
+                class="knowledge-draft-check"
+              />
             </button>
           </div>
-        </footer>
-      </section>
-    </div>
+
+          <footer class="knowledge-draft-footer">
+            <span>
+              {{ selectedKnowledgeDraftAssets.length }} 个{{ isFixedSkillCreatorFilePicker ? '知识库文件' : '底稿' }}已选
+            </span>
+            <div class="knowledge-draft-actions">
+              <button type="button" class="knowledge-draft-secondary" @click="closeKnowledgeDraftPicker">
+                取消
+              </button>
+              <button
+                type="button"
+                class="knowledge-draft-primary"
+                :disabled="selectedKnowledgeDraftAssets.length === 0"
+                @click="confirmKnowledgeDraftSelection"
+              >
+                {{ knowledgeDraftPickerConfirmText }}
+              </button>
+            </div>
+          </footer>
+        </section>
+      </div>
+    </Teleport>
 
     <SkillManageModal
       v-if="showSkillManageModal"
       :start-in-create="skillManageStartsInCreate"
+      create-behavior="emit"
       @close="showSkillManageModal = false"
       @create="createSkillFromModal"
       @use="createSkillFromModal"
     />
-    <TemplateManageModal
-      v-if="showTemplateManageModal"
-      @close="showTemplateManageModal = false"
-      @create="createTemplateFromDropdown"
-      @select="triggerTemplateAction"
-    />
+    <Teleport to="body">
+      <TemplateManageModal
+        v-if="showTemplateManageModal"
+        @close="closeTemplateManageModal"
+        @create="createTemplateFromDropdown"
+        @select="triggerTemplateAction"
+      />
+    </Teleport>
   </div>
 </template>
 
@@ -2107,14 +2760,67 @@ onBeforeUnmount(() => {
 }
 
 .chat-editor-row :deep(.template-inline-code) {
-  background: var(--diff-added-soft);
-  color: var(--diff-added);
+  max-width: min(280px, 70vw);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-strong);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-editor-row :deep(.asset-inline-code) {
+  max-width: min(280px, 70vw);
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 4px;
+  padding: 0 8px 0 5px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-strong);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 520;
+  line-height: 24px;
+  vertical-align: baseline;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+  user-select: all;
+}
+
+.chat-editor-row :deep(.asset-inline-code)::before {
+  content: attr(data-badge);
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.chat-editor-row :deep(.asset-inline-name) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .chat-editor-row :deep(.skill-inline-code.selected),
 .chat-editor-row :deep(.skill-inline-code:focus),
 .chat-editor-row :deep(.template-inline-code.selected),
-.chat-editor-row :deep(.template-inline-code:focus) {
+.chat-editor-row :deep(.template-inline-code:focus),
+.chat-editor-row :deep(.asset-inline-code.selected),
+.chat-editor-row :deep(.asset-inline-code:focus) {
   outline: 1px solid var(--primary-border);
   outline-offset: 1px;
 }
@@ -2147,7 +2853,7 @@ onBeforeUnmount(() => {
   display: none;
 }
 
-.plus-btn,
+.config-btn,
 .icon-tool-btn {
   appearance: none;
   -webkit-appearance: none;
@@ -2166,8 +2872,8 @@ onBeforeUnmount(() => {
   transition: all 0.2s;
 }
 
-.plus-btn:hover,
-.plus-btn[aria-expanded="true"],
+.config-btn:hover,
+.config-btn[aria-expanded="true"],
 .icon-tool-btn:hover {
   background: var(--surface-soft);
   color: var(--primary-color);
@@ -2202,12 +2908,12 @@ onBeforeUnmount(() => {
   color: currentColor;
 }
 
-.plus-btn,
-.plus-btn:hover,
-.plus-btn[aria-expanded="true"],
-.plus-btn:focus,
-.plus-btn:focus-visible,
-.plus-btn:active,
+.config-btn,
+.config-btn:hover,
+.config-btn[aria-expanded="true"],
+.config-btn:focus,
+.config-btn:focus-visible,
+.config-btn:active,
 .icon-tool-btn,
 .icon-tool-btn:hover,
 .icon-tool-btn:focus,
@@ -2218,9 +2924,8 @@ onBeforeUnmount(() => {
   filter: none;
 }
 
-.plus-btn:focus-visible,
+.config-btn:focus-visible,
 .text-tool-btn:focus-visible,
-.thinking-select-option:focus-visible,
 .send-btn:focus-visible,
 .action-menu-item:focus-visible,
 .knowledge-draft-close:focus-visible,
@@ -2229,7 +2934,11 @@ onBeforeUnmount(() => {
 .knowledge-draft-primary:focus-visible,
 .creator-guide-icon-btn:focus-visible,
 .creator-guide-close:focus-visible,
-.creator-guide-option:focus-visible {
+.creator-guide-option:focus-visible,
+.creator-asset-action:focus-visible,
+.creator-selected-asset:focus-visible,
+.fixed-creator-picker-btn:focus-visible,
+.fixed-creator-submit:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
@@ -2397,64 +3106,6 @@ onBeforeUnmount(() => {
   opacity: 0.5;
 }
 
-.selected-option-tags {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.selected-option-tag {
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--primary-soft);
-  color: var(--primary-color);
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1;
-  box-shadow: none;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-.selected-option-tag:hover {
-  background: var(--primary-soft-strong);
-  color: var(--primary-hover);
-  box-shadow: none;
-}
-
-.option-icon-stack {
-  width: 16px;
-  height: 16px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  flex-shrink: 0;
-}
-
-.option-icon,
-.option-remove-icon {
-  position: absolute;
-  color: currentColor;
-  transition: opacity 0.12s;
-}
-
-.option-remove-icon {
-  opacity: 0;
-}
-
-.selected-option-tag:hover .option-icon {
-  opacity: 0;
-}
-
-.selected-option-tag:hover .option-remove-icon {
-  opacity: 1;
-}
-
 .action-dropdown,
 .skill-dropdown,
 .template-dropdown,
@@ -2503,6 +3154,272 @@ onBeforeUnmount(() => {
   width: 300px;
   max-height: 320px;
   overflow: hidden;
+}
+
+.skill-creator-form {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--text-main);
+  animation: fadeIn 0.15s ease;
+}
+
+.fixed-creator-header {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -60px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fixed-creator-header h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 20px;
+  font-weight: 820;
+  line-height: 1.18;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fixed-creator-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.fixed-creator-field,
+.fixed-creator-picker-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fixed-creator-field > span,
+.fixed-creator-picker-head {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.25;
+}
+
+.fixed-creator-required {
+  margin-left: 3px;
+  color: var(--danger-color, #dc2626);
+  font-style: normal;
+  font-weight: 820;
+}
+
+.fixed-creator-field input,
+.fixed-creator-field textarea {
+  width: 100%;
+  min-height: 39px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  outline: 0;
+  background: var(--card-bg);
+  color: var(--text-strong);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  box-shadow: none;
+}
+
+.fixed-creator-field input {
+  height: 39px;
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 1;
+}
+
+.fixed-creator-field textarea {
+  min-height: 66px;
+  resize: vertical;
+}
+
+.fixed-creator-field input::placeholder,
+.fixed-creator-field textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.fixed-creator-field input:focus,
+.fixed-creator-field textarea:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 16%, transparent);
+}
+
+.fixed-creator-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fixed-creator-picker-head small {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.fixed-creator-picker-row {
+  min-height: 62px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card-bg) 94%, var(--surface-soft));
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+}
+
+.fixed-creator-picker-row.populated {
+  background: var(--card-bg);
+}
+
+.fixed-creator-picker-row:hover,
+.fixed-creator-picker-row:focus-within {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 12%, transparent);
+}
+
+.fixed-creator-picker-main {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.fixed-creator-resource-icon {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary-color);
+}
+
+.fixed-creator-resource-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 1px;
+}
+
+.fixed-creator-resource-copy strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fixed-creator-chip-list {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.fixed-creator-empty {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.fixed-creator-picker-actions {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 6px;
+}
+
+.fixed-creator-picker-btn {
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 12px;
+  border-radius: 9px;
+  background: var(--primary-color);
+  color: var(--on-primary);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.fixed-creator-picker-btn svg {
+  flex-shrink: 0;
+}
+
+.fixed-creator-picker-btn.secondary {
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--card-bg) 86%, var(--surface-soft));
+  color: var(--text-main);
+}
+
+.fixed-creator-picker-btn:hover {
+  background: var(--primary-hover);
+}
+
+.fixed-creator-picker-btn.secondary:hover {
+  background: var(--border-soft);
+  color: var(--text-strong);
+}
+
+.fixed-creator-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.fixed-creator-submit {
+  min-width: 104px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--primary-color);
+  color: var(--on-primary);
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.fixed-creator-submit:hover {
+  background: var(--primary-hover);
+}
+
+.fixed-creator-submit:disabled {
+  cursor: not-allowed;
+  background: var(--border-color);
+  opacity: 0.62;
 }
 
 .skill-creator-guide {
@@ -2889,6 +3806,138 @@ onBeforeUnmount(() => {
   background: var(--primary-hover);
 }
 
+.creator-asset-slots {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.creator-asset-slot {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--card-bg) 92%, var(--surface-soft));
+}
+
+.creator-asset-slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.creator-asset-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.creator-asset-optional {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.creator-asset-description {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.creator-asset-actions,
+.creator-selected-assets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.creator-asset-action {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: var(--text-main);
+  background: var(--surface-soft);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.creator-asset-action:hover {
+  background: var(--border-soft);
+  color: var(--text-strong);
+}
+
+.creator-asset-action svg {
+  flex-shrink: 0;
+  color: var(--primary-color);
+}
+
+.creator-selected-assets {
+  padding-top: 1px;
+}
+
+.creator-selected-asset {
+  max-width: 100%;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 5px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--card-bg);
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.creator-selected-asset:hover {
+  border-color: var(--primary-border);
+  background: var(--surface-soft);
+}
+
+.creator-selected-badge {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.creator-selected-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.creator-selected-asset svg {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
 @keyframes creatorLoadingPulse {
   0% {
     transform: scale(0.85);
@@ -2969,6 +4018,39 @@ onBeforeUnmount(() => {
   color: var(--primary-color);
 }
 
+.action-menu-item.has-description {
+  min-height: 48px;
+  align-items: flex-start;
+  padding: 7px 8px;
+}
+
+.action-menu-item.has-description .action-icon,
+.action-menu-item.has-description .check-icon {
+  margin-top: 1px;
+}
+
+.action-item-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.action-item-label {
+  color: currentColor;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.action-item-desc {
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.25;
+}
+
 .action-icon {
   width: 15px;
   height: 15px;
@@ -3002,97 +4084,6 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.thinking-select {
-  position: relative;
-}
-
-.thinking-select-btn {
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 8px;
-  border-radius: 8px;
-  color: var(--text-main);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1;
-  transition: background-color 0.16s, color 0.16s;
-}
-
-.thinking-select-btn:hover,
-.thinking-select-btn[aria-expanded="true"] {
-  background: var(--border-soft);
-  color: var(--text-strong);
-}
-
-.thinking-select-btn:focus-visible {
-  outline: none;
-}
-
-.thinking-select-dropdown {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 10px);
-  z-index: 130;
-  width: 248px;
-  padding: 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--card-bg);
-  box-shadow: var(--shadow-popover);
-  animation: fadeIn 0.15s ease;
-}
-
-.thinking-select-option {
-  width: 100%;
-  min-height: 54px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  color: var(--text-main);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.2;
-  text-align: left;
-  transition: background-color 0.15s, color 0.15s;
-}
-
-.thinking-select-option.selected {
-  background: var(--primary-soft);
-  color: var(--primary-color);
-  font-weight: 650;
-}
-
-.thinking-select-option:hover,
-.thinking-select-option.selected:hover {
-  background: var(--surface-soft);
-  color: var(--text-main);
-}
-
-.thinking-option-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.thinking-option-label {
-  color: currentColor;
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.thinking-option-desc {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 1.35;
 }
 
 .send-btn {
@@ -3196,6 +4187,27 @@ onBeforeUnmount(() => {
     max-height: min(380px, calc(100vh - 40px));
     padding: 0;
     border-radius: 14px;
+  }
+
+  .fixed-creator-header {
+    top: -58px;
+  }
+
+  .fixed-creator-header h3 {
+    font-size: 18px;
+  }
+
+  .fixed-creator-picker-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .fixed-creator-picker-actions {
+    width: 100%;
+  }
+
+  .fixed-creator-picker-btn {
+    flex: 1;
   }
 
   .creator-guide-header {

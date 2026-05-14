@@ -1,4 +1,4 @@
-export type ThemeId = 'classic' | 'codex-theme-v1' | 'absolutely-theme-v1';
+export type ThemeId = 'classic' | 'codex-theme-v1' | 'absolutely-theme-v1' | 'happycapy-paper-v1';
 
 export interface ThemeDefinition {
   id: ThemeId;
@@ -52,7 +52,7 @@ export const themeOptions: ThemeDefinition[] = [
   },
   {
     id: 'codex-theme-v1',
-    name: 'Codex Theme V1',
+    name: 'Codex',
     description: '白色界面、近黑正文、Codex 蓝强调色，适合作为新增主题。',
     codeThemeId: 'codex',
     variant: 'light',
@@ -75,7 +75,7 @@ export const themeOptions: ThemeDefinition[] = [
   },
   {
     id: 'absolutely-theme-v1',
-    name: 'Absolutely Theme V1',
+    name: 'Absolutely',
     description: '暖白界面、深灰正文、粉棕强调色，适合作为另一套浅色主题。',
     codeThemeId: 'absolutely',
     variant: 'light',
@@ -96,7 +96,33 @@ export const themeOptions: ThemeDefinition[] = [
       surface: '#f9f9f7',
     },
   },
+  {
+    id: 'happycapy-paper-v1',
+    name: 'Happycapy Paper',
+    description: '米白纸面、黑色胶囊主按钮、橙色小面积强调，来自 Happycapy 首页风格。',
+    codeThemeId: 'happycapy-paper',
+    variant: 'light',
+    theme: {
+      accent: '#000000',
+      contrast: 45,
+      fonts: {
+        code: null,
+        ui: null,
+      },
+      ink: '#2b2b2b',
+      opaqueWindows: true,
+      semanticColors: {
+        diffAdded: '#2f8f4e',
+        diffRemoved: '#c2410c',
+        skill: '#ff6b4a',
+      },
+      surface: '#f9f6f1',
+    },
+  },
 ];
 
 export const isThemeId = (value: string | null | undefined): value is ThemeId =>
-  value === 'classic' || value === 'codex-theme-v1' || value === 'absolutely-theme-v1';
+  value === 'classic' ||
+  value === 'codex-theme-v1' ||
+  value === 'absolutely-theme-v1' ||
+  value === 'happycapy-paper-v1';

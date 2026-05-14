@@ -1,5 +1,6 @@
 import { computed, ref } from 'vue';
 import { docxLegalResearchMock } from '../data/docxLegalResearchMock';
+import { getCurrentOrganizationId, getOrganizationScopedStorageKey } from './orgSession';
 
 const STORAGE_KEY = 'legal-demo-chat-history';
 const MAX_HISTORY_ITEMS = 20;
@@ -53,7 +54,7 @@ const readHiddenMockIds = () => {
   if (!storage) return new Set<string>();
 
   try {
-    const parsed = JSON.parse(storage.getItem(HIDDEN_MOCKS_STORAGE_KEY) || '[]');
+    const parsed = JSON.parse(storage.getItem(getHiddenMocksStorageKey()) || '[]');
     if (!Array.isArray(parsed)) return new Set<string>();
     return new Set(parsed.filter((id): id is string => typeof id === 'string'));
   } catch {
@@ -64,7 +65,7 @@ const readHiddenMockIds = () => {
 const writeHiddenMockIds = (ids: Set<string>) => {
   const storage = getSafeStorage();
   if (!storage) return;
-  storage.setItem(HIDDEN_MOCKS_STORAGE_KEY, JSON.stringify([...ids]));
+  storage.setItem(getHiddenMocksStorageKey(), JSON.stringify([...ids]));
 };
 
 const hideMockHistoryItem = (id: string) => {
@@ -131,11 +132,26 @@ const getSafeStorage = () => {
   return window.localStorage;
 };
 
+const getHistoryStorageKey = () => getOrganizationScopedStorageKey(STORAGE_KEY);
+
+const getHiddenMocksStorageKey = () => getOrganizationScopedStorageKey(HIDDEN_MOCKS_STORAGE_KEY);
+
+const getChatHistoryApiUrl = (
+  organizationId: string,
+  params: Record<string, string> = {},
+) => {
+  const searchParams = new URLSearchParams({
+    orgId: organizationId,
+    ...params,
+  });
+  return `/api/chat-history?${searchParams.toString()}`;
+};
+
 const readHistory = (): ChatHistoryItem[] => {
   const storage = getSafeStorage();
   if (!storage) return createInitialHistory();
 
-  const raw = storage.getItem(STORAGE_KEY);
+  const raw = storage.getItem(getHistoryStorageKey());
   if (!raw) return createInitialHistory();
 
   try {
@@ -184,24 +200,29 @@ const readHistory = (): ChatHistoryItem[] => {
 };
 
 const historyItems = ref<ChatHistoryItem[]>(ensureDocxMockHistory(readHistory()));
-const hasLoadedRemoteHistory = ref(false);
-let remoteHistoryLoadPromise: Promise<void> | null = null;
+const loadedRemoteOrganizationIds = new Set<string>();
+const remoteHistoryLoadPromises = new Map<string, Promise<void>>();
 
 const persistHistory = () => {
   const storage = getSafeStorage();
   if (!storage) return;
-  storage.setItem(STORAGE_KEY, JSON.stringify(historyItems.value));
+  storage.setItem(getHistoryStorageKey(), JSON.stringify(historyItems.value));
 };
 
 const persistRemoteHistoryItem = (item: ChatHistoryItem) => {
   if (typeof window === 'undefined') return;
+  const organizationId = getCurrentOrganizationId();
+  if (!organizationId) return;
 
-  void fetch('/api/chat-history', {
+  void fetch(getChatHistoryApiUrl(organizationId), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(item),
+    body: JSON.stringify({
+      ...item,
+      organizationId,
+    }),
   }).catch(() => {
     // Keep the local copy as a fallback when the server-side store is unavailable.
   });
@@ -209,8 +230,10 @@ const persistRemoteHistoryItem = (item: ChatHistoryItem) => {
 
 const deleteRemoteHistoryItem = (id: string) => {
   if (typeof window === 'undefined') return;
+  const organizationId = getCurrentOrganizationId();
+  if (!organizationId) return;
 
-  void fetch(`/api/chat-history?id=${encodeURIComponent(id)}`, {
+  void fetch(getChatHistoryApiUrl(organizationId, { id }), {
     method: 'DELETE',
   }).catch(() => {
     // Local storage remains the source of truth when the remote store is unavailable.
@@ -228,14 +251,21 @@ const createId = () => {
   return `mock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 };
 
+export const syncHistoryForCurrentOrganization = () => {
+  historyItems.value = ensureDocxMockHistory(readHistory());
+};
+
 export const useChatHistory = () => {
   const recentHistory = computed(() => historyItems.value);
 
   const loadHistory = async () => {
     if (typeof window === 'undefined') return;
-    if (hasLoadedRemoteHistory.value) return;
+    const organizationId = getCurrentOrganizationId();
+    if (!organizationId) return;
+    if (loadedRemoteOrganizationIds.has(organizationId)) return;
 
-    remoteHistoryLoadPromise ??= fetch('/api/chat-history')
+    if (!remoteHistoryLoadPromises.has(organizationId)) {
+      remoteHistoryLoadPromises.set(organizationId, fetch(getChatHistoryApiUrl(organizationId))
       .then(async (response) => {
         if (!response.ok) return;
 
@@ -262,6 +292,8 @@ export const useChatHistory = () => {
           });
           return items;
         }, []);
+
+        if (getCurrentOrganizationId() !== organizationId) return;
 
         if (normalizedItems.length) {
           const localItemsById = new Map(historyItems.value.map((item) => [item.id, item]));
@@ -290,10 +322,11 @@ export const useChatHistory = () => {
         // Local storage remains the fallback for offline/local-only runs.
       })
       .finally(() => {
-        hasLoadedRemoteHistory.value = true;
-      });
+        loadedRemoteOrganizationIds.add(organizationId);
+      }));
+    }
 
-    await remoteHistoryLoadPromise;
+    await remoteHistoryLoadPromises.get(organizationId);
   };
 
   const findHistoryItem = (historyId?: string | null, prompt?: string | null) => {

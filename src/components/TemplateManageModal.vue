@@ -4,16 +4,16 @@ import {
   ChevronRight,
   Copy,
   FileText,
-  Info,
-  MoreHorizontal,
+  Plus,
+  Search,
   X,
 } from 'lucide-vue-next';
 import {
-  defaultTemplateAssets,
-  officialTemplateAssets,
+  templateAssets,
   type TemplateAsset,
   type TemplateDocumentSection,
 } from '../data/legalAssets';
+import LibraryTypeDropdown from './LibraryTypeDropdown.vue';
 
 const emit = defineEmits<{
   (event: 'close'): void;
@@ -21,21 +21,104 @@ const emit = defineEmits<{
   (event: 'create'): void;
 }>();
 
-type TemplateListPage = 'default' | 'official';
+type SourceFilter = 'personal' | 'team' | 'recommended';
 type TemplateSectionId = string;
 
 const selectedTemplate = ref<TemplateAsset | null>(null);
-const activeListPage = ref<TemplateListPage>('default');
 const activeSectionId = ref<TemplateSectionId>('section-0');
 const statusMessage = ref('');
-const openCardMenuId = ref<string | null>(null);
+const searchKeyword = ref('');
+const selectedSource = ref<SourceFilter>('personal');
+const selectedCategory = ref('全部');
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
-const officialTemplates = computed(() => officialTemplateAssets);
+const primaryTemplateCategories = [
+  '项目启动',
+  '尽职调查',
+  '咨询意见',
+  '交易文件',
+  '投资交易',
+  '资本市场',
+  '并购交易',
+  '基金业务',
+  '合规日常',
+];
 
-const visibleTemplates = computed(() =>
-  activeListPage.value === 'official' ? officialTemplates.value : defaultTemplateAssets
-);
+const getTemplateSourceKind = (template: TemplateAsset): SourceFilter => {
+  if (template.source.includes('团队')) return 'team';
+  if (template.source.includes('推荐') || template.source.includes('官方')) return 'recommended';
+  return 'personal';
+};
+
+const sourceTabs = computed(() => {
+  const counts: Record<SourceFilter, number> = {
+    personal: 0,
+    team: 0,
+    recommended: 0,
+  };
+
+  templateAssets.forEach((template) => {
+    counts[getTemplateSourceKind(template)] += 1;
+  });
+
+  return [
+    { key: 'personal' as const, name: '我的模板', count: counts.personal },
+    { key: 'team' as const, name: '团队共享', count: counts.team },
+    { key: 'recommended' as const, name: '官方推荐', count: counts.recommended },
+  ];
+});
+
+const sourceFilteredTemplates = computed(() => {
+  return templateAssets.filter((template) => getTemplateSourceKind(template) === selectedSource.value);
+});
+
+const categoryTabs = computed(() => {
+  const counts = new Map<string, number>();
+  sourceFilteredTemplates.value.forEach((template) => {
+    counts.set(template.docType, (counts.get(template.docType) ?? 0) + 1);
+  });
+
+  return [
+    { name: '全部', count: sourceFilteredTemplates.value.length },
+    ...primaryTemplateCategories
+      .map((name) => ({ name, count: counts.get(name) ?? 0 }))
+      .filter((tab) => tab.count > 0),
+  ];
+});
+
+const visibleTemplates = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase();
+
+  return sourceFilteredTemplates.value.filter((template) => {
+    const matchesCategory = selectedCategory.value === '全部' || template.docType === selectedCategory.value;
+    const searchable = [
+      template.name,
+      template.docType,
+      template.source,
+      template.agent,
+      template.preview,
+      ...template.requiredFields,
+      ...template.applicableSkills,
+      ...template.tags,
+    ]
+      .join(' ')
+      .toLowerCase();
+
+    return matchesCategory && (!keyword || searchable.includes(keyword));
+  });
+});
+
+const templateFilePath = (template: TemplateAsset) => `assets/templates/${template.id}.md`;
+
+const setSource = (source: SourceFilter) => {
+  selectedSource.value = source;
+  selectedCategory.value = '全部';
+};
+
+const resetFilters = () => {
+  searchKeyword.value = '';
+  selectedCategory.value = '全部';
+};
 
 const createFallbackDocumentSections = (template: TemplateAsset): TemplateDocumentSection[] => [
   {
@@ -117,43 +200,29 @@ const setStatus = (message: string) => {
   }, 1800);
 };
 
-const openOfficialList = () => {
-  activeListPage.value = 'official';
-  selectedTemplate.value = null;
-  activeSectionId.value = 'section-0';
-  openCardMenuId.value = null;
-};
-
-const backToDefaultList = () => {
-  activeListPage.value = 'default';
-  selectedTemplate.value = null;
-  activeSectionId.value = 'section-0';
-  openCardMenuId.value = null;
-};
-
 const closeModal = () => {
   emit('close');
+};
+
+const handleBackdropClick = (event: MouseEvent) => {
+  if (event.target === event.currentTarget) {
+    closeModal();
+  }
 };
 
 const openTemplate = (template: TemplateAsset) => {
   selectedTemplate.value = template;
   activeSectionId.value = 'section-0';
-  openCardMenuId.value = null;
 };
 
 const backToList = () => {
   selectedTemplate.value = null;
   activeSectionId.value = 'section-0';
-  openCardMenuId.value = null;
 };
 
 const selectTemplate = (template = selectedTemplate.value) => {
   if (!template) return;
   emit('select', template);
-};
-
-const toggleCardMenu = (templateId: string) => {
-  openCardMenuId.value = openCardMenuId.value === templateId ? null : templateId;
 };
 
 const copyText = async (text: string, label: string) => {
@@ -170,11 +239,6 @@ const copyText = async (text: string, label: string) => {
     textarea.remove();
   }
   setStatus(`${label}已复制`);
-};
-
-const copyTemplateName = (template: TemplateAsset) => {
-  openCardMenuId.value = null;
-  void copyText(template.name, template.name);
 };
 
 const copyTemplateDocument = () => {
@@ -203,7 +267,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="template-modal-backdrop" @click.self="closeModal">
+  <div class="template-modal-backdrop" @click.stop="handleBackdropClick">
     <section
       class="template-modal"
       :class="{ 'detail-mode': selectedTemplate }"
@@ -216,65 +280,90 @@ onBeforeUnmount(() => {
       </button>
 
       <header v-if="!selectedTemplate" class="modal-header">
-        <h2 id="template-modal-title">
-          <button v-if="activeListPage === 'official'" class="list-back-btn" type="button" @click="backToDefaultList">
-            <ChevronRight :size="16" class="back-chevron" />
-            <span>官方推荐</span>
-          </button>
-          <span v-else>模板</span>
-        </h2>
-        <div class="modal-toolbar">
-          <p class="modal-subtitle">
-            <span>
-              {{
-                activeListPage === 'official'
-                  ? '选择官方推荐的文档结构，添加到本次输入上下文'
-                  : '将常用文档结构、字段清单和写作约束作为可复用模板'
-              }}
-            </span>
-            <Info :size="17" :stroke-width="2" />
-          </p>
-          <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
-          <div v-if="activeListPage === 'default'" class="modal-tabs" aria-label="模板分类">
-            <button class="modal-tab recommend-entry" type="button" @click="openOfficialList">
-              官方推荐
+        <div class="modal-page-header">
+          <h2 id="template-modal-title">模板</h2>
+          <label class="search-control page-search">
+            <Search :size="17" />
+            <input v-model="searchKeyword" type="text" placeholder="搜索模板、字段、适用场景" />
+          </label>
+        </div>
+
+        <div class="source-toolbar">
+          <nav class="source-tabs" aria-label="模板来源">
+            <button
+              v-for="tab in sourceTabs"
+              :key="tab.key"
+              class="source-tab"
+              :class="{ active: selectedSource === tab.key }"
+              type="button"
+              @click="setSource(tab.key)"
+            >
+              <span>{{ tab.name }}</span>
+              <strong>{{ tab.count }}</strong>
             </button>
-            <button class="modal-tab" type="button" @click="createTemplate">
-              新建模版
+          </nav>
+
+          <div class="source-actions">
+            <LibraryTypeDropdown v-model="selectedCategory" :options="categoryTabs" label="类型" />
+
+            <button class="new-template-btn" type="button" @click="createTemplate">
+              <Plus :size="17" />
+              <span>创建模板</span>
             </button>
           </div>
         </div>
+        <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
       </header>
 
-      <div v-if="!selectedTemplate" class="template-card-grid">
-        <article
-          v-for="template in visibleTemplates"
-          :key="template.id"
-          class="managed-template-card"
-          tabindex="0"
-          @click="openTemplate(template)"
-          @keydown.enter.prevent="openTemplate(template)"
-        >
-          <button
-            class="card-more-btn"
-            type="button"
-            :aria-label="`${template.name} 更多操作`"
-            @click.stop="toggleCardMenu(template.id)"
+      <section v-if="!selectedTemplate" class="template-section" aria-label="模板文件列表">
+        <div class="list-heading">
+          <span class="result-count">{{ visibleTemplates.length }} 项</span>
+        </div>
+
+        <div v-if="visibleTemplates.length" class="template-grid">
+          <article
+            v-for="template in visibleTemplates"
+            :key="template.id"
+            class="managed-template-card"
+            :title="`${template.name}\n${templateFilePath(template)}`"
+            tabindex="0"
+            @click="openTemplate(template)"
+            @keydown.enter.prevent="openTemplate(template)"
           >
-            <MoreHorizontal :size="20" />
-          </button>
+            <div class="thumbnail-page" aria-hidden="true">
+              <div class="thumbnail-topline">
+                <FileText :size="12" />
+                <span>{{ template.docType }}</span>
+              </div>
+              <strong>{{ template.name }}</strong>
+              <span class="thumb-line wide"></span>
+              <span class="thumb-line"></span>
+              <span class="thumb-line short"></span>
+              <div class="thumbnail-table">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
 
-          <div v-if="openCardMenuId === template.id" class="card-action-menu" @click.stop>
-            <button type="button" @click="openTemplate(template)">查看文档</button>
-            <button type="button" @click="selectTemplate(template)">选择模板</button>
-            <button type="button" @click="copyTemplateName(template)">复制名称</button>
-          </div>
+            <div class="tile-caption">
+              <h2>{{ template.name }}</h2>
+              <div class="tile-meta">
+                <span>{{ template.source }}</span>
+                <span>{{ template.updatedAt }}</span>
+              </div>
+            </div>
+          </article>
+        </div>
 
-          <h3>{{ template.name }}</h3>
-          <p>{{ template.preview }}</p>
-          <span class="template-file-count">{{ template.requiredFields.length }} 个字段</span>
-        </article>
-      </div>
+        <div v-else class="empty-state">
+          <FileText :size="22" />
+          <strong>未找到匹配模板</strong>
+          <span>调整分类或关键词后再试。</span>
+          <button class="reset-btn active" type="button" @click="resetFilters">清空搜索</button>
+        </div>
+      </section>
 
       <template v-if="selectedTemplate">
         <header class="detail-header">
@@ -371,16 +460,20 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 24px;
   background: rgba(0, 0, 0, 0.48);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 
 .template-modal {
   position: relative;
-  width: min(820px, calc(100vw - 40px));
+  width: min(1032px, calc(100vw - 40px));
   min-height: 412px;
-  max-height: calc(100vh - 40px);
-  overflow: auto;
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 24px 32px 28px;
   border-radius: 16px;
   background: var(--card-bg);
@@ -389,8 +482,8 @@ onBeforeUnmount(() => {
 
 .template-modal.detail-mode {
   width: min(1120px, calc(100vw - 40px));
-  height: min(860px, calc(100vh - 32px));
-  max-height: calc(100vh - 32px);
+  height: min(860px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
   padding: 0;
   background: var(--surface-soft);
 }
@@ -416,36 +509,125 @@ onBeforeUnmount(() => {
   background: var(--border-color);
 }
 
-.modal-header h2 {
-  margin: 0 0 20px;
-  color: var(--text-strong);
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.2;
+.modal-header {
+  flex-shrink: 0;
 }
 
-.modal-toolbar {
+.modal-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+  padding-right: 42px;
+}
+
+.modal-page-header h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 24px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.search-control {
+  width: min(520px, 50%);
+  min-width: 320px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.page-search {
+  width: min(520px, 52%);
+}
+
+.search-control:focus-within {
+  border-color: var(--primary-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
+}
+
+.search-control svg {
+  flex-shrink: 0;
+}
+
+.search-control input {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 14px;
+}
+
+.search-control input::placeholder {
+  color: var(--text-muted);
+}
+
+.source-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
 }
 
-.modal-subtitle {
-  min-width: 0;
+.source-tabs {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.35;
+  min-width: 0;
 }
 
-.modal-subtitle svg {
+.source-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
+}
+
+.source-tab {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 14px;
+  border-radius: 10px;
+  color: var(--text-strong);
+  background: var(--surface-muted);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1;
+  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.source-tab strong {
   color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.source-tab:hover {
+  background: var(--surface-soft);
+}
+
+.source-tab.active {
+  color: var(--primary-hover);
+  background: var(--primary-soft-strong);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+.source-tab.active strong {
+  color: var(--primary-hover);
 }
 
 .modal-status,
@@ -458,158 +640,268 @@ onBeforeUnmount(() => {
 
 .modal-status {
   margin-left: auto;
+  margin-top: 10px;
 }
 
-.modal-tabs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-.modal-tab {
+.new-template-btn {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
   padding: 0 14px;
+  border: 1px solid var(--primary-color);
   border-radius: 10px;
-  color: var(--text-strong);
-  background: var(--surface-soft);
+  background: var(--primary-color);
+  color: var(--on-primary);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 700;
   line-height: 1;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-color) 11%, transparent);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
 }
 
-.modal-tab:hover {
-  background: var(--surface-soft);
-}
-
-.modal-tab.recommend-entry {
-  color: var(--primary-hover);
-  background: var(--primary-soft-strong);
-}
-
-.modal-tab.recommend-entry:hover {
-  background: var(--primary-border);
-}
-
-.list-back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-strong);
-  font: inherit;
-}
-
-.list-back-btn:hover {
-  color: var(--primary-color);
-}
-
-.template-card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 20px;
-}
-
-.managed-template-card {
-  position: relative;
-  min-height: 108px;
-  padding: 20px 48px 18px 20px;
-  border: 1px solid var(--border-color);
-  border-radius: 14px;
-  background: var(--card-bg);
-  cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
-}
-
-.managed-template-card:hover {
-  border-color: var(--primary-border);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+.new-template-btn:hover {
   transform: translateY(-1px);
+  background: var(--primary-hover);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--primary-color) 15%, transparent);
 }
 
-.managed-template-card h3 {
-  margin: 0 0 14px;
-  color: var(--text-strong);
-  font-size: 16px;
-  font-weight: 650;
-  line-height: 1.15;
-  letter-spacing: 0;
-}
-
-.managed-template-card p {
-  display: -webkit-box;
-  margin: 0;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 13.5px;
-  font-weight: 400;
-  line-height: 1.4;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-.card-more-btn {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 28px;
-  height: 28px;
+.reset-btn {
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  color: var(--text-secondary);
-}
-
-.card-more-btn:hover {
-  background: var(--surface-soft);
-}
-
-.card-action-menu {
-  position: absolute;
-  top: 48px;
-  right: 14px;
-  z-index: 4;
-  width: 112px;
-  padding: 6px;
+  padding: 0 14px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  background: var(--card-bg);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
-}
-
-.card-action-menu button {
-  width: 100%;
-  height: 32px;
-  padding: 0 8px;
-  border-radius: 7px;
-  color: var(--text-main);
+  background: var(--surface-muted);
+  color: var(--text-strong);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 650;
+  line-height: 1;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+
+.reset-btn:not(:disabled):hover,
+.reset-btn.active {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+  color: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.template-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  margin-top: 20px;
+  overflow: auto;
+  padding-right: 6px;
+  overscroll-behavior: contain;
+}
+
+.list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.result-count {
+  color: var(--text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 220px));
+  justify-content: space-between;
+  gap: 34px 24px;
+}
+
+.managed-template-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 220px;
+  min-width: 0;
+  padding: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-main);
+  cursor: pointer;
   text-align: left;
+  transition: transform 0.15s ease;
 }
 
-.card-action-menu button:hover {
-  background: var(--surface-soft);
+.managed-template-card:hover {
+  transform: translateY(-1px);
 }
 
-.template-file-count {
-  position: absolute;
-  right: 18px;
-  bottom: 16px;
-  color: var(--text-muted);
-  font-size: 12px;
+.managed-template-card:focus {
+  outline: none;
+}
+
+.thumbnail-page {
+  width: 100%;
+  min-height: 248px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-self: flex-start;
+  padding: 20px 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--text-strong) 10%, transparent);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.managed-template-card:hover .thumbnail-page {
+  border-color: var(--primary-border);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--primary-color) 16%, transparent);
+}
+
+.thumbnail-topline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--primary-color);
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1;
 }
 
+.thumbnail-topline svg {
+  flex-shrink: 0;
+}
+
+.thumbnail-topline span,
+.thumbnail-page strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thumbnail-page strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.thumb-line {
+  width: 82%;
+  height: 7px;
+  display: block;
+  border-radius: 999px;
+  background: var(--border-soft);
+}
+
+.thumb-line.wide {
+  width: 100%;
+}
+
+.thumb-line.short {
+  width: 58%;
+}
+
+.thumbnail-table {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: auto;
+}
+
+.thumbnail-table span {
+  min-height: 28px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  background: var(--surface-muted);
+}
+
+.tile-caption {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+
+.tile-caption h2 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.2;
+}
+
+.tile-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-meta span + span::before {
+  content: '';
+  width: 3px;
+  height: 3px;
+  display: inline-block;
+  margin: 0 6px 2px 0;
+  border-radius: 50%;
+  color: var(--text-muted);
+  background: var(--text-muted);
+}
+
+.empty-state {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin-top: 12px;
+  border: 1px dashed var(--border-color);
+  border-radius: 16px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.empty-state svg {
+  color: var(--primary-color);
+}
+
+.empty-state strong {
+  color: var(--text-strong);
+  font-size: 15px;
+}
+
+.empty-state span {
+  font-size: 13px;
+}
+
 .modal-close-btn:focus-visible,
-.modal-tab:focus-visible,
-.list-back-btn:focus-visible,
-.card-more-btn:focus-visible,
-.card-action-menu button:focus-visible,
+.source-tab:focus-visible,
+.reset-btn:focus-visible,
+.new-template-btn:focus-visible,
 .managed-template-card:focus-visible,
 .detail-title-btn:focus-visible,
 .use-template-btn:focus-visible,
@@ -881,15 +1173,48 @@ onBeforeUnmount(() => {
 @media (max-width: 900px) {
   .template-modal {
     width: calc(100vw - 32px);
+    max-height: calc(100dvh - 32px);
     padding: 22px;
   }
 
-  .template-card-grid {
-    grid-template-columns: 1fr;
+  .modal-page-header,
+  .source-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .modal-page-header {
+    padding-right: 42px;
+  }
+
+  .search-control,
+  .source-tabs,
+  .source-actions {
+    width: 100%;
+  }
+
+  .source-actions {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .template-grid {
+    grid-template-columns: repeat(auto-fill, minmax(164px, 164px));
+    justify-content: space-between;
+    gap: 24px 16px;
+  }
+
+  .managed-template-card {
+    width: 164px;
+  }
+
+  .thumbnail-page {
+    min-height: 198px;
+    padding: 18px 16px;
   }
 
   .template-modal.detail-mode {
-    height: calc(100vh - 32px);
+    height: calc(100dvh - 32px);
   }
 
   .template-document-shell {

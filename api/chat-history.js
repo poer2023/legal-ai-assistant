@@ -77,13 +77,42 @@ const toClientItem = (item) => ({
 
 const normalizeText = (value) => typeof value === 'string' ? value.trim() : '';
 
+const normalizeOrganizationId = (value) => {
+  const organizationId = normalizeText(value);
+  if (/^[a-zA-Z0-9_-]{1,80}$/.test(organizationId)) return organizationId;
+  return 'default';
+};
+
+const getRequestOrganizationId = (request, body = null) => {
+  const requestUrl = new URL(request.url || '/', 'http://localhost');
+  return normalizeOrganizationId(body?.organizationId || body?.orgId || requestUrl.searchParams.get('orgId'));
+};
+
+const getStorageId = (organizationId, id) => {
+  const normalizedId = normalizeText(id);
+  if (!normalizedId) return '';
+  const prefix = `${organizationId}:`;
+  return normalizedId.startsWith(prefix) ? normalizedId : `${prefix}${normalizedId}`;
+};
+
+const stripStorageId = (organizationId, id) => {
+  const prefix = `${organizationId}:`;
+  return typeof id === 'string' && id.startsWith(prefix) ? id.slice(prefix.length) : id;
+};
+
+const toOrganizationClientItem = (organizationId, item) => ({
+  ...toClientItem(item),
+  id: stripStorageId(organizationId, item.id),
+  organizationId,
+});
+
 const normalizeDate = (value) => {
   if (typeof value !== 'string') return new Date().toISOString();
   const timestamp = Date.parse(value);
   return Number.isNaN(timestamp) ? new Date().toISOString() : new Date(timestamp).toISOString();
 };
 
-const readHistoryItems = async () => {
+const readHistoryItems = async (organizationId) => {
   const fields = [
     'id',
     'title',
@@ -94,15 +123,16 @@ const readHistoryItems = async () => {
     'answer_model',
     'answer_cached_at',
   ].join(',');
+  const idFilter = encodeURIComponent(`${organizationId}:%`);
   const rows = await supabaseFetch(
-    `legal_chat_conversations?select=${fields}&order=updated_at.desc&limit=${MAX_HISTORY_ITEMS}`,
+    `legal_chat_conversations?select=${fields}&id=like.${idFilter}&order=updated_at.desc&limit=${MAX_HISTORY_ITEMS}`,
   );
 
-  return Array.isArray(rows) ? rows.map(toClientItem) : [];
+  return Array.isArray(rows) ? rows.map((row) => toOrganizationClientItem(organizationId, row)) : [];
 };
 
-const upsertHistoryItem = async (payload) => {
-  const id = normalizeText(payload.id);
+const upsertHistoryItem = async (payload, organizationId) => {
+  const id = getStorageId(organizationId, payload.id);
   const prompt = normalizeText(payload.prompt);
   const title = normalizeText(payload.title) || '新会话';
 
@@ -133,11 +163,11 @@ const upsertHistoryItem = async (payload) => {
     }),
   });
 
-  return toClientItem(Array.isArray(rows) ? rows[0] : rows);
+  return toOrganizationClientItem(organizationId, Array.isArray(rows) ? rows[0] : rows);
 };
 
-const deleteHistoryItem = async (id) => {
-  const historyId = normalizeText(id);
+const deleteHistoryItem = async (id, organizationId) => {
+  const historyId = getStorageId(organizationId, id);
 
   if (!historyId) {
     const error = new Error('缺少 history id');
@@ -156,19 +186,22 @@ const deleteHistoryItem = async (id) => {
 export default async function handler(request, response) {
   try {
     if (request.method === 'GET') {
-      sendJson(response, 200, { items: await readHistoryItems() });
+      const organizationId = getRequestOrganizationId(request);
+      sendJson(response, 200, { items: await readHistoryItems(organizationId) });
       return;
     }
 
     if (request.method === 'POST') {
       const body = await readJsonBody(request);
-      sendJson(response, 200, { item: await upsertHistoryItem(body) });
+      const organizationId = getRequestOrganizationId(request, body);
+      sendJson(response, 200, { item: await upsertHistoryItem(body, organizationId) });
       return;
     }
 
     if (request.method === 'DELETE') {
       const requestUrl = new URL(request.url || '/', 'http://localhost');
-      await deleteHistoryItem(requestUrl.searchParams.get('id'));
+      const organizationId = getRequestOrganizationId(request);
+      await deleteHistoryItem(requestUrl.searchParams.get('id'), organizationId);
       sendJson(response, 200, { ok: true });
       return;
     }

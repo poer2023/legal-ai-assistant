@@ -7,10 +7,22 @@ export type SkillCreatorGuideOption = {
   recommended?: boolean;
 };
 
+export type SkillCreatorGuideAssetSlot = {
+  id: string;
+  type: 'draft' | 'template';
+  title: string;
+  description: string;
+  optional?: boolean;
+  allowLocal?: boolean;
+  allowKnowledge?: boolean;
+  allowTemplate?: boolean;
+};
+
 export type SkillCreatorGuideStep = {
   field: SkillCreatorGuideField;
   title: string;
   options: SkillCreatorGuideOption[];
+  assetSlots?: SkillCreatorGuideAssetSlot[];
 };
 
 type SkillCreatorGuideResponse = {

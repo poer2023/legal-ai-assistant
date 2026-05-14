@@ -127,6 +127,49 @@
   --skill-soft: #f8ede8;
 }
 
+:root[data-theme='happycapy-paper-v1'] {
+  --bg-color: #f9f6f1;
+  --surface-muted: #fdfbf7;
+  --surface-soft: #f7e6d6;
+  --sidebar-bg: #f3eee6;
+  --sidebar-border: rgba(43, 43, 43, 0.1);
+  --team-menu-bg: rgba(253, 251, 247, 0.9);
+  --header-bg: transparent;
+  --primary-color: #000000;
+  --primary-hover: #2b2b2b;
+  --primary-soft: #fff2ec;
+  --primary-soft-strong: #f7e6d6;
+  --primary-border: #2b2b2b;
+  --focus-ring: #ff6b4a;
+  --text-main: #2b2b2b;
+  --text-strong: #111111;
+  --text-secondary: #4b5563;
+  --text-muted: #8a8580;
+  --text-sidebar: #374151;
+  --card-bg: #fdfbf7;
+  --on-primary: #ffffff;
+  --border-radius: 20px;
+  --border-color: #e9e4dc;
+  --border-soft: #f0e7dc;
+  --sidebar-hover-bg: rgba(255, 107, 74, 0.08);
+  --sidebar-active-bg: rgba(255, 107, 74, 0.14);
+  --sidebar-active-text: #a4442e;
+  --shadow-soft: 0 2px 10px rgba(43, 43, 43, 0.04);
+  --shadow-card: 0 14px 34px rgba(43, 43, 43, 0.08);
+  --shadow-popover: 0 22px 52px rgba(43, 43, 43, 0.14);
+  --diff-added: #2f8f4e;
+  --diff-added-soft: #e7f6eb;
+  --diff-added-border: #b8dfc4;
+  --diff-removed: #c2410c;
+  --diff-removed-soft: #fff2ec;
+  --diff-removed-border: #f7c7ad;
+  --warning-color: #a86200;
+  --warning-soft: #fff3d8;
+  --warning-border: #ffd783;
+  --skill-color: #ff6b4a;
+  --skill-soft: #fff2ec;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

@@ -2,20 +2,23 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
+  Building2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
+  CheckCircle2,
   FileText,
   History,
   Home,
   Lock,
+  LogOut,
   MoreHorizontal,
   Network,
   Pencil,
   Plus,
+  Puzzle,
   Scale,
-  Sparkles,
   Trash2,
   Users,
   User,
@@ -23,12 +26,22 @@ import {
 import legalLogo from '../assets/legal-logo.png';
 import KnowledgeSearchIcon from './icons/KnowledgeSearchIcon.vue';
 import { useChatHistory, type ChatHistoryItem } from '../stores/chatHistory';
+import { useOrgSession } from '../stores/orgSession';
 
 const router = useRouter();
 const route = useRoute();
 const { recentHistory, renameConversation, deleteConversation } = useChatHistory();
+const {
+  currentOrganization,
+  currentOrganizationId,
+  currentUser,
+  logout,
+  organizations,
+  selectOrganization,
+} = useOrgSession();
 
 const isCollapsed = ref(false);
+const isOrgSwitcherOpen = ref(false);
 const openHistoryMenuId = ref('');
 const historyMenuPosition = ref({ top: 0, left: 0 });
 const renamingHistoryId = ref('');
@@ -43,12 +56,17 @@ const closeHistoryMenu = () => {
   openHistoryMenuId.value = '';
 };
 
+const closeOrgSwitcher = () => {
+  isOrgSwitcherOpen.value = false;
+};
+
 const closeDeleteConfirm = () => {
   pendingDeleteHistoryItem.value = null;
 };
 
 const handleItemClick = (routeName: string) => {
   if (routeName) {
+    closeOrgSwitcher();
     closeHistoryMenu();
     router.push({ name: routeName });
   }
@@ -70,6 +88,7 @@ const isHistoryActive = (item: ChatHistoryItem) => {
 const isKnowledgeActive = computed(() => {
   return ['knowledge'].includes(String(route.name ?? ''));
 });
+const isTeamActive = computed(() => route.path.startsWith('/team'));
 
 const isKnowledgeExpanded = ref(false);
 
@@ -81,6 +100,7 @@ const toggleSidebarCollapsed = () => {
   isCollapsed.value = !isCollapsed.value;
   if (isCollapsed.value) {
     isKnowledgeExpanded.value = false;
+    closeOrgSwitcher();
     closeHistoryMenu();
   }
 };
@@ -91,6 +111,39 @@ const handleKnowledgeClick = () => {
     return;
   }
   toggleKnowledgeExpanded();
+};
+
+const toggleOrgSwitcher = () => {
+  closeHistoryMenu();
+
+  if (isCollapsed.value || window.innerWidth <= 768) {
+    void router.push({
+      name: 'org-select',
+      query: { switch: '1' },
+    });
+    return;
+  }
+
+  isOrgSwitcherOpen.value = !isOrgSwitcherOpen.value;
+};
+
+const handleOrganizationSwitch = (organizationId: string) => {
+  if (organizationId === currentOrganizationId.value) {
+    closeOrgSwitcher();
+    return;
+  }
+
+  if (!selectOrganization(organizationId)) return;
+  closeOrgSwitcher();
+  closeHistoryMenu();
+  void router.push({ name: 'home' });
+};
+
+const handleLogout = () => {
+  logout();
+  closeOrgSwitcher();
+  closeHistoryMenu();
+  void router.replace({ name: 'login' });
 };
 
 const handleHistoryClick = (item: ChatHistoryItem) => {
@@ -189,10 +242,12 @@ const handleDocumentClick = (event: MouseEvent) => {
     target.closest('.history-menu-popover')
     || target.closest('.history-more')
     || target.closest('.history-rename-input')
+    || target.closest('.organization-switcher')
   ) {
     return;
   }
 
+  closeOrgSwitcher();
   closeHistoryMenu();
 };
 
@@ -210,10 +265,8 @@ const knowledgeItems = [
   { icon: Lock, label: '隐藏知识库', routeName: 'knowledge', activeOnKnowledge: false },
 ];
 
-const bottomItems = [
-  { icon: Users, label: '团队管理', routeName: 'team' },
-  { icon: User, label: '个人中心', routeName: 'profile-basic' },
-];
+const canManageTeam = computed(() => currentOrganization.value?.role === '管理员');
+const userDisplayName = computed(() => currentUser.value?.displayName ?? '个人中心');
 </script>
 
 <template>
@@ -270,7 +323,7 @@ const bottomItems = [
         :title="isCollapsed ? '技能' : undefined"
         @click="handleItemClick('skills')"
       >
-        <Sparkles :size="18" class="nav-icon" />
+        <Puzzle :size="18" class="nav-icon" />
         <span class="nav-label">技能</span>
       </button>
 
@@ -369,17 +422,65 @@ const bottomItems = [
 
     <div class="sidebar-footer">
       <button
-        v-for="(item, index) in bottomItems"
-        :key="index"
+        v-if="canManageTeam"
         class="nav-item footer-item"
-        :class="{ active: isActive(item.routeName) }"
-        :aria-label="item.label"
-        :title="isCollapsed ? item.label : undefined"
-        @click="handleItemClick(item.routeName)"
+        :class="{ active: isTeamActive }"
+        aria-label="团队管理"
+        :title="isCollapsed ? '团队管理' : undefined"
+        @click="handleItemClick('team')"
       >
-        <component :is="item.icon" :size="18" class="nav-icon" />
-        <span class="nav-label">{{ item.label }}</span>
+        <Users :size="18" class="nav-icon" />
+        <span class="nav-label">团队管理</span>
       </button>
+
+      <div class="organization-switcher footer-organization">
+        <button
+          class="footer-profile-trigger"
+          type="button"
+          :class="{ active: isActive('profile-basic') || isOrgSwitcherOpen }"
+          :aria-expanded="isOrgSwitcherOpen"
+          aria-label="个人中心"
+          :title="isCollapsed ? '个人中心' : undefined"
+          @click.stop="toggleOrgSwitcher"
+        >
+          <User :size="18" class="nav-icon" />
+          <span class="footer-copy nav-label">
+            <span class="footer-label">个人中心</span>
+            <span class="footer-meta">{{ currentOrganization?.shortName ?? userDisplayName }}</span>
+          </span>
+          <ChevronUp v-if="isOrgSwitcherOpen" :size="15" class="profile-trigger-chevron" />
+          <ChevronDown v-else :size="15" class="profile-trigger-chevron" />
+        </button>
+
+        <div v-if="isOrgSwitcherOpen && !isCollapsed" class="organization-popover">
+          <div class="organization-popover-title">我的组织</div>
+
+          <button
+            v-for="organization in organizations"
+            :key="organization.id"
+            class="organization-option"
+            :class="{ active: organization.id === currentOrganizationId }"
+            type="button"
+            @click="handleOrganizationSwitch(organization.id)"
+          >
+            <span class="option-avatar">{{ organization.avatarText }}</span>
+            <span class="option-copy">
+              <span class="option-name">{{ organization.name }}</span>
+              <span class="option-meta">{{ organization.role }} · {{ organization.memberCount }} 人</span>
+            </span>
+            <CheckCircle2 v-if="organization.id === currentOrganizationId" :size="16" class="option-check" />
+          </button>
+
+          <button class="organization-option compact" type="button" @click="handleItemClick('org-select')">
+            <Building2 :size="16" />
+            <span>管理我的组织</span>
+          </button>
+          <button class="organization-option compact danger" type="button" @click="handleLogout">
+            <LogOut :size="16" />
+            <span>退出登录</span>
+          </button>
+        </div>
+      </div>
     </div>
 
   </aside>
@@ -564,6 +665,125 @@ const bottomItems = [
   color: var(--primary-color);
 }
 
+.organization-switcher {
+  position: relative;
+  margin: 0 0 10px;
+}
+
+.option-avatar {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--primary-color);
+  color: var(--on-primary);
+  font-weight: 750;
+}
+
+.sidebar.collapsed .organization-switcher {
+  margin-bottom: 8px;
+}
+
+.sidebar.collapsed .footer-profile-trigger {
+  width: 100%;
+  justify-content: center;
+  padding: 9px 0;
+}
+
+.sidebar.collapsed .profile-trigger-chevron {
+  display: none;
+}
+
+.organization-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: auto;
+  z-index: 30;
+  width: 292px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-popover);
+}
+
+.organization-popover-title {
+  padding: 2px 8px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.organization-option {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  color: var(--text-main);
+  text-align: left;
+}
+
+.organization-option:hover,
+.organization-option.active {
+  background: var(--primary-soft);
+  color: var(--primary-color);
+}
+
+.organization-option.compact {
+  min-height: 36px;
+  display: flex;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.organization-option.danger {
+  color: var(--diff-removed);
+}
+
+.option-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
+}
+
+.option-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.option-name,
+.option-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.option-name {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.option-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.option-check {
+  color: var(--primary-color);
+}
+
 .nav-item {
   width: 100%;
   display: flex;
@@ -700,6 +920,68 @@ const bottomItems = [
   padding-top: 12px;
   margin-top: auto;
   border-top: 0;
+}
+
+.footer-organization {
+  margin: 0 0 4px;
+}
+
+.footer-profile-trigger {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 7px 8px 7px 12px;
+  border-radius: 8px;
+  color: var(--text-sidebar);
+  text-align: left;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.footer-profile-trigger:hover,
+.footer-profile-trigger.active {
+  background: var(--sidebar-active-bg);
+  color: var(--sidebar-active-text);
+}
+
+.profile-trigger-chevron {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+}
+
+.footer-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footer-label,
+.footer-meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.footer-label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.footer-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.footer-organization .organization-popover {
+  top: auto;
+  bottom: calc(100% + 8px);
 }
 
 .history-section {
@@ -936,8 +1218,13 @@ const bottomItems = [
 
 .footer-item {
   color: var(--text-sidebar);
-  font-size: 16px;
+  font-size: 15px;
   margin-bottom: 4px;
+  min-height: 42px;
+}
+
+.profile-footer-item {
+  align-items: center;
 }
 
 .guide-item {
@@ -977,6 +1264,8 @@ const bottomItems = [
   }
 
   .logo-text,
+  .footer-copy,
+  .profile-trigger-chevron,
   .nav-label,
   .submenu-arrow,
   .hot-badge-fire,
@@ -986,6 +1275,12 @@ const bottomItems = [
   }
 
   .nav-item {
+    justify-content: center;
+    padding: 9px 0;
+  }
+
+  .footer-profile-trigger {
+    width: 100%;
     justify-content: center;
     padding: 9px 0;
   }
