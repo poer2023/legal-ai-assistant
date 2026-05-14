@@ -6,6 +6,14 @@ const TABLE_NAME = 'legal_skills';
 const LOCAL_SKILLS_PATH = process.env.LEGAL_SKILLS_FILE
   || fileURLToPath(new URL('../.data/legal-skills.json', import.meta.url));
 
+const canWriteLocalSkills = () => process.env.VERCEL !== '1';
+
+const createStorageError = (message, cause = null) => {
+  const error = new Error(cause instanceof Error ? `${message}：${cause.message}` : message);
+  error.statusCode = 500;
+  return error;
+};
+
 const sendJson = (response, statusCode, payload) => {
   if (typeof response.status === 'function' && typeof response.json === 'function') {
     response.status(statusCode).json(payload);
@@ -77,6 +85,10 @@ const readLocalRows = async () => {
 };
 
 const writeLocalRows = async (rows) => {
+  if (!canWriteLocalSkills()) {
+    throw createStorageError('线上技能持久化需要 Supabase，不能写入 Vercel 只读文件系统');
+  }
+
   await mkdir(dirname(LOCAL_SKILLS_PATH), { recursive: true });
   await writeFile(`${LOCAL_SKILLS_PATH}.tmp`, JSON.stringify(rows, null, 2), 'utf8');
   await rename(`${LOCAL_SKILLS_PATH}.tmp`, LOCAL_SKILLS_PATH);
@@ -271,6 +283,10 @@ const upsertSkill = async (payload, organizationId) => {
   const row = toStorageRow(payload, organizationId);
   const config = getSupabaseConfig();
   if (!config) {
+    if (!canWriteLocalSkills()) {
+      throw createStorageError('线上技能持久化缺少 Supabase 服务端环境变量');
+    }
+
     const localRow = await upsertLocalRow(row);
     return toClientSkill(localRow, organizationId);
   }
@@ -285,12 +301,18 @@ const upsertSkill = async (payload, organizationId) => {
       body: JSON.stringify(row),
     });
   } catch (error) {
+    if (!canWriteLocalSkills()) {
+      throw createStorageError('Supabase 技能持久化失败', error);
+    }
+
     const localRow = await upsertLocalRow(row);
     return toClientSkill(localRow, organizationId);
   }
 
   const storedRow = Array.isArray(rows) ? rows[0] : rows;
-  await upsertLocalRow(storedRow || row);
+  if (canWriteLocalSkills()) {
+    await upsertLocalRow(storedRow || row).catch(() => null);
+  }
   return toClientSkill(storedRow || row, organizationId);
 };
 
@@ -304,6 +326,10 @@ const deleteSkill = async (id, organizationId) => {
 
   const config = getSupabaseConfig();
   if (!config) {
+    if (!canWriteLocalSkills()) {
+      throw createStorageError('线上技能持久化缺少 Supabase 服务端环境变量');
+    }
+
     await deleteLocalRow(skillId);
     return;
   }
@@ -316,10 +342,16 @@ const deleteSkill = async (id, organizationId) => {
       },
     });
   } catch (error) {
+    if (!canWriteLocalSkills()) {
+      throw createStorageError('Supabase 技能删除失败', error);
+    }
+
     // Keep deletion best-effort across both stores, even if one backend is unavailable.
   }
 
-  await deleteLocalRow(skillId);
+  if (canWriteLocalSkills()) {
+    await deleteLocalRow(skillId).catch(() => null);
+  }
 };
 
 export default async function handler(request, response) {
