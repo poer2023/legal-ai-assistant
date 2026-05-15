@@ -21,7 +21,7 @@ const emit = defineEmits<{
   (event: 'create'): void;
 }>();
 
-type SourceFilter = 'personal' | 'team' | 'recommended';
+type SourceFilter = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
 type TemplateSectionId = string;
 
 const selectedTemplate = ref<TemplateAsset | null>(null);
@@ -44,8 +44,38 @@ const primaryTemplateCategories = [
   '合规日常',
 ];
 
+const templateListPageCopy: Record<SourceFilter, { name: string; emptyTitle: string; emptyDescription: string }> = {
+  personal: {
+    name: '我的模板',
+    emptyTitle: '暂无我的模板',
+    emptyDescription: '创建或上传模板后，会出现在这里。',
+  },
+  'group-shared': {
+    name: '小组共享',
+    emptyTitle: '暂无小组共享模板',
+    emptyDescription: '小组内共享的模板会集中展示在这里。',
+  },
+  'team-shared': {
+    name: '团队共享',
+    emptyTitle: '暂无团队共享模板',
+    emptyDescription: '团队发布的通用模板会集中展示在这里。',
+  },
+  'public-hub': {
+    name: '公共库',
+    emptyTitle: '暂无公共库模板',
+    emptyDescription: '公共库模板同步后会展示在这里。',
+  },
+  recommended: {
+    name: '官方推荐',
+    emptyTitle: '暂无官方推荐模板',
+    emptyDescription: '官方维护的模板会集中展示在这里。',
+  },
+};
+
 const getTemplateSourceKind = (template: TemplateAsset): SourceFilter => {
-  if (template.source.includes('团队')) return 'team';
+  if (template.source.includes('小组')) return 'group-shared';
+  if (template.source.includes('团队')) return 'team-shared';
+  if (template.source.includes('公共')) return 'public-hub';
   if (template.source.includes('推荐') || template.source.includes('官方')) return 'recommended';
   return 'personal';
 };
@@ -53,7 +83,9 @@ const getTemplateSourceKind = (template: TemplateAsset): SourceFilter => {
 const sourceTabs = computed(() => {
   const counts: Record<SourceFilter, number> = {
     personal: 0,
-    team: 0,
+    'group-shared': 0,
+    'team-shared': 0,
+    'public-hub': 0,
     recommended: 0,
   };
 
@@ -62,11 +94,17 @@ const sourceTabs = computed(() => {
   });
 
   return [
-    { key: 'personal' as const, name: '我的模板', count: counts.personal },
-    { key: 'team' as const, name: '团队共享', count: counts.team },
-    { key: 'recommended' as const, name: '官方推荐', count: counts.recommended },
+    { key: 'personal' as const, name: templateListPageCopy.personal.name, count: counts.personal },
+    { key: 'group-shared' as const, name: templateListPageCopy['group-shared'].name, count: counts['group-shared'] },
+    { key: 'team-shared' as const, name: templateListPageCopy['team-shared'].name, count: counts['team-shared'] },
+    { key: 'public-hub' as const, name: templateListPageCopy['public-hub'].name, count: counts['public-hub'] },
+    { key: 'recommended' as const, name: templateListPageCopy.recommended.name, count: counts.recommended },
   ];
 });
+
+const activeListCopy = computed(() => templateListPageCopy[selectedSource.value]);
+const isPersonalMode = computed(() => selectedSource.value === 'personal');
+const shouldShowCategoryFilter = computed(() => selectedSource.value === 'recommended');
 
 const sourceFilteredTemplates = computed(() => {
   return templateAssets.filter((template) => getTemplateSourceKind(template) === selectedSource.value);
@@ -90,7 +128,10 @@ const visibleTemplates = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
 
   return sourceFilteredTemplates.value.filter((template) => {
-    const matchesCategory = selectedCategory.value === '全部' || template.docType === selectedCategory.value;
+    const matchesCategory =
+      !shouldShowCategoryFilter.value ||
+      selectedCategory.value === '全部' ||
+      template.docType === selectedCategory.value;
     const searchable = [
       template.name,
       template.docType,
@@ -280,20 +321,27 @@ onBeforeUnmount(() => {
       </button>
 
       <header v-if="!selectedTemplate" class="modal-header">
-        <div class="modal-page-header">
-          <h2 id="template-modal-title">模板</h2>
-          <label class="search-control page-search">
-            <Search :size="17" />
-            <input v-model="searchKeyword" type="text" placeholder="搜索模板、字段、适用场景" />
-          </label>
+        <div class="modal-title-row">
+          <h2 id="template-modal-title">模板市场</h2>
         </div>
 
-        <div class="source-toolbar">
-          <nav class="source-tabs" aria-label="模板来源">
+        <div class="modal-command-bar">
+          <label class="modal-search-control">
+            <Search :size="16" />
+            <input v-model="searchKeyword" type="text" placeholder="搜索模板、字段、适用场景" />
+          </label>
+          <button class="modal-create-btn" type="button" @click="createTemplate">
+            <Plus :size="16" />
+            创建模板
+          </button>
+        </div>
+
+        <div class="modal-source-switcher">
+          <nav class="modal-tabs" aria-label="模板来源">
             <button
               v-for="tab in sourceTabs"
               :key="tab.key"
-              class="source-tab"
+              class="modal-tab"
               :class="{ active: selectedSource === tab.key }"
               type="button"
               @click="setSource(tab.key)"
@@ -302,22 +350,34 @@ onBeforeUnmount(() => {
               <strong>{{ tab.count }}</strong>
             </button>
           </nav>
+        </div>
 
-          <div class="source-actions">
-            <LibraryTypeDropdown v-model="selectedCategory" :options="categoryTabs" label="类型" />
+        <div v-if="!isPersonalMode" class="modal-result-toolbar">
+          <div class="modal-result-title">
+            <strong>{{ activeListCopy.name }}</strong>
+            <span>{{ visibleTemplates.length }} 个模板</span>
+          </div>
+          <div class="modal-source-actions">
+            <LibraryTypeDropdown
+              v-if="shouldShowCategoryFilter"
+              v-model="selectedCategory"
+              :options="categoryTabs"
+              label="类型"
+            />
 
-            <button class="new-template-btn" type="button" @click="createTemplate">
-              <Plus :size="17" />
-              <span>创建模板</span>
-            </button>
+            <div v-else class="modal-sort-segment" aria-label="排序">
+              <button class="active" type="button">最近更新</button>
+              <button type="button">使用量</button>
+            </div>
           </div>
         </div>
         <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
       </header>
 
       <section v-if="!selectedTemplate" class="template-section" aria-label="模板文件列表">
-        <div class="list-heading">
-          <span class="result-count">{{ visibleTemplates.length }} 项</span>
+        <div v-if="isPersonalMode && visibleTemplates.length" class="list-section-heading">
+          <strong>全部模板</strong>
+          <span>{{ visibleTemplates.length }} 个</span>
         </div>
 
         <div v-if="visibleTemplates.length" class="template-grid">
@@ -359,9 +419,9 @@ onBeforeUnmount(() => {
 
         <div v-else class="empty-state">
           <FileText :size="22" />
-          <strong>未找到匹配模板</strong>
-          <span>调整分类或关键词后再试。</span>
-          <button class="reset-btn active" type="button" @click="resetFilters">清空搜索</button>
+          <strong>{{ searchKeyword.trim() ? '未找到匹配模板' : activeListCopy.emptyTitle }}</strong>
+          <span>{{ searchKeyword.trim() ? '调整分类或关键词后再试。' : activeListCopy.emptyDescription }}</span>
+          <button class="reset-btn active" type="button" @click="resetFilters">清空筛选</button>
         </div>
       </section>
 
@@ -513,121 +573,211 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
-.modal-page-header {
+.modal-title-row {
+  min-height: 34px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 14px;
-  padding-right: 42px;
+  padding-right: 48px;
+  margin-bottom: 18px;
 }
 
-.modal-page-header h2 {
+.modal-header h2 {
   margin: 0;
   color: var(--text-strong);
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 750;
   line-height: 1.2;
   letter-spacing: 0;
 }
 
-.search-control {
-  width: min(520px, 50%);
-  min-width: 320px;
-  height: 40px;
+.modal-command-bar,
+.modal-source-switcher,
+.modal-result-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding-right: 48px;
+}
+
+.modal-command-bar {
+  min-height: 40px;
+  padding-right: 0;
+  margin-bottom: 22px;
+}
+
+.modal-source-switcher {
+  justify-content: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.modal-result-toolbar {
+  margin: 0 0 20px;
+}
+
+.modal-search-control {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
   gap: 9px;
-  flex-shrink: 0;
+  flex: 1 1 auto;
   padding: 0 12px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--card-bg);
   color: var(--text-secondary);
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
 }
 
-.page-search {
-  width: min(520px, 52%);
-}
-
-.search-control:focus-within {
+.modal-search-control:focus-within {
   border-color: var(--primary-border);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 
-.search-control svg {
+.modal-search-control svg {
   flex-shrink: 0;
 }
 
-.search-control input {
+.modal-search-control input {
   width: 100%;
   min-width: 0;
   background: transparent;
   color: var(--text-main);
-  font-size: 14px;
+  font-size: 13.5px;
 }
 
-.search-control input::placeholder {
+.modal-search-control input::placeholder {
   color: var(--text-muted);
 }
 
-.source-toolbar {
-  display: flex;
+.modal-tabs {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.source-tabs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  gap: 24px;
   min-width: 0;
+  overflow-x: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  scrollbar-width: none;
 }
 
-.source-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+.modal-tabs::-webkit-scrollbar {
+  display: none;
 }
 
-.source-tab {
-  min-height: 36px;
+.modal-tab {
+  height: 34px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 6px;
   flex-shrink: 0;
-  padding: 0 14px;
-  border-radius: 10px;
-  color: var(--text-strong);
-  background: var(--surface-muted);
-  font-size: 14px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 13.5px;
   font-weight: 650;
   line-height: 1;
   transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
 
-.source-tab strong {
+.modal-tab span {
+  white-space: nowrap;
+}
+
+.modal-tab strong {
+  min-width: auto;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 0;
   color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 750;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
 }
 
-.source-tab:hover {
+.modal-tab:hover {
+  color: var(--primary-hover);
+  background: transparent;
+}
+
+.modal-tab.active {
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--text-strong);
   background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px var(--border-color);
 }
 
-.source-tab.active {
-  color: var(--primary-hover);
-  background: var(--primary-soft-strong);
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-color) 10%, transparent);
+.modal-tab.active strong {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--text-strong);
+  background: var(--card-bg);
 }
 
-.source-tab.active strong {
-  color: var(--primary-hover);
+.modal-result-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.modal-result-title strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.modal-result-title span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.modal-source-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.modal-sort-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.modal-sort-segment button {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 650;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.modal-sort-segment button.active,
+.modal-sort-segment button:hover {
+  color: var(--text-main);
+  background: var(--surface-soft);
 }
 
 .modal-status,
@@ -639,32 +789,33 @@ onBeforeUnmount(() => {
 }
 
 .modal-status {
-  margin-left: auto;
-  margin-top: 10px;
+  display: block;
+  margin: 8px 42px 0 0;
 }
 
-.new-template-btn {
-  min-height: 36px;
+.modal-create-btn {
+  height: 34px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   flex-shrink: 0;
-  padding: 0 14px;
+  padding: 0 12px;
   border: 1px solid var(--primary-color);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--primary-color);
   color: var(--on-primary);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 680;
   line-height: 1;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-color) 11%, transparent);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--primary-color) 16%, transparent);
   transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
 }
 
-.new-template-btn:hover {
+.modal-create-btn:hover {
   transform: translateY(-1px);
   background: var(--primary-hover);
-  box-shadow: 0 14px 28px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
 .reset-btn {
@@ -701,18 +852,24 @@ onBeforeUnmount(() => {
   overscroll-behavior: contain;
 }
 
-.list-heading {
+.list-section-heading {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-bottom: 14px;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
-.result-count {
-  color: var(--text-secondary);
+.list-section-heading strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.list-section-heading span {
+  color: var(--text-muted);
   font-size: 13px;
-  white-space: nowrap;
+  font-weight: 650;
 }
 
 .template-grid {
@@ -899,9 +1056,9 @@ onBeforeUnmount(() => {
 }
 
 .modal-close-btn:focus-visible,
-.source-tab:focus-visible,
+.modal-tab:focus-visible,
 .reset-btn:focus-visible,
-.new-template-btn:focus-visible,
+.modal-create-btn:focus-visible,
 .managed-template-card:focus-visible,
 .detail-title-btn:focus-visible,
 .use-template-btn:focus-visible,
@@ -1177,23 +1334,26 @@ onBeforeUnmount(() => {
     padding: 22px;
   }
 
-  .modal-page-header,
-  .source-toolbar {
+  .modal-command-bar,
+  .modal-result-toolbar {
     align-items: flex-start;
     flex-direction: column;
+    padding-right: 0;
   }
 
-  .modal-page-header {
+  .modal-title-row,
+  .modal-source-switcher {
     padding-right: 42px;
   }
 
-  .search-control,
-  .source-tabs,
-  .source-actions {
+  .modal-search-control,
+  .modal-tabs,
+  .modal-source-actions,
+  .modal-create-btn {
     width: 100%;
   }
 
-  .source-actions {
+  .modal-source-actions {
     align-items: stretch;
     flex-wrap: wrap;
   }

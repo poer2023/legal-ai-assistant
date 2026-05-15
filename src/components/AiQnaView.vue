@@ -34,7 +34,7 @@ import SkillManageModal from './SkillManageModal.vue';
 import TemplateDropdownContent from './TemplateDropdownContent.vue';
 import TemplateManageModal from './TemplateManageModal.vue';
 import { defaultTemplateAssets, type TemplateAsset } from '../data/legalAssets';
-import { getSkillByNameOrId, markSkillUsed, persistCustomSkillNow, upsertCustomSkill, type SkillCatalogItem } from '../data/skillCatalog';
+import { getAnySkillByNameOrId, getSkillByNameOrId, isSkillEnabled, markSkillUsed, persistCustomSkillNow, setSkillEnabled, upsertCustomSkill, type SkillCatalogItem } from '../data/skillCatalog';
 import { docxLegalResearchMock } from '../data/docxLegalResearchMock';
 import { streamSkillWithSkillCreator, type SkillCreatorAnswers } from '../services/skillCreator';
 import { generateDeepSeekConversationTitle, streamDeepSeekMessage } from '../services/deepseekChat';
@@ -920,7 +920,7 @@ const inferSkillCreatorAnswers = (prompt: string): SkillCreatorAnswers => {
 
 const renderCreatedSkillAnswer = (skill: SkillCatalogItem) => [
   `技能草稿已生成：${skill.name}`,
-  `当前发布范围：${skill.scope === 'team' ? '本团队' : '仅自己'}。可在右侧「发布设置」中修改名称、图标、描述和复制权限；输入 \`/${skill.id}\` 即可调用。`,
+  `当前发布范围：${skill.scope === 'team' ? '本团队' : '仅自己'}。可在右侧「发布设置」中修改名称、图标、描述和复制权限；启用技能后可输入 \`/${skill.id}\` 调用。`,
   `技能 ID：${skill.id}`,
 ].join('\n');
 
@@ -1177,9 +1177,12 @@ const skillCompletionSkill = computed(() =>
   createdSkillResult.value
   ?? (
     activeCreatedSkillId.value || createdSkillIdFromAnswer.value
-      ? getSkillByNameOrId(activeCreatedSkillId.value || createdSkillIdFromAnswer.value)
+      ? getAnySkillByNameOrId(activeCreatedSkillId.value || createdSkillIdFromAnswer.value)
       : null
   )
+);
+const skillCompletionIsEnabled = computed(() =>
+  skillCompletionSkill.value ? isSkillEnabled(skillCompletionSkill.value) : false
 );
 const canShowSkillPublishSettings = computed(() =>
   isSkillCreatorConversation.value && Boolean(skillCompletionSkill.value)
@@ -1549,7 +1552,7 @@ const resolveCreatedSkillIdFromHistory = (
     extractSkillIdFromGeneratedArtifacts(content),
   ].filter((candidate): candidate is string => Boolean(candidate?.trim()));
 
-  const availableCandidate = candidates.find((candidate) => getSkillByNameOrId(candidate));
+  const availableCandidate = candidates.find((candidate) => getAnySkillByNameOrId(candidate));
   return availableCandidate || candidates[0] || '';
 };
 
@@ -1571,7 +1574,7 @@ const hydrateCachedConversation = (prompt: string, historyId?: string) => {
     cached.answer.createdSkillId,
   );
   activeCreatedSkillId.value = restoredSkillId;
-  createdSkillResult.value = restoredSkillId ? getSkillByNameOrId(restoredSkillId) : null;
+  createdSkillResult.value = restoredSkillId ? getAnySkillByNameOrId(restoredSkillId) : null;
   syncPublishSettingsFromSkill(createdSkillResult.value);
   skillValidationStatus.value = restoredSkillId ? 'complete' : 'idle';
   skillValidationMessage.value = createdSkillResult.value
@@ -1745,7 +1748,7 @@ const completeLiveConversation = async (
         throw new Error('技能已生成，但写入技能库失败');
       }
 
-      const locallyVerifiedSkill = getSkillByNameOrId(savedSkill.id);
+      const locallyVerifiedSkill = getAnySkillByNameOrId(savedSkill.id);
       if (!locallyVerifiedSkill) {
         throw new Error('技能已生成，但未能从当前技能库读回，请重新创建或打开技能管理检查');
       }
@@ -1756,7 +1759,7 @@ const completeLiveConversation = async (
         scope: 'personal',
         status: 'draft',
       }, { persist: false });
-      const verifiedSkill = getSkillByNameOrId(finalSkill?.id || savedSkill.id);
+      const verifiedSkill = getAnySkillByNameOrId(finalSkill?.id || savedSkill.id);
       if (!verifiedSkill) {
         throw new Error('技能已持久化，但未能从当前技能库读回，请刷新后打开技能管理检查');
       }
@@ -2281,6 +2284,10 @@ const saveSkillPublishSettings = (mode: 'draft' | 'publish') => {
 const useCreatedSkillNow = () => {
   const skill = skillCompletionSkill.value;
   if (!skill) return;
+  if (!isSkillEnabled(skill)) {
+    showToast('请先启用技能后再使用');
+    return;
+  }
 
   void router.push({
     name: 'home',
@@ -2290,6 +2297,18 @@ const useCreatedSkillNow = () => {
       composerTick: Date.now().toString(),
     },
   });
+};
+
+const enableCreatedSkill = () => {
+  const skill = skillCompletionSkill.value;
+  if (!skill) return;
+
+  const updatedSkill = setSkillEnabled(skill.id, true);
+  if (updatedSkill) {
+    createdSkillResult.value = updatedSkill;
+  }
+  skillValidationMessage.value = '技能已启用，可以在聊天中调用。';
+  showToast('技能已启用');
 };
 
 const closeArtifactPreview = () => {
@@ -2733,14 +2752,18 @@ watch(
                       <Share2 :size="15" />
                       配置发布
                     </button>
-                    <button type="button" class="skill-completion-cta" @click="useCreatedSkillNow">
+                    <button v-if="skillCompletionIsEnabled" type="button" class="skill-completion-cta" @click="useCreatedSkillNow">
                       <Zap :size="15" />
                       立即使用
+                    </button>
+                    <button v-else type="button" class="skill-completion-cta" @click="enableCreatedSkill">
+                      <Zap :size="15" />
+                      启用技能
                     </button>
                   </div>
                 </div>
                 <p v-if="shouldShowSkillCompletion && skillCompletionSkill" class="skill-completion-ending">
-                  技能文件已生成并校验通过，右侧已打开发布设置，可继续确认名称、图标、描述和发布范围。
+                  技能文件已生成并校验通过，右侧已打开发布设置；启用后才会进入快捷技能菜单和聊天调用。
                 </p>
                 <p v-if="answerNotice" class="live-notice">{{ answerNotice }}</p>
                 <p v-if="answerError" class="live-error">{{ answerError }}</p>

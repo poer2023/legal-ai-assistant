@@ -16,6 +16,10 @@ export type SkillFile = {
   content: string;
 };
 
+export type SkillStatus = 'draft' | 'active';
+
+export type SkillPublishDestination = 'group' | 'team' | 'public';
+
 export type SkillCatalogItem = {
   id: string;
   name: string;
@@ -26,7 +30,7 @@ export type SkillCatalogItem = {
   files: SkillFile[];
   source?: 'default' | 'recommended' | 'custom';
   scope?: 'personal' | 'team';
-  status?: 'draft' | 'active';
+  status?: SkillStatus;
   createdAt?: string;
   updatedAt?: string;
   lastUsedAt?: string;
@@ -146,6 +150,9 @@ export const officialRecommendedSkills = recommendedSkills;
 const personalSkillStorageKey = 'legal-version-added-recommended-skill-ids';
 const teamMarketSkillStorageKey = 'legal-version-team-market-skill-ids';
 const customSkillStorageKey = 'legal-version-custom-skills';
+const skillUsageStatsStorageKey = 'legal-version-skill-usage-stats';
+const disabledSkillIdsStorageKey = 'legal-version-disabled-skill-ids';
+const skillPublishDestinationsStorageKey = 'legal-version-skill-publish-destinations';
 const recommendedSkillIds = new Set(recommendedSkills.map((skill) => skill.id));
 const defaultSkillIds = new Set(defaultSkills.map((skill) => skill.id));
 const allSkillIds = new Set(allSkills.map((skill) => skill.id));
@@ -158,7 +165,7 @@ const normalizePersonalSkillIds = (ids: string[]) =>
   Array.from(new Set(ids.filter((id) => recommendedSkillIds.has(id))));
 
 const normalizeTeamMarketSkillIds = (ids: string[]) =>
-  Array.from(new Set(ids.filter((id) => allSkillIds.has(id) && !recommendedSkillIds.has(id))));
+  Array.from(new Set(ids.filter((id) => allSkillIds.has(id))));
 
 const readStoredSkillIds = (
   storageKey: string,
@@ -185,8 +192,11 @@ const normalizeSkillFileType = (type: unknown): SkillFileType => {
 const normalizeCustomSkillScope = (scope: unknown): 'personal' | 'team' =>
   scope === 'personal' ? 'personal' : 'team';
 
-const normalizeCustomSkillStatus = (status: unknown): 'draft' | 'active' =>
+const normalizeCustomSkillStatus = (status: unknown): SkillStatus =>
   status === 'draft' ? 'draft' : 'active';
+
+const normalizeSkillPublishDestination = (destination: unknown): SkillPublishDestination =>
+  destination === 'group' || destination === 'public' ? destination : 'team';
 
 const normalizeCustomSkill = (skill: unknown): SkillCatalogItem | null => {
   if (!skill || typeof skill !== 'object') return null;
@@ -277,6 +287,79 @@ const writeStoredSkillIds = (storageKey: string, ids: string[]) => {
   window.localStorage.setItem(getOrganizationScopedStorageKey(storageKey), JSON.stringify(ids));
 };
 
+const normalizeDisabledSkillIds = (ids: string[]) =>
+  Array.from(new Set(ids.filter((id) => typeof id === 'string' && id.trim()).map((id) => id.trim())));
+
+const readStoredDisabledSkillIds = () =>
+  readStoredSkillIds(disabledSkillIdsStorageKey, normalizeDisabledSkillIds);
+
+const writeStoredDisabledSkillIds = (ids: string[]) => {
+  writeStoredSkillIds(disabledSkillIdsStorageKey, normalizeDisabledSkillIds(ids));
+};
+
+const normalizeSkillPublishDestinations = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, SkillPublishDestination>>(
+    (destinations, [skillId, destination]) => {
+      if (!skillId) return destinations;
+      destinations[skillId] = normalizeSkillPublishDestination(destination);
+      return destinations;
+    },
+    {},
+  );
+};
+
+const readStoredSkillPublishDestinations = () => {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    return normalizeSkillPublishDestinations(JSON.parse(window.localStorage.getItem(getOrganizationScopedStorageKey(skillPublishDestinationsStorageKey)) || '{}'));
+  } catch {
+    return {};
+  }
+};
+
+const writeStoredSkillPublishDestinations = (destinations: Record<string, SkillPublishDestination>) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(getOrganizationScopedStorageKey(skillPublishDestinationsStorageKey), JSON.stringify(destinations));
+};
+
+type SkillUsageStat = {
+  usageCount: number;
+  lastUsedAt: string;
+};
+
+const normalizeSkillUsageStats = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, SkillUsageStat>>((stats, [skillId, item]) => {
+    if (!skillId || !item || typeof item !== 'object') return stats;
+    const candidate = item as Partial<SkillUsageStat>;
+    if (typeof candidate.usageCount !== 'number' || typeof candidate.lastUsedAt !== 'string') return stats;
+    stats[skillId] = {
+      usageCount: Math.max(0, candidate.usageCount),
+      lastUsedAt: candidate.lastUsedAt,
+    };
+    return stats;
+  }, {});
+};
+
+const readStoredSkillUsageStats = () => {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    return normalizeSkillUsageStats(JSON.parse(window.localStorage.getItem(getOrganizationScopedStorageKey(skillUsageStatsStorageKey)) || '{}'));
+  } catch {
+    return {};
+  }
+};
+
+const writeStoredSkillUsageStats = (stats: Record<string, SkillUsageStat>) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(getOrganizationScopedStorageKey(skillUsageStatsStorageKey), JSON.stringify(stats));
+};
+
 const personalSkillIds = ref<string[]>(
   readStoredSkillIds(personalSkillStorageKey, normalizePersonalSkillIds),
 );
@@ -291,6 +374,9 @@ const teamMarketSkillIds = ref<string[]>(
 writeStoredSkillIds(teamMarketSkillStorageKey, teamMarketSkillIds.value);
 
 const customSkills = ref<SkillCatalogItem[]>(readStoredCustomSkills());
+const skillUsageStats = ref<Record<string, SkillUsageStat>>(readStoredSkillUsageStats());
+const disabledSkillIds = ref<string[]>(readStoredDisabledSkillIds());
+const skillPublishDestinations = ref<Record<string, SkillPublishDestination>>(readStoredSkillPublishDestinations());
 const loadedRemoteCustomSkillOrganizationIds = new Set<string>();
 const remoteCustomSkillLoadPromises = new Map<string, Promise<void>>();
 
@@ -319,22 +405,66 @@ const dedupeSkills = (skills: SkillCatalogItem[]) => {
   });
 };
 
+const withUsageStats = (skill: SkillCatalogItem) => {
+  const usageStat = skillUsageStats.value[skill.id];
+  if (!usageStat) return skill;
+
+  return {
+    ...skill,
+    usageCount: Math.max(skill.usageCount ?? 0, usageStat.usageCount),
+    lastUsedAt: usageStat.lastUsedAt || skill.lastUsedAt,
+  };
+};
+
+const getCatalogSkillById = (skillId: string) =>
+  customSkills.value.find((skill) => skill.id === skillId) ?? skillMap.get(skillId) ?? null;
+
+const setSkillDisabled = (skillId: string, disabled: boolean) => {
+  const nextIds = disabled
+    ? normalizeDisabledSkillIds([...disabledSkillIds.value, skillId])
+    : normalizeDisabledSkillIds(disabledSkillIds.value.filter((id) => id !== skillId));
+
+  disabledSkillIds.value = nextIds;
+  writeStoredDisabledSkillIds(nextIds);
+};
+
+export const isSkillEnabled = (skill: Pick<SkillCatalogItem, 'id' | 'status'>) =>
+  skill.status === 'active' && !disabledSkillIds.value.includes(skill.id);
+
 export const personalSkills = computed<SkillCatalogItem[]>(() =>
   dedupeSkills([
     ...skillsByIds(personalSkillIds.value),
     ...customSkills.value.filter((skill) => skill.scope !== 'team'),
-  ]),
+  ]).map(withUsageStats),
 );
 
 export const teamMarketSkills = computed<SkillCatalogItem[]>(() =>
   dedupeSkills([
     ...skillsByIds(teamMarketSkillIds.value),
     ...customSkills.value.filter((skill) => skill.scope === 'team'),
+  ]).map(withUsageStats),
+);
+
+export const getSkillPublishDestination = (skillId: string): SkillPublishDestination =>
+  skillPublishDestinations.value[skillId] ?? 'team';
+
+export const groupSharedSkills = computed<SkillCatalogItem[]>(() =>
+  teamMarketSkills.value.filter((skill) => getSkillPublishDestination(skill.id) === 'group'),
+);
+
+export const teamSharedSkills = computed<SkillCatalogItem[]>(() =>
+  teamMarketSkills.value.filter((skill) => getSkillPublishDestination(skill.id) === 'team'),
+);
+
+export const publicHubSkills = computed<SkillCatalogItem[]>(() =>
+  dedupeSkills([
+    ...teamMarketSkills.value.filter((skill) => getSkillPublishDestination(skill.id) === 'public'),
+    ...officialRecommendedSkills,
   ]),
 );
 
 export const availableSkills = computed<SkillCatalogItem[]>(() => [
-  ...dedupeSkills([...personalSkills.value, ...teamMarketSkills.value]),
+  ...dedupeSkills([...personalSkills.value, ...teamMarketSkills.value]).filter(isSkillEnabled),
 ]);
 
 export const registeredSkillNames = computed(
@@ -390,15 +520,31 @@ export const removePersonalSkill = (skillId: string) => {
   return true;
 };
 
-export const publishSkillToTeamMarket = (skillId: string) => {
+export const publishSkillToTeamMarket = (
+  skillId: string,
+  destination: SkillPublishDestination = 'team',
+) => {
+  const publishDestination = normalizeSkillPublishDestination(destination);
   const customSkill = customSkills.value.find((skill) => skill.id === skillId);
+  if (!customSkill && !allSkillIds.has(skillId)) return false;
+
+  const previousDestination = skillPublishDestinations.value[skillId];
+  const wasPublished = customSkill ? customSkill.scope === 'team' : teamMarketSkillIds.value.includes(skillId);
+  skillPublishDestinations.value = {
+    ...skillPublishDestinations.value,
+    [skillId]: publishDestination,
+  };
+  writeStoredSkillPublishDestinations(skillPublishDestinations.value);
+  setSkillDisabled(skillId, false);
+
   if (customSkill) {
     upsertCustomSkill({ ...customSkill, scope: 'team', status: 'active' });
     return true;
   }
 
-  if (!allSkillIds.has(skillId)) return false;
-  if (teamMarketSkillIds.value.includes(skillId)) return false;
+  if (teamMarketSkillIds.value.includes(skillId)) {
+    return previousDestination !== publishDestination || !wasPublished;
+  }
 
   const nextIds = normalizeTeamMarketSkillIds([...teamMarketSkillIds.value, skillId]);
   teamMarketSkillIds.value = nextIds;
@@ -475,6 +621,9 @@ export const syncSkillCatalogForCurrentOrganization = () => {
   ]);
   writeStoredSkillIds(teamMarketSkillStorageKey, teamMarketSkillIds.value);
   customSkills.value = readStoredCustomSkills();
+  skillUsageStats.value = readStoredSkillUsageStats();
+  disabledSkillIds.value = readStoredDisabledSkillIds();
+  skillPublishDestinations.value = readStoredSkillPublishDestinations();
 };
 
 export const loadCustomSkills = async () => {
@@ -550,27 +699,69 @@ export const getSkillByNameOrId = (skillNameOrId: string) => {
   return availableSkills.value.find((skill) => skill.id === normalized || skill.name === normalized) ?? null;
 };
 
+export const getAnySkillByNameOrId = (skillNameOrId: string) => {
+  const normalized = skillNameOrId.trim();
+  if (!normalized) return null;
+
+  return dedupeSkills([...personalSkills.value, ...teamMarketSkills.value, ...allSkills])
+    .find((skill) => skill.id === normalized || skill.name === normalized) ?? null;
+};
+
 export const getSkillsByIds = (ids: string[]) =>
   ids
     .map((id) => getSkillByNameOrId(id))
     .filter((skill): skill is SkillCatalogItem => Boolean(skill));
 
 export const markSkillUsed = (skillId: string) => {
+  const catalogSkill = getCatalogSkillById(skillId);
+  if (!catalogSkill || !isSkillEnabled(catalogSkill)) return;
+
+  const now = new Date().toISOString();
   const skill = customSkills.value.find((item) => item.id === skillId);
+  const currentStat = skillUsageStats.value[skillId];
+  const nextUsageCount = Math.max(currentStat?.usageCount ?? 0, skill?.usageCount ?? 0) + 1;
+
+  skillUsageStats.value = {
+    ...skillUsageStats.value,
+    [skillId]: {
+      usageCount: nextUsageCount,
+      lastUsedAt: now,
+    },
+  };
+  writeStoredSkillUsageStats(skillUsageStats.value);
+
   if (!skill) return;
 
   upsertCustomSkill({
     ...skill,
-    lastUsedAt: new Date().toISOString(),
-    usageCount: (skill.usageCount ?? 0) + 1,
+    lastUsedAt: now,
+    usageCount: nextUsageCount,
   });
+};
+
+export const setSkillEnabled = (skillId: string, enabled: boolean) => {
+  const customSkill = customSkills.value.find((item) => item.id === skillId);
+  setSkillDisabled(skillId, !enabled);
+
+  if (customSkill && enabled && customSkill.status !== 'active') {
+    return upsertCustomSkill({
+      ...customSkill,
+      status: 'active',
+    });
+  }
+
+  return getCatalogSkillById(skillId);
 };
 
 export const resetRecommendedSkillsForTests = () => {
   personalSkillIds.value = [];
   teamMarketSkillIds.value = normalizeTeamMarketSkillIds(initialTeamMarketSkillIds);
+  disabledSkillIds.value = [];
+  skillPublishDestinations.value = {};
   writeStoredSkillIds(personalSkillStorageKey, []);
   writeStoredSkillIds(teamMarketSkillStorageKey, teamMarketSkillIds.value);
+  writeStoredDisabledSkillIds([]);
+  writeStoredSkillPublishDestinations({});
 };
 
 export const defaultSkillCount = defaultSkills.length;

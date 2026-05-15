@@ -8,12 +8,15 @@ import {
   Download,
   FileText,
   Pencil,
+  Power,
   Upload,
 } from 'lucide-vue-next';
 import {
   addPersonalSkill,
+  isSkillEnabled,
   isSkillAvailable,
   isRecommendedSkill,
+  setSkillEnabled,
   upsertCustomSkill,
   type SkillCatalogItem,
   type SkillFile,
@@ -184,6 +187,8 @@ const selectedSkillIsRecommended = computed(() => isRecommendedSkill(props.skill
 const selectedSkillIsAdded = computed(() =>
   !selectedSkillIsRecommended.value || isSkillAvailable(props.skill.id)
 );
+
+const selectedSkillIsEnabled = computed(() => isSkillEnabled(props.skill));
 
 const panelClass = computed(() => `${props.layout}-layout`);
 
@@ -397,6 +402,11 @@ const downloadCurrentSkill = () => {
 };
 
 const useSkill = () => {
+  if (!selectedSkillIsEnabled.value) {
+    setStatus('请先启用技能后再使用');
+    return;
+  }
+
   emit('use', props.skill.name);
   setStatus(`${props.skill.name} 已选择`);
 };
@@ -404,6 +414,14 @@ const useSkill = () => {
 const addSkill = () => {
   const didAdd = addPersonalSkill(props.skill.id);
   setStatus(didAdd ? `${props.skill.name} 已添加` : `${props.skill.name} 已添加`);
+};
+
+const enableSkill = () => {
+  const updatedSkill = setSkillEnabled(props.skill.id, true);
+  if (updatedSkill) {
+    emit('updated', updatedSkill);
+  }
+  setStatus(`${props.skill.name} 已启用`);
 };
 
 const setDetailPanelMode = (mode: DetailPanelMode) => {
@@ -564,7 +582,7 @@ const saveEdit = () => {
     const updatedSkill = upsertCustomSkill({
       ...props.skill,
       files: updatedFiles,
-      status: 'active',
+      status: props.skill.status || 'active',
     });
     if (updatedSkill) {
       emit('updated', updatedSkill);
@@ -643,7 +661,12 @@ onBeforeUnmount(() => {
           <ChevronRight :size="17" class="back-chevron" />
         </button>
         <div class="detail-title-copy">
-          <h2>{{ skill.name }}</h2>
+          <div class="detail-title-row">
+            <h2>{{ skill.name }}</h2>
+            <span class="skill-state-badge" :class="{ closed: !selectedSkillIsEnabled }">
+              {{ selectedSkillIsEnabled ? '已启用' : '已停用' }}
+            </span>
+          </div>
           <p>{{ skill.description }}</p>
         </div>
       </div>
@@ -669,7 +692,16 @@ onBeforeUnmount(() => {
             发布设置
           </button>
         </div>
-        <button v-if="selectedSkillIsAdded" class="use-skill-btn" type="button" @click="useSkill">去使用</button>
+        <button v-if="selectedSkillIsAdded && selectedSkillIsEnabled" class="use-skill-btn" type="button" @click="useSkill">去使用</button>
+        <button
+          v-else-if="selectedSkillIsAdded"
+          class="use-skill-btn add-detail-btn"
+          type="button"
+          @click="enableSkill"
+        >
+          <Power :size="15" />
+          启用技能
+        </button>
         <button v-else class="use-skill-btn add-detail-btn" type="button" @click="addSkill">
           添加
         </button>
@@ -1010,7 +1042,15 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+.detail-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .detail-title-copy h2 {
+  min-width: 0;
   margin: 0;
   overflow: hidden;
   color: var(--text-strong);
@@ -1019,6 +1059,22 @@ onBeforeUnmount(() => {
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.skill-state-badge {
+  flex-shrink: 0;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.skill-state-badge.closed {
+  color: var(--text-muted);
+  background: var(--surface-muted);
 }
 
 .detail-title-copy p {
@@ -1046,6 +1102,10 @@ onBeforeUnmount(() => {
 
 .use-skill-btn {
   height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 0 16px;
   border: 1px solid var(--border-color);
   border-radius: 10px;

@@ -28,7 +28,7 @@ import SkillDropdownContent from './SkillDropdownContent.vue';
 import type { SkillDropdownSelection } from './SkillDropdownContent.vue';
 import SkillManageModal from './SkillManageModal.vue';
 import TemplateManageModal from './TemplateManageModal.vue';
-import { availableSkills, isRegisteredSkillName } from '../data/skillCatalog';
+import { availableSkills, getSkillByNameOrId, isRegisteredSkillName, type SkillCatalogItem } from '../data/skillCatalog';
 import {
   defaultTemplateAssets,
   type TemplateAsset,
@@ -80,9 +80,9 @@ const activeTemplateRange = ref<Range | null>(null);
 const inlineSkillQuery = ref('');
 const inlineTemplateQuery = ref('');
 const selectedSkillToken = ref<HTMLElement | null>(null);
+const selectedComposerSkillNames = ref<string[]>([]);
 const inlineShortcutMenuPosition = ref({ left: 16, top: 48 });
 const selectedAssetPromptPrefix = '请使用 ';
-const skillPromptSuffix = ' 帮我完成以下任务，我的需求如下：';
 const skillCreatorPromptSuffix = ' 帮我创建一个可复用的技能，我的需求如下：';
 const templatePromptSuffix = ' 帮我按照这个格式模板完成写作，我的需求/源文件如下：';
 const templateCreatorPromptSuffix = ' 帮我创建一个可复用的输出格式模板，我的需求/源文件如下：';
@@ -334,6 +334,14 @@ type SkillSlashMatch = {
 
 type TemplateShortcutMatch = SkillSlashMatch;
 
+type ComposerDeliveryFormat = 'DOCX' | 'XLSX' | 'PDF';
+
+type ComposerDeliveryItem = {
+  id: string;
+  title: string;
+  format: ComposerDeliveryFormat;
+};
+
 watch(
   () => props.modelValue,
   (value) => {
@@ -429,6 +437,111 @@ const hasSkillCreatorCommand = computed(() =>
   hasSkillCreatorToken.value || /\/skill-creator\b/i.test(inputValue.value)
 );
 const isSkillCreatorSubmission = computed(() => hasSkillCreatorCommand.value && hasComposerContent.value);
+
+const selectedComposerSkills = computed(() => {
+  const seen = new Set<string>();
+  return selectedComposerSkillNames.value.reduce<SkillCatalogItem[]>((skills, skillName) => {
+    const skill = getSkillByNameOrId(skillName);
+    if (!skill || seen.has(skill.id)) return skills;
+    seen.add(skill.id);
+    skills.push(skill);
+    return skills;
+  }, []);
+});
+
+const activeDeliverySkill = computed(() => selectedComposerSkills.value[0] ?? null);
+
+const selectedComposerDeliveryItems = computed(() =>
+  activeDeliverySkill.value ? inferDeliveryItems(activeDeliverySkill.value) : []
+);
+
+const getSkillDisplayName = (skillName: string) =>
+  getSkillByNameOrId(skillName)?.name || skillName.replace(/^\/+/, '');
+
+const getSkillOwnerLabel = (skillName: string) => {
+  const skill = getSkillByNameOrId(skillName);
+  if (!skill) return '系统';
+  return skill.scope === 'team' ? '团队律师' : '李律师';
+};
+
+const getCaseAnalysisDeliveryItems = (): ComposerDeliveryItem[] => [
+  { id: 'case-analysis-report', title: '类案分析报告', format: 'DOCX' },
+  { id: 'case-source-extract', title: '案例依据摘录', format: 'XLSX' },
+  { id: 'case-risk-checklist', title: '风险提示清单', format: 'PDF' },
+];
+
+const isCaseAnalysisSkill = (skill: SkillCatalogItem) =>
+  /类案|案例|case/.test(
+    [skill.name, skill.description, skill.category, ...skill.tags]
+      .join(' ')
+      .toLowerCase(),
+  );
+
+const cleanDeliveryTitle = (value: string) =>
+  value
+    .replace(/^[\s\-*•\d.、]+/, '')
+    .replace(/^(输出|生成|形成|返回)[:：\s]*/, '')
+    .replace(/[。；;，,]+$/g, '')
+    .trim();
+
+const splitDeliveryPhrase = (value: string) =>
+  cleanDeliveryTitle(value)
+    .split(/、|，|,|和/)
+    .map(cleanDeliveryTitle)
+    .filter(Boolean);
+
+const extractSkillOutputTitles = (skill: SkillCatalogItem) => {
+  const outputSections = skill.files.flatMap((file) => {
+    const matches = Array.from(
+      file.content.matchAll(/##\s*(?:输出要求|推荐输出结构)\s*\n+([\s\S]*?)(?=\n##\s|\n#\s|$)/g),
+    );
+    return matches.map((match) => match[1] ?? '');
+  });
+
+  const lines = outputSections.flatMap((section) =>
+    section
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith('|'))
+      .flatMap((line) => {
+        const bullet = line.match(/^[-*]\s+(.+)$/);
+        return splitDeliveryPhrase(bullet?.[1] ?? line);
+      })
+  );
+
+  return Array.from(new Set(lines)).slice(0, 3);
+};
+
+const inferDeliveryFormat = (title: string, index: number): ComposerDeliveryFormat => {
+  if (/表|矩阵|清单|台账|字段|摘录|excel|xlsx|csv/i.test(title)) return 'XLSX';
+  if (/提示|意见|审批|复核|pdf/i.test(title) && index > 0) return 'PDF';
+  if (index === 1) return 'XLSX';
+  if (index === 2) return 'PDF';
+  return 'DOCX';
+};
+
+function inferDeliveryItems(skill: SkillCatalogItem): ComposerDeliveryItem[] {
+  if (isCaseAnalysisSkill(skill)) return getCaseAnalysisDeliveryItems();
+
+  const titles = extractSkillOutputTitles(skill);
+  const fallbackTitles = titles.length ? titles : [`${skill.name}成果`];
+
+  return fallbackTitles.slice(0, 3).map((title, index) => ({
+    id: `${skill.id}-delivery-${index}`,
+    title,
+    format: inferDeliveryFormat(title, index),
+  }));
+}
+
+const createSkillUsagePromptSuffix = (skillName: string) => {
+  const skill = getSkillByNameOrId(skillName);
+  if (skill && isCaseAnalysisSkill(skill)) {
+    return ' 生成类案分析报告，重点说明裁判规则和适用风险。';
+  }
+
+  const deliveryTitle = skill ? inferDeliveryItems(skill)[0]?.title : '';
+  return ` 生成${deliveryTitle || '专业成果'}，重点说明核心结论、依据和适用风险。`;
+};
 
 const activeSkillCreatorStep = computed(() =>
   skillCreatorSteps.value[skillCreatorGuideStep.value] ?? skillCreatorSteps.value[0]!
@@ -765,16 +878,38 @@ function renderEditorPlainText(value: string) {
   });
 }
 
+const serializeEditorNode = (node: Node): string => {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
+
+  if (node instanceof HTMLElement) {
+    if (node.matches('.skill-inline-code')) {
+      const skillName = node.dataset.skillName?.trim();
+      return skillName ? `/${skillName}` : '';
+    }
+
+    if (node.matches('.asset-inline-code')) {
+      return node.dataset.assetName ?? node.textContent ?? '';
+    }
+  }
+
+  return Array.from(node.childNodes).map(serializeEditorNode).join('');
+};
+
 const getEditorText = () => {
-  return (editorRef.value?.textContent ?? '').replace(/\u200b/g, '');
+  const editor = editorRef.value;
+  return (editor ? serializeEditorNode(editor) : '').replace(/\u200b/g, '');
 };
 
 const syncEditorState = () => {
   const editor = editorRef.value;
   if (!editor) return;
 
-  skillTokenCount.value = editor.querySelectorAll('.skill-inline-code').length;
+  const skillTokens = Array.from(editor.querySelectorAll<HTMLElement>('.skill-inline-code'));
+  skillTokenCount.value = skillTokens.length;
   hasSkillCreatorToken.value = Boolean(editor.querySelector('.skill-inline-code[data-skill-name="skill-creator"]'));
+  selectedComposerSkillNames.value = skillTokens
+    .map((token) => token.dataset.skillName?.trim() ?? '')
+    .filter((skillName) => skillName && skillName !== 'skill-creator' && skillName !== 'template-creator');
   templateTokenCount.value = editor.querySelectorAll(
     '.template-inline-code, .asset-inline-code[data-asset-kind="template"]',
   ).length;
@@ -826,13 +961,36 @@ const selectSkillToken = (token: HTMLElement) => {
 };
 
 const createSkillToken = (skillName: string) => {
+  const displayName = getSkillDisplayName(skillName);
+  const ownerLabel = getSkillOwnerLabel(skillName);
   const token = document.createElement('code');
   token.className = 'skill-inline-code';
   token.contentEditable = 'false';
   token.tabIndex = 0;
   token.dataset.skillName = skillName;
-  token.textContent = `/${skillName}`;
-  token.setAttribute('aria-label', `已选技能 ${skillName}`);
+  token.dataset.skillDisplayName = displayName;
+  token.dataset.skillOwner = ownerLabel;
+  token.setAttribute('aria-label', `已选技能 ${ownerLabel} ${displayName}`);
+
+  const avatar = document.createElement('span');
+  avatar.className = 'skill-inline-avatar';
+  avatar.setAttribute('aria-hidden', 'true');
+  avatar.textContent = ownerLabel.slice(0, 1).toUpperCase();
+
+  const owner = document.createElement('span');
+  owner.className = 'skill-inline-owner';
+  owner.textContent = ownerLabel;
+
+  const divider = document.createElement('span');
+  divider.className = 'skill-inline-divider';
+  divider.setAttribute('aria-hidden', 'true');
+  divider.textContent = '丨';
+
+  const name = document.createElement('span');
+  name.className = 'skill-inline-name';
+  name.textContent = displayName;
+
+  token.append(avatar, owner, divider, name);
   return token;
 };
 
@@ -1007,9 +1165,9 @@ const insertTemplateToken = (template: TemplateAsset, targetRange?: Range | null
 };
 
 const insertSkillPrompt = (skillName: string) => {
-  insertPlainTextAtCaret(selectedAssetPromptPrefix);
+  insertPlainTextAtCaret(skillName === 'skill-creator' ? selectedAssetPromptPrefix : '使用 ');
   insertSkillToken(skillName);
-  insertPlainTextAtCaret(skillName === 'skill-creator' ? skillCreatorPromptSuffix : skillPromptSuffix);
+  insertPlainTextAtCaret(skillName === 'skill-creator' ? skillCreatorPromptSuffix : createSkillUsagePromptSuffix(skillName));
 };
 
 const insertTemplatePrompt = (template: TemplateAsset) => {
@@ -2669,6 +2827,38 @@ onBeforeUnmount(() => {
       />
     </Teleport>
   </div>
+
+  <section
+    v-if="selectedComposerDeliveryItems.length && !isSkillCreatorCreationActive"
+    class="composer-delivery-panel"
+    aria-label="即将交付内容"
+  >
+    <header class="composer-delivery-header">
+      <h3>即将交付内容</h3>
+      <p>系统将按所选技能生成以下文件</p>
+    </header>
+
+    <div class="composer-delivery-grid">
+      <article
+        v-for="item in selectedComposerDeliveryItems"
+        :key="item.id"
+        class="composer-delivery-card"
+      >
+        <span class="delivery-file-icon" :class="item.format.toLowerCase()" aria-hidden="true">
+          <span>{{ item.format.slice(0, 1) }}</span>
+        </span>
+        <span class="delivery-file-copy">
+          <strong>{{ item.title }}</strong>
+          <small>{{ item.format }} 文件</small>
+        </span>
+      </article>
+    </div>
+
+    <p class="composer-delivery-note">
+      <Info :size="16" />
+      <span>交付物展示在输入框下方，不占用输入内容区域。</span>
+    </p>
+  </section>
 </template>
 
 <style scoped>
@@ -2741,7 +2931,6 @@ onBeforeUnmount(() => {
   z-index: 1;
 }
 
-.chat-editor-row :deep(.skill-inline-code),
 .chat-editor-row :deep(.template-inline-code) {
   min-height: 28px;
   display: inline-flex;
@@ -2757,6 +2946,71 @@ onBeforeUnmount(() => {
   line-height: 24px;
   vertical-align: baseline;
   user-select: all;
+}
+
+.chat-editor-row :deep(.skill-inline-code) {
+  max-width: min(430px, 82vw);
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 7px;
+  padding: 4px 14px 4px 8px;
+  overflow: hidden;
+  border: 1px solid #d3dbe8;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #111827;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 660;
+  line-height: 1;
+  vertical-align: middle;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+  white-space: nowrap;
+  user-select: all;
+}
+
+.chat-editor-row :deep(.skill-inline-avatar) {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 36%, #f8fafc 0 20%, transparent 21%),
+    radial-gradient(circle at 50% 72%, #e0e7ff 0 32%, transparent 33%),
+    linear-gradient(135deg, #dbeafe, #93c5fd);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16);
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.chat-editor-row :deep(.skill-inline-owner),
+.chat-editor-row :deep(.skill-inline-name) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-editor-row :deep(.skill-inline-owner) {
+  flex: 0 0 auto;
+}
+
+.chat-editor-row :deep(.skill-inline-name) {
+  max-width: 220px;
+}
+
+.chat-editor-row :deep(.skill-inline-divider) {
+  flex: 0 0 auto;
+  color: #94a3b8;
+  font-weight: 520;
 }
 
 .chat-editor-row :deep(.template-inline-code) {
@@ -2831,6 +3085,152 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   margin-top: auto;
+}
+
+.composer-delivery-panel {
+  margin-top: 12px;
+  padding: 24px 28px 22px;
+  border: 1px solid #d7dee9;
+  border-radius: 12px;
+  background: var(--card-bg);
+  box-shadow: 0 3px 14px rgba(15, 23, 42, 0.05);
+}
+
+.composer-delivery-header {
+  display: flex;
+  align-items: baseline;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.composer-delivery-header h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.composer-delivery-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.composer-delivery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.composer-delivery-card {
+  min-width: 0;
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 22px;
+  border: 1px solid #d7dee9;
+  border-radius: 9px;
+  background: #ffffff;
+}
+
+.delivery-file-icon {
+  --file-color: #2563eb;
+  position: relative;
+  width: 48px;
+  height: 54px;
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex: 0 0 auto;
+  padding-bottom: 8px;
+  border: 2px solid currentColor;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--file-color) 8%, #ffffff);
+  color: var(--file-color);
+}
+
+.delivery-file-icon::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 17px;
+  height: 17px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  background: #ffffff;
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+
+.delivery-file-icon span {
+  position: relative;
+  z-index: 1;
+  width: 26px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: var(--file-color);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.delivery-file-icon.xlsx {
+  --file-color: #238547;
+}
+
+.delivery-file-icon.pdf {
+  --file-color: #dc2626;
+}
+
+.delivery-file-copy {
+  min-width: 0;
+  display: grid;
+  gap: 9px;
+}
+
+.delivery-file-copy strong,
+.delivery-file-copy small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.delivery-file-copy strong {
+  color: #111827;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.delivery-file-copy small {
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.composer-delivery-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 22px 0 0;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.composer-delivery-note svg {
+  flex: 0 0 auto;
 }
 
 .left-actions {
@@ -4130,6 +4530,54 @@ onBeforeUnmount(() => {
   .chat-input-container.creator-guide-active {
     min-height: 0;
     transform: translateY(-18px);
+  }
+
+  .chat-editor-row :deep(.skill-inline-code) {
+    max-width: min(100%, calc(100vw - 52px));
+    min-height: 36px;
+    gap: 8px;
+    margin: 2px 3px;
+    padding: 4px 10px 4px 6px;
+    font-size: 15px;
+  }
+
+  .chat-editor-row :deep(.skill-inline-avatar) {
+    width: 28px;
+    height: 28px;
+  }
+
+  .chat-editor-row :deep(.skill-inline-name) {
+    max-width: 150px;
+  }
+
+  .composer-delivery-panel {
+    margin-top: 10px;
+    padding: 18px 16px;
+  }
+
+  .composer-delivery-header {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .composer-delivery-header h3 {
+    font-size: 18px;
+  }
+
+  .composer-delivery-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .composer-delivery-card {
+    min-height: 78px;
+    gap: 14px;
+    padding: 13px 14px;
+  }
+
+  .delivery-file-copy strong {
+    font-size: 17px;
   }
 
   .input-actions {

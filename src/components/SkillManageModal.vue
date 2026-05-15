@@ -12,6 +12,8 @@ import {
   Pencil,
   Play,
   Plus,
+  Power,
+  PowerOff,
   Search,
   Trash2,
   UsersRound,
@@ -19,15 +21,21 @@ import {
 } from 'lucide-vue-next';
 import {
   addPersonalSkill,
+  groupSharedSkills as catalogGroupSharedSkills,
+  isSkillEnabled,
   isSkillAvailable,
+  markSkillUsed,
   officialRecommendedSkills,
   personalSkills,
+  publicHubSkills as catalogPublicHubSkills,
   publishSkillToTeamMarket,
   removePersonalSkill,
-  teamMarketSkills,
+  setSkillEnabled,
+  teamSharedSkills,
   upsertCustomSkill,
   type SkillCatalogItem,
   type SkillFile,
+  type SkillPublishDestination,
 } from '../data/skillCatalog';
 import { getSkillAvatarStyle } from '../data/skillAvatars';
 import { createSkillWithSkillCreator } from '../services/skillCreator';
@@ -48,8 +56,10 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+type SkillListPage = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
+
 const selectedSkill = ref<SkillCatalogItem | null>(null);
-const activeListPage = ref<'personal' | 'team-market' | 'recommended'>('personal');
+const activeListPage = ref<SkillListPage>('personal');
 const modalSearchKeyword = ref('');
 const selectedListCategory = ref('全部');
 const isCreateMode = ref(false);
@@ -82,15 +92,32 @@ type TreeGroup = {
   folders: TreeFolder[];
 };
 
-const isRecommendedListPage = computed(() => activeListPage.value === 'recommended');
-const isTeamMarketListPage = computed(() => activeListPage.value === 'team-market');
+const skillListPageCopy: Record<SkillListPage, { name: string; empty: string }> = {
+  personal: { name: '我的技能', empty: '暂无匹配技能' },
+  'group-shared': { name: '小组共享', empty: '暂无小组共享技能' },
+  'team-shared': { name: '团队共享', empty: '暂无团队共享技能' },
+  'public-hub': { name: '公共库', empty: '暂无公开共享技能' },
+  recommended: { name: '官方推荐', empty: '暂无官方推荐技能' },
+};
+
+const shouldShowCategoryFilter = computed(() => activeListPage.value === 'recommended');
 const activeListSkills = computed(() =>
   ({
     personal: personalSkills.value,
-    'team-market': teamMarketSkills.value,
+    'group-shared': catalogGroupSharedSkills.value,
+    'team-shared': teamSharedSkills.value,
+    'public-hub': catalogPublicHubSkills.value,
     recommended: officialRecommendedSkills,
   })[activeListPage.value],
 );
+
+const sourceTabs = computed(() => [
+  { key: 'personal' as const, name: skillListPageCopy.personal.name, count: personalSkills.value.length },
+  { key: 'group-shared' as const, name: skillListPageCopy['group-shared'].name, count: catalogGroupSharedSkills.value.length },
+  { key: 'team-shared' as const, name: skillListPageCopy['team-shared'].name, count: teamSharedSkills.value.length },
+  { key: 'public-hub' as const, name: skillListPageCopy['public-hub'].name, count: catalogPublicHubSkills.value.length },
+  { key: 'recommended' as const, name: skillListPageCopy.recommended.name, count: officialRecommendedSkills.length },
+]);
 
 const activeListCategoryOptions = computed(() => {
   const counts = new Map<string, number>();
@@ -110,7 +137,10 @@ const visibleListSkills = computed(() => {
   const keyword = modalSearchKeyword.value.trim().toLowerCase();
 
   return activeListSkills.value.filter((skill) => {
-    const matchesCategory = selectedListCategory.value === '全部' || skill.category === selectedListCategory.value;
+    const matchesCategory =
+      !shouldShowCategoryFilter.value ||
+      selectedListCategory.value === '全部' ||
+      skill.category === selectedListCategory.value;
     const searchable = [
       skill.name,
       skill.description,
@@ -125,10 +155,35 @@ const visibleListSkills = computed(() => {
   });
 });
 
+const getUsedAtTime = (skill: SkillCatalogItem) => {
+  if (!skill.lastUsedAt) return 0;
+  const time = Date.parse(skill.lastUsedAt);
+  return Number.isNaN(time) ? 0 : time;
+};
+
+const mostUsedListSkills = computed(() => {
+  const activePersonalSkills = personalSkills.value.filter(isSkillEnabled);
+  const originalIndex = new Map(activePersonalSkills.map((skill, index) => [skill.id, index]));
+  return [...activePersonalSkills]
+    .sort((left, right) => {
+      const usageDelta = (right.usageCount ?? 0) - (left.usageCount ?? 0);
+      if (usageDelta) return usageDelta;
+
+      const timeDelta = getUsedAtTime(right) - getUsedAtTime(left);
+      if (timeDelta) return timeDelta;
+
+      return (originalIndex.get(left.id) ?? 0) - (originalIndex.get(right.id) ?? 0);
+    })
+    .slice(0, 3);
+});
+
+const getSkillUsageMeta = (skill: SkillCatalogItem) =>
+  isSkillEnabled(skill)
+    ? skill.usageCount && skill.usageCount > 0 ? `${skill.usageCount} 次使用` : '可直接调用'
+    : '已停用，启用后可调用';
+
 const activeListTitle = computed(() => {
-  if (isTeamMarketListPage.value) return '团队共享';
-  if (isRecommendedListPage.value) return '官方推荐';
-  return '我的技能';
+  return skillListPageCopy[activeListPage.value].name;
 });
 
 const selectedFiles = computed(() => selectedSkill.value?.files ?? []);
@@ -198,6 +253,10 @@ const selectedSkillIsAdded = computed(() =>
   selectedSkill.value ? isSkillAvailable(selectedSkill.value.id) : false
 );
 
+const selectedSkillIsEnabled = computed(() =>
+  selectedSkill.value ? isSkillEnabled(selectedSkill.value) : false
+);
+
 const setStatus = (message: string) => {
   statusMessage.value = message;
   if (statusTimer) {
@@ -238,7 +297,7 @@ const resetDetailState = (skill: SkillCatalogItem) => {
   expandedTreeKeys.value = nextExpanded;
 };
 
-const setListPage = (page: 'personal' | 'team-market' | 'recommended') => {
+const setListPage = (page: SkillListPage) => {
   activeListPage.value = page;
   selectedListCategory.value = '全部';
   selectedSkill.value = null;
@@ -247,10 +306,6 @@ const setListPage = (page: 'personal' | 'team-market' | 'recommended') => {
   editMode.value = false;
   editBuffer.value = '';
   openCardMenuId.value = null;
-};
-
-const backToDefaultList = () => {
-  setListPage('personal');
 };
 
 const selectFile = (file: SkillFile) => {
@@ -280,7 +335,20 @@ const handleCreateSkillAction = () => {
   createSkill();
 };
 
-const useSkill = (skillName?: string) => {
+const useSkill = (skillName?: string, skillId?: string) => {
+  const skill = skillId
+    ? personalSkills.value.find((item) => item.id === skillId)
+    : selectedSkill.value;
+  if (skill && !isSkillEnabled(skill)) {
+    setStatus(`${skill.name} 已停用，请先启用后再使用`);
+    return;
+  }
+
+  if (skillId) {
+    markSkillUsed(skillId);
+  } else if (selectedSkill.value) {
+    markSkillUsed(selectedSkill.value.id);
+  }
   emit('use', skillName ?? selectedSkill.value?.name);
 };
 
@@ -353,11 +421,6 @@ const downloadSkill = (skill: SkillCatalogItem) => {
   downloadText(`${skill.name}-skill-bundle.md`, createSkillBundleContent(skill));
 };
 
-const useSkillFromMenu = (skill: SkillCatalogItem) => {
-  openCardMenuId.value = null;
-  useSkill(skill.name);
-};
-
 const editSkill = (skill: SkillCatalogItem) => {
   openCardMenuId.value = null;
   closeModal();
@@ -376,13 +439,43 @@ const isSkillAdded = (skill: SkillCatalogItem) => isSkillAvailable(skill.id);
 
 const addSkill = (skill: SkillCatalogItem) => {
   const didAdd = addPersonalSkill(skill.id);
-  setStatus(didAdd ? `${skill.name} 已添加` : `${skill.name} 已添加`);
+  setStatus(didAdd ? `${skill.name} 已安装到我的技能` : `${skill.name} 已在我的技能中`);
 };
 
-const publishSkill = (skill: SkillCatalogItem) => {
-  const didPublish = publishSkillToTeamMarket(skill.id);
+const installSkill = (skill: SkillCatalogItem) => {
+  if (activeListPage.value === 'recommended') {
+    addSkill(skill);
+    return;
+  }
+  setStatus(`${skill.name} 已安装到我的技能`);
+};
+
+const isInstallDisabled = (skill: SkillCatalogItem) =>
+  activeListPage.value === 'recommended' && isSkillAdded(skill);
+
+const installButtonLabel = (skill: SkillCatalogItem) =>
+  isInstallDisabled(skill) ? '已安装' : '安装';
+
+const setSkillOpen = (skill: SkillCatalogItem, enabled: boolean) => {
+  const updatedSkill = setSkillEnabled(skill.id, enabled);
+  if (selectedSkill.value?.id === skill.id && updatedSkill) {
+    selectedSkill.value = updatedSkill;
+  }
   openCardMenuId.value = null;
-  setStatus(didPublish ? `${skill.name} 已共享至团队` : `${skill.name} 已共享至团队`);
+  setStatus(`${skill.name} 已${enabled ? '启用' : '停用'}`);
+};
+
+const publishDestinationLabels: Record<SkillPublishDestination, string> = {
+  group: '小组共享',
+  team: '团队共享',
+  public: '公共库',
+};
+
+const publishSkill = (skill: SkillCatalogItem, destination: SkillPublishDestination) => {
+  const didPublish = publishSkillToTeamMarket(skill.id, destination);
+  openCardMenuId.value = null;
+  const label = publishDestinationLabels[destination];
+  setStatus(didPublish ? `${skill.name} 已发布到${label}` : `${skill.name} 已在${label}中`);
 };
 
 const deleteSkill = (skill: SkillCatalogItem) => {
@@ -414,7 +507,7 @@ const saveEdit = () => {
     const updatedSkill = upsertCustomSkill({
       ...selectedSkill.value,
       files: updatedFiles,
-      status: 'active',
+      status: selectedSkill.value.status || 'active',
     });
     if (updatedSkill) {
       selectedSkill.value = updatedSkill;
@@ -439,7 +532,7 @@ const saveGeneratedSkill = (skill: SkillCatalogItem) => {
   });
   if (!savedSkill) return;
 
-  activeListPage.value = savedSkill.scope === 'team' ? 'team-market' : 'personal';
+  activeListPage.value = savedSkill.scope === 'team' ? 'team-shared' : 'personal';
   isCreateMode.value = false;
   openSkill(savedSkill);
   setStatus(`${savedSkill.name} 已创建`);
@@ -499,64 +592,69 @@ onBeforeUnmount(() => {
       </button>
 
       <header v-if="!selectedSkill" class="modal-header">
-        <h2 id="skill-modal-title">
+        <div v-if="isCreateMode" class="modal-create-heading">
           <button v-if="isCreateMode" class="list-back-btn" type="button" @click="backToList">
             <ChevronRight :size="16" class="back-chevron" />
             <span>创建技能</span>
           </button>
-          <button v-else-if="activeListPage !== 'personal'" class="list-back-btn" type="button" @click="backToDefaultList">
-            <ChevronRight :size="16" class="back-chevron" />
-            <span>{{ activeListTitle }}</span>
-          </button>
-          <span v-else>{{ activeListTitle }}</span>
-        </h2>
-        <div v-if="!isCreateMode" class="modal-toolbar">
-          <div class="modal-filter-group">
+        </div>
+        <template v-else>
+          <div class="modal-title-row">
+            <h2 id="skill-modal-title">技能市场</h2>
+          </div>
+
+          <div class="modal-command-bar">
             <label class="modal-search-control">
               <Search :size="16" />
               <input v-model="modalSearchKeyword" type="text" placeholder="搜索技能、描述、标签" />
             </label>
-            <LibraryTypeDropdown
-              v-model="selectedListCategory"
-              :options="activeListCategoryOptions"
-              label="类型"
-            />
-          </div>
-          <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
-          <div class="modal-tabs" aria-label="技能分类">
-            <button
-              class="modal-tab"
-              :class="{ active: activeListPage === 'personal' }"
-              type="button"
-              @click="setListPage('personal')"
-            >
-              我的技能
-            </button>
-            <button
-              class="modal-tab"
-              :class="{ active: activeListPage === 'team-market' }"
-              type="button"
-              @click="setListPage('team-market')"
-            >
-              团队共享
-            </button>
-            <button
-              class="modal-tab"
-              :class="{ active: activeListPage === 'recommended' }"
-              type="button"
-              @click="setListPage('recommended')"
-            >
-              官方推荐
-            </button>
             <button
               class="modal-create-btn"
               type="button"
               @click.stop="handleCreateSkillAction"
             >
+              <Plus :size="16" />
               创建技能
             </button>
           </div>
-        </div>
+
+          <div class="modal-source-switcher">
+            <nav class="modal-tabs" aria-label="技能来源">
+              <button
+                v-for="tab in sourceTabs"
+                :key="tab.key"
+                class="modal-tab"
+                :class="{ active: activeListPage === tab.key }"
+                type="button"
+                @click="setListPage(tab.key)"
+              >
+                <span>{{ tab.name }}</span>
+                <strong>{{ tab.count }}</strong>
+              </button>
+            </nav>
+          </div>
+
+          <div v-if="activeListPage !== 'personal'" class="modal-result-toolbar">
+            <div class="modal-result-title">
+              <strong>{{ activeListTitle }}</strong>
+              <span>{{ visibleListSkills.length }} 个技能</span>
+            </div>
+            <div class="modal-source-actions">
+              <LibraryTypeDropdown
+                v-if="shouldShowCategoryFilter"
+                v-model="selectedListCategory"
+                :options="activeListCategoryOptions"
+                label="类型"
+              />
+
+              <div v-else class="modal-sort-segment" aria-label="排序">
+                <button class="active" type="button">最近更新</button>
+                <button type="button">安装量</button>
+              </div>
+            </div>
+          </div>
+          <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
+        </template>
       </header>
 
       <section v-if="isCreateMode" class="create-skill-panel" aria-label="创建技能">
@@ -621,46 +719,153 @@ onBeforeUnmount(() => {
       </section>
 
       <p v-if="!selectedSkill && !isCreateMode && !visibleListSkills.length" class="empty-list">
-        暂无匹配技能
+        {{ skillListPageCopy[activeListPage].empty }}
       </p>
 
-      <div v-else-if="!selectedSkill && !isCreateMode" class="skill-card-grid">
+      <template v-else-if="!selectedSkill && !isCreateMode">
+        <section
+          v-if="activeListPage === 'personal' && mostUsedListSkills.length"
+          class="modal-frequent-section"
+          aria-label="最常使用技能"
+        >
+          <header class="modal-frequent-header">
+            <strong>最常使用</strong>
+            <span>按使用频率排序</span>
+          </header>
+
+          <div class="modal-frequent-list">
+            <article
+              v-for="skill in mostUsedListSkills"
+              :key="`modal-frequent-${skill.id}`"
+              class="modal-frequent-item"
+              :class="{ 'menu-open': openCardMenuId === `modal-frequent-${skill.id}` }"
+              role="button"
+              tabindex="0"
+              @click="openSkill(skill)"
+              @keydown.enter.prevent="openSkill(skill)"
+            >
+              <span class="modal-frequent-avatar" :style="getSkillAvatarStyle(skill)" aria-hidden="true"></span>
+              <span class="modal-frequent-copy">
+                <strong>{{ skill.name }}</strong>
+                <span>{{ getSkillUsageMeta(skill) }}</span>
+              </span>
+              <div class="modal-card-actions">
+                <button
+                  class="modal-card-use-btn"
+                  type="button"
+                  :aria-label="`使用${skill.name}`"
+                  @click.stop="useSkill(skill.name, skill.id)"
+                >
+                  <Play :size="13" />
+                  <span>使用</span>
+                </button>
+                <button
+                  class="card-more-btn"
+                  type="button"
+                  :aria-label="`${skill.name} 更多操作`"
+                  @click.stop="toggleCardMenu(`modal-frequent-${skill.id}`)"
+                >
+                  <MoreHorizontal :size="18" />
+                </button>
+              </div>
+
+              <div v-if="openCardMenuId === `modal-frequent-${skill.id}`" class="card-action-menu" @click.stop>
+                <button class="menu-action" type="button" @click="editSkill(skill)">
+                  <Pencil :size="15" />
+                  <span>编辑</span>
+                </button>
+                <button class="menu-action" type="button" @click="downloadSkill(skill)">
+                  <Download :size="15" />
+                  <span>下载</span>
+                </button>
+                <button class="menu-action" type="button" @click="setSkillOpen(skill, false)">
+                  <PowerOff :size="15" />
+                  <span>停用技能</span>
+                </button>
+                <div class="menu-submenu-item">
+                  <button class="menu-action submenu-trigger" type="button">
+                    <UsersRound :size="15" />
+                    <span>发布</span>
+                    <ChevronRight :size="14" class="submenu-chevron" />
+                  </button>
+                  <div class="publish-submenu" role="menu" aria-label="发布范围">
+                    <button type="button" @click="publishSkill(skill, 'group')">发布到小组共享</button>
+                    <button type="button" @click="publishSkill(skill, 'team')">发布到团队共享</button>
+                    <button type="button" @click="publishSkill(skill, 'public')">发布到公共库</button>
+                  </div>
+                </div>
+                <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
+                  <Trash2 :size="15" />
+                  <span>删除</span>
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <div v-if="activeListPage === 'personal' && visibleListSkills.length" class="modal-list-heading">
+          <strong>全部技能</strong>
+          <span>{{ visibleListSkills.length }} 个</span>
+        </div>
+
+      <div class="skill-card-grid">
         <article
           v-for="skill in visibleListSkills"
           :key="skill.id"
           class="managed-skill-card"
-          :class="{ 'recommendation-card': activeListPage !== 'personal', 'menu-open': openCardMenuId === skill.id }"
+          :class="{
+            'recommendation-card': activeListPage !== 'personal',
+            'is-closed': activeListPage === 'personal' && !isSkillEnabled(skill),
+            'menu-open': openCardMenuId === skill.id
+          }"
           tabindex="0"
-          @click="useSkill(skill.name)"
-          @keydown.enter.prevent="useSkill(skill.name)"
+          @click="openSkill(skill)"
+          @keydown.enter.prevent="openSkill(skill)"
         >
-          <button
-            v-if="activeListPage === 'personal'"
-            class="card-more-btn"
-            type="button"
-            :aria-label="`${skill.name} 更多操作`"
-            @click.stop="toggleCardMenu(skill.id)"
-          >
-            <MoreHorizontal :size="20" />
-          </button>
+          <div v-if="activeListPage === 'personal'" class="modal-card-actions">
+            <button
+              v-if="isSkillEnabled(skill)"
+              class="modal-card-use-btn"
+              type="button"
+              :aria-label="`使用${skill.name}`"
+              @click.stop="useSkill(skill.name, skill.id)"
+            >
+              <Play :size="13" />
+              <span>使用</span>
+            </button>
+            <button
+              v-else
+              class="modal-card-open-btn"
+              type="button"
+              :aria-label="`启用${skill.name}`"
+              @click.stop="setSkillOpen(skill, true)"
+            >
+              <Power :size="13" />
+              <span>启用</span>
+            </button>
+            <button
+              class="card-more-btn"
+              type="button"
+              :aria-label="`${skill.name} 更多操作`"
+              @click.stop="toggleCardMenu(skill.id)"
+            >
+              <MoreHorizontal :size="18" />
+            </button>
+          </div>
 
           <button
             v-if="activeListPage !== 'personal'"
             class="add-skill-btn"
             type="button"
-            :disabled="isSkillAdded(skill)"
-            @click.stop="addSkill(skill)"
+            :disabled="isInstallDisabled(skill)"
+            @click.stop="installSkill(skill)"
           >
-            <Check v-if="isSkillAdded(skill)" :size="15" />
+            <Check v-if="isInstallDisabled(skill)" :size="15" />
             <Plus v-else :size="15" />
-            <span>{{ isSkillAdded(skill) ? '已添加' : '添加' }}</span>
+            <span>{{ installButtonLabel(skill) }}</span>
           </button>
 
           <div v-if="activeListPage === 'personal' && openCardMenuId === skill.id" class="card-action-menu" @click.stop>
-            <button class="menu-action" type="button" @click="useSkillFromMenu(skill)">
-              <Play :size="15" />
-              <span>使用技能</span>
-            </button>
             <button class="menu-action" type="button" @click="editSkill(skill)">
               <Pencil :size="15" />
               <span>编辑</span>
@@ -669,10 +874,23 @@ onBeforeUnmount(() => {
               <Download :size="15" />
               <span>下载</span>
             </button>
-            <button class="menu-action" type="button" @click="publishSkill(skill)">
-              <UsersRound :size="15" />
-              <span>共享至团队</span>
+            <button class="menu-action" type="button" @click="setSkillOpen(skill, !isSkillEnabled(skill))">
+              <Power v-if="!isSkillEnabled(skill)" :size="15" />
+              <PowerOff v-else :size="15" />
+              <span>{{ isSkillEnabled(skill) ? '停用技能' : '启用技能' }}</span>
             </button>
+            <div class="menu-submenu-item">
+              <button class="menu-action submenu-trigger" type="button">
+                <UsersRound :size="15" />
+                <span>发布</span>
+                <ChevronRight :size="14" class="submenu-chevron" />
+              </button>
+              <div class="publish-submenu" role="menu" aria-label="发布范围">
+                <button type="button" @click="publishSkill(skill, 'group')">发布到小组共享</button>
+                <button type="button" @click="publishSkill(skill, 'team')">发布到团队共享</button>
+                <button type="button" @click="publishSkill(skill, 'public')">发布到公共库</button>
+              </div>
+            </div>
             <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
               <Trash2 :size="15" />
               <span>删除</span>
@@ -681,11 +899,17 @@ onBeforeUnmount(() => {
 
           <div class="skill-card-avatar" :style="getSkillAvatarStyle(skill)" aria-hidden="true"></div>
           <div class="skill-card-copy">
-            <h3>{{ skill.name }}</h3>
+            <div class="skill-card-title-row">
+              <h3>{{ skill.name }}</h3>
+              <span v-if="activeListPage === 'personal'" class="skill-state-badge" :class="{ closed: !isSkillEnabled(skill) }">
+                {{ isSkillEnabled(skill) ? '已启用' : '已停用' }}
+              </span>
+            </div>
             <p>{{ skill.description }}</p>
           </div>
         </article>
       </div>
+      </template>
 
       <template v-if="selectedSkill">
         <header class="detail-header">
@@ -695,7 +919,15 @@ onBeforeUnmount(() => {
           </button>
           <div class="detail-actions">
             <span v-if="statusMessage" class="detail-status">{{ statusMessage }}</span>
-            <button v-if="selectedSkillIsAdded" class="use-skill-btn" type="button" @click="useSkill()">去使用</button>
+            <button v-if="selectedSkillIsAdded && selectedSkillIsEnabled" class="use-skill-btn" type="button" @click="useSkill()">去使用</button>
+            <button
+              v-else-if="selectedSkillIsAdded && selectedSkill"
+              class="use-skill-btn add-detail-btn"
+              type="button"
+              @click="setSkillOpen(selectedSkill, true)"
+            >
+              启用技能
+            </button>
             <button v-else class="use-skill-btn add-detail-btn" type="button" @click="addSkill(selectedSkill)">
               添加
             </button>
@@ -834,11 +1066,11 @@ onBeforeUnmount(() => {
 
 .skill-modal {
   position: relative;
-  width: min(820px, calc(100vw - 40px));
+  width: min(940px, calc(100vw - 40px));
   min-height: 412px;
   max-height: calc(100vh - 40px);
   overflow: auto;
-  padding: 24px 32px 28px;
+  padding: 28px 32px 30px;
   border-radius: 16px;
   background: var(--card-bg);
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.2);
@@ -857,8 +1089,8 @@ onBeforeUnmount(() => {
 
 .modal-close-btn {
   position: absolute;
-  top: 20px;
-  right: 24px;
+  top: 26px;
+  right: 28px;
   width: 32px;
   height: 32px;
   display: inline-flex;
@@ -872,39 +1104,64 @@ onBeforeUnmount(() => {
   background: var(--surface-soft);
 }
 
-.modal-header h2 {
-  margin: 0 0 20px;
-  color: var(--text-strong);
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.2;
+.modal-title-row {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding-right: 48px;
+  margin-bottom: 18px;
 }
 
-.modal-toolbar {
+.modal-command-bar,
+.modal-source-switcher,
+.modal-result-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 22px;
+  padding-right: 48px;
 }
 
-.modal-filter-group {
-  min-width: 0;
-  display: flex;
+.modal-command-bar {
+  min-height: 40px;
+  justify-content: space-between;
+  padding-right: 0;
+  margin-bottom: 22px;
+}
+
+.modal-source-switcher {
   align-items: center;
-  gap: 10px;
-  flex: 1;
+  justify-content: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.modal-result-toolbar {
+  margin: 0 0 20px;
+}
+
+.modal-header h2,
+.modal-create-heading {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 18px;
+  font-weight: 750;
+  line-height: 1.2;
 }
 
 .modal-search-control {
-  width: min(320px, 100%);
-  min-width: 220px;
-  height: 36px;
+  width: 100%;
+  min-width: 0;
+  height: 40px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 11px;
+  gap: 9px;
+  flex: 1 1 auto;
+  max-width: none;
+  padding: 0 12px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--card-bg);
   color: var(--text-secondary);
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
@@ -932,7 +1189,8 @@ onBeforeUnmount(() => {
 }
 
 .modal-status {
-  margin-left: auto;
+  display: block;
+  margin: 8px 42px 0 0;
   color: var(--primary-color);
   font-size: 13px;
   font-weight: 650;
@@ -940,55 +1198,141 @@ onBeforeUnmount(() => {
 }
 
 .modal-tabs {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 24px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  scrollbar-width: none;
+}
+
+.modal-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .modal-tab {
-  min-height: 36px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  border-radius: 10px;
-  color: var(--text-strong);
-  background: var(--surface-soft);
-  font-size: 14px;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 13.5px;
   font-weight: 650;
   line-height: 1;
 }
 
-.modal-tab.active {
-  color: var(--primary-hover);
-  background: var(--primary-soft-strong);
+.modal-tab strong {
+  min-width: auto;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 0;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .modal-tab:hover {
+  color: var(--primary-hover);
+  background: transparent;
+}
+
+.modal-tab.active {
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--text-strong);
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px var(--border-color);
+}
+
+.modal-tab.active strong {
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--text-strong);
+  background: var(--card-bg);
+}
+
+.modal-result-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.modal-result-title strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.modal-result-title span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.modal-source-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.modal-sort-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.modal-sort-segment button {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.modal-sort-segment button.active,
+.modal-sort-segment button:hover {
+  color: var(--text-main);
   background: var(--surface-soft);
 }
 
-.modal-tab.active:hover {
-  color: var(--primary-hover);
-  background: var(--primary-soft-strong);
-}
-
 .modal-create-btn {
-  min-height: 36px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  gap: 7px;
   flex-shrink: 0;
-  padding: 0 14px;
+  padding: 0 12px;
   border: 1px solid var(--primary-color);
-  border-radius: 10px;
+  border-radius: 8px;
   color: var(--on-primary);
   background: var(--primary-color);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 680;
   line-height: 1;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-color) 11%, transparent);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--primary-color) 16%, transparent);
   transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
 }
 
@@ -996,7 +1340,7 @@ onBeforeUnmount(() => {
   transform: translateY(-1px);
   color: var(--on-primary);
   background: var(--primary-hover);
-  box-shadow: 0 14px 28px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
 .list-back-btn {
@@ -1088,11 +1432,159 @@ onBeforeUnmount(() => {
   opacity: 0.62;
 }
 
+.modal-frequent-section {
+  margin: 6px 0 0;
+}
+
+.modal-frequent-header,
+.modal-list-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin-bottom: 12px;
+}
+
+.modal-frequent-header strong,
+.modal-list-heading strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.modal-frequent-header span,
+.modal-list-heading span {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.modal-frequent-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.modal-frequent-item {
+  position: relative;
+  min-width: 0;
+  min-height: 84px;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 14px 120px 14px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-main);
+  background: var(--surface-soft);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.modal-frequent-item:hover {
+  border-color: var(--primary-border);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
+}
+
+.modal-frequent-item.menu-open {
+  z-index: 30;
+}
+
+.modal-frequent-item svg {
+  color: var(--primary-color);
+}
+
+.modal-card-use-btn,
+.modal-card-open-btn {
+  min-width: 58px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid var(--primary-color);
+  border-radius: 8px;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--primary-color) 14%, transparent);
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.modal-card-use-btn:hover {
+  color: var(--on-primary);
+  background: var(--primary-hover);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--primary-color) 18%, transparent);
+}
+
+.modal-card-use-btn svg {
+  color: currentColor;
+}
+
+.modal-card-open-btn {
+  border-color: var(--border-color);
+  color: var(--text-strong);
+  background: var(--card-bg);
+  box-shadow: none;
+}
+
+.modal-card-open-btn:hover {
+  color: var(--primary-color);
+  background: var(--primary-soft);
+}
+
+.modal-card-open-btn svg {
+  color: currentColor;
+}
+
+.modal-frequent-avatar {
+  width: 38px;
+  height: 38px;
+  overflow: hidden;
+  border-radius: 8px;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.modal-frequent-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.modal-frequent-copy strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modal-frequent-copy span {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.modal-list-heading {
+  margin-top: 20px;
+}
+
 .skill-card-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  margin-top: 20px;
+  margin-top: 0;
 }
 
 .empty-list {
@@ -1111,15 +1603,15 @@ onBeforeUnmount(() => {
 
 .managed-skill-card {
   position: relative;
-  min-height: 118px;
+  min-height: 104px;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr);
   align-items: start;
   gap: 14px;
-  padding: 16px 48px 16px 16px;
+  padding: 16px 124px 16px 16px;
   border: 1px solid var(--border-color);
-  border-radius: 14px;
-  background: var(--card-bg);
+  border-radius: 8px;
+  background: var(--surface-soft);
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
 }
@@ -1134,16 +1626,42 @@ onBeforeUnmount(() => {
   z-index: 30;
 }
 
+.managed-skill-card.is-closed {
+  background: var(--card-bg);
+}
+
+.managed-skill-card.is-closed .skill-card-avatar,
+.managed-skill-card.is-closed .skill-card-copy p {
+  opacity: 0.72;
+}
+
 .managed-skill-card.recommendation-card {
-  padding-right: 104px;
+  padding-right: 98px;
+}
+
+.modal-card-actions {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transform: translateY(-50%);
+}
+
+.modal-card-use-btn,
+.modal-card-open-btn {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 .skill-card-avatar {
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   flex-shrink: 0;
   overflow: hidden;
-  border-radius: 11px;
+  border-radius: 8px;
   background-color: transparent;
   background-repeat: no-repeat;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
@@ -1154,13 +1672,41 @@ onBeforeUnmount(() => {
   padding-top: 1px;
 }
 
+.skill-card-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 9px;
+}
+
 .managed-skill-card h3 {
-  margin: 0 0 12px;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
   color: var(--text-strong);
-  font-size: 16px;
-  font-weight: 650;
-  line-height: 1.15;
+  font-size: 15px;
+  font-weight: 720;
+  line-height: 1.18;
   letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-state-badge {
+  flex-shrink: 0;
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.skill-state-badge.closed {
+  color: var(--text-muted);
+  background: var(--surface-muted);
 }
 
 .managed-skill-card p {
@@ -1168,28 +1714,37 @@ onBeforeUnmount(() => {
   margin: 0;
   overflow: hidden;
   color: var(--text-secondary);
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 400;
   line-height: 1.4;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
 }
 
 .card-more-btn {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 28px;
-  height: 28px;
+  top: 50%;
+  right: 14px;
+  width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: var(--text-secondary);
+  border: 1px solid color-mix(in srgb, var(--primary-color) 18%, var(--border-color));
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 7%, var(--card-bg));
+  transform: translateY(-50%);
+}
+
+.modal-card-actions .card-more-btn {
+  position: static;
+  transform: none;
 }
 
 .card-more-btn:hover {
-  background: var(--surface-soft);
+  border-color: color-mix(in srgb, var(--primary-color) 32%, var(--border-color));
+  background: color-mix(in srgb, var(--primary-color) 11%, var(--card-bg));
 }
 
 .add-skill-btn {
@@ -1197,13 +1752,13 @@ onBeforeUnmount(() => {
   top: 16px;
   right: 16px;
   min-width: 58px;
-  height: 30px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
   padding: 0 12px;
-  border-radius: 9px;
+  border-radius: 8px;
   color: var(--on-primary);
   background: var(--primary-color);
   font-size: 13px;
@@ -1223,7 +1778,7 @@ onBeforeUnmount(() => {
 
 .card-action-menu {
   position: absolute;
-  top: 48px;
+  top: calc(50% + 22px);
   right: 14px;
   z-index: 40;
   width: 176px;
@@ -1257,6 +1812,37 @@ onBeforeUnmount(() => {
   background: var(--surface-soft);
 }
 
+.menu-submenu-item {
+  position: relative;
+}
+
+.submenu-trigger .submenu-chevron {
+  margin-left: auto;
+}
+
+.publish-submenu {
+  position: absolute;
+  top: -8px;
+  left: calc(100% + 8px);
+  z-index: 45;
+  min-width: 168px;
+  display: none;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--card-bg);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
+}
+
+.menu-submenu-item:hover .publish-submenu,
+.menu-submenu-item:focus-within .publish-submenu {
+  display: block;
+}
+
+.publish-submenu button {
+  min-height: 36px;
+}
+
 .card-action-menu button.danger {
   color: var(--diff-removed);
 }
@@ -1272,6 +1858,9 @@ onBeforeUnmount(() => {
 .modal-close-btn:focus-visible,
 .modal-tab:focus-visible,
 .modal-create-btn:focus-visible,
+.modal-frequent-item:focus-visible,
+.modal-card-use-btn:focus-visible,
+.modal-card-open-btn:focus-visible,
 .list-back-btn:focus-visible,
 .card-more-btn:focus-visible,
 .add-skill-btn:focus-visible,
@@ -1630,24 +2219,33 @@ onBeforeUnmount(() => {
     right: 18px;
   }
 
-  .modal-toolbar {
+  .modal-command-bar,
+  .modal-source-switcher,
+  .modal-result-toolbar {
     align-items: flex-start;
     flex-direction: column;
+    padding-right: 40px;
   }
 
-  .modal-filter-group,
+  .modal-result-toolbar {
+    align-items: stretch;
+  }
+
+  .modal-tabs,
   .modal-search-control {
     width: 100%;
+  }
+
+  .modal-tabs {
+    gap: 14px;
   }
 
   .modal-search-control {
     min-width: 0;
   }
 
-  .modal-tabs {
-    width: 100%;
-    justify-content: flex-start;
-    flex-wrap: wrap;
+  .modal-frequent-list {
+    grid-template-columns: 1fr;
   }
 
   .skill-card-grid {
@@ -1675,7 +2273,9 @@ onBeforeUnmount(() => {
     border-radius: 18px;
   }
 
-  .modal-filter-group {
+  .modal-command-bar,
+  .modal-source-switcher,
+  .modal-result-toolbar {
     align-items: stretch;
     flex-direction: column;
   }
@@ -1688,7 +2288,7 @@ onBeforeUnmount(() => {
 
   .managed-skill-card {
     min-height: 108px;
-    padding: 18px 46px 18px 18px;
+    padding: 18px 116px 18px 18px;
   }
 
   .managed-skill-card h3 {

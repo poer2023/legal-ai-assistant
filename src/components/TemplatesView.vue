@@ -32,7 +32,7 @@ type UploadedOriginalTemplate = {
   originalText: string;
 };
 
-type SourceFilter = 'personal' | 'team' | 'recommended';
+type SourceFilter = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
 
 const searchKeyword = ref('');
 const selectedSource = ref<SourceFilter>('personal');
@@ -76,8 +76,38 @@ const primaryTemplateCategories = [
   '合规日常',
 ];
 
+const templateModeCopy: Record<SourceFilter, { name: string; emptyTitle: string; emptyDescription: string }> = {
+  personal: {
+    name: '我的模板',
+    emptyTitle: '暂无我的模板',
+    emptyDescription: '上传或创建一个模板后，会出现在这里。',
+  },
+  'group-shared': {
+    name: '小组共享',
+    emptyTitle: '暂无小组共享模板',
+    emptyDescription: '小组内共享的模板会集中展示在这里。',
+  },
+  'team-shared': {
+    name: '团队共享',
+    emptyTitle: '暂无团队共享模板',
+    emptyDescription: '团队发布的通用模板会集中展示在这里。',
+  },
+  'public-hub': {
+    name: '公共库',
+    emptyTitle: '暂无公共库模板',
+    emptyDescription: '公共库模板同步后会展示在这里。',
+  },
+  recommended: {
+    name: '官方推荐',
+    emptyTitle: '暂无官方推荐模板',
+    emptyDescription: '官方维护的模板会集中展示在这里。',
+  },
+};
+
 const getTemplateSourceKind = (template: TemplateAsset): SourceFilter => {
-  if (template.source.includes('团队')) return 'team';
+  if (template.source.includes('小组')) return 'group-shared';
+  if (template.source.includes('团队')) return 'team-shared';
+  if (template.source.includes('公共')) return 'public-hub';
   if (template.source.includes('推荐') || template.source.includes('官方')) return 'recommended';
   return 'personal';
 };
@@ -85,7 +115,9 @@ const getTemplateSourceKind = (template: TemplateAsset): SourceFilter => {
 const sourceTabs = computed(() => {
   const counts: Record<SourceFilter, number> = {
     personal: 0,
-    team: 0,
+    'group-shared': 0,
+    'team-shared': 0,
+    'public-hub': 0,
     recommended: 0,
   };
 
@@ -94,11 +126,17 @@ const sourceTabs = computed(() => {
   });
 
   return [
-    { key: 'personal' as const, name: '我的模板', count: counts.personal },
-    { key: 'team' as const, name: '团队共享', count: counts.team },
-    { key: 'recommended' as const, name: '官方推荐', count: counts.recommended },
+    { key: 'personal' as const, name: templateModeCopy.personal.name, count: counts.personal },
+    { key: 'group-shared' as const, name: templateModeCopy['group-shared'].name, count: counts['group-shared'] },
+    { key: 'team-shared' as const, name: templateModeCopy['team-shared'].name, count: counts['team-shared'] },
+    { key: 'public-hub' as const, name: templateModeCopy['public-hub'].name, count: counts['public-hub'] },
+    { key: 'recommended' as const, name: templateModeCopy.recommended.name, count: counts.recommended },
   ];
 });
+
+const activeModeCopy = computed(() => templateModeCopy[selectedSource.value]);
+const isPersonalMode = computed(() => selectedSource.value === 'personal');
+const shouldShowCategoryFilter = computed(() => selectedSource.value === 'recommended');
 
 const sourceFilteredTemplates = computed(() => {
   return combinedTemplates.value.filter((template) => getTemplateSourceKind(template) === selectedSource.value);
@@ -122,7 +160,10 @@ const filteredTemplates = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
 
   return sourceFilteredTemplates.value.filter((template) => {
-    const matchesCategory = selectedCategory.value === '全部' || template.docType === selectedCategory.value;
+    const matchesCategory =
+      !shouldShowCategoryFilter.value ||
+      selectedCategory.value === '全部' ||
+      template.docType === selectedCategory.value;
     const searchable = [
       template.name,
       template.docType,
@@ -155,6 +196,7 @@ const backToList = () => {
 
 const resetFilters = () => {
   searchKeyword.value = '';
+  selectedCategory.value = '全部';
 };
 
 const openCreateModal = () => {
@@ -468,51 +510,65 @@ const handleTemplateDrop = (event: DragEvent) => {
       />
 
       <template v-else>
-        <header class="page-header">
-          <div class="page-title-group">
-            <span class="page-icon" aria-hidden="true">
-              <FileText :size="22" />
-            </span>
-            <h1>模板</h1>
-          </div>
+        <header class="market-topbar">
+          <span class="market-kicker">模板市场</span>
+          <button class="create-template-btn" type="button" @click="openCreateModal">
+            <Plus :size="16" />
+            <span>创建模板</span>
+          </button>
+        </header>
 
-          <label class="search-control page-search">
+        <section class="market-hero" aria-labelledby="template-market-title">
+          <h1 id="template-market-title">沉淀可复用的法律文书模板</h1>
+          <p>管理、创建和调用标准模板，让常用文书、字段结构和交付格式保持一致。</p>
+        </section>
+
+        <div class="market-controls">
+          <nav class="source-tabs" aria-label="模板来源">
+            <button
+              v-for="tab in sourceTabs"
+              :key="tab.key"
+              class="source-tab"
+              :class="{ active: selectedSource === tab.key }"
+              type="button"
+              @click="setSource(tab.key)"
+            >
+              <span>{{ tab.name }}</span>
+              <strong>{{ tab.count }}</strong>
+            </button>
+          </nav>
+
+          <label class="search-control market-search">
             <Search :size="17" />
             <input v-model="searchKeyword" type="text" placeholder="搜索模板、字段、适用场景" />
           </label>
-        </header>
+        </div>
+
+        <div v-if="!isPersonalMode" class="result-toolbar">
+          <div class="result-title">
+            <strong>{{ activeModeCopy.name }}</strong>
+            <span>{{ filteredTemplates.length }} 个模板</span>
+          </div>
+          <div class="toolbar-actions">
+            <LibraryTypeDropdown
+              v-if="shouldShowCategoryFilter"
+              v-model="selectedCategory"
+              :options="categoryTabs"
+              label="类型"
+            />
+
+            <div v-else class="sort-segment" aria-label="排序">
+              <button class="active" type="button">最近更新</button>
+              <button type="button">使用量</button>
+            </div>
+          </div>
+        </div>
 
         <section class="content-section" aria-label="模板管理">
-          <header class="section-header">
-            <div class="source-toolbar">
-              <nav class="source-tabs" aria-label="模板来源">
-                <button
-                  v-for="tab in sourceTabs"
-                  :key="tab.key"
-                  class="source-tab"
-                  :class="{ active: selectedSource === tab.key }"
-                  type="button"
-                  @click="setSource(tab.key)"
-                >
-                  <span>{{ tab.name }}</span>
-                  <strong>{{ tab.count }}</strong>
-                </button>
-              </nav>
-
-              <div class="source-actions">
-                <LibraryTypeDropdown v-model="selectedCategory" :options="categoryTabs" label="类型" />
-
-                <button class="new-template-btn" type="button" @click="openCreateModal">
-                  <Plus :size="17" />
-                  <span>创建模板</span>
-                </button>
-              </div>
-            </div>
-          </header>
-
           <section class="template-section" aria-label="模板文件列表">
-            <div class="list-heading">
-              <span class="result-count">{{ filteredTemplates.length }} 项</span>
+            <div v-if="isPersonalMode && filteredTemplates.length" class="list-section-heading">
+              <strong>全部模板</strong>
+              <span>{{ filteredTemplates.length }} 个</span>
             </div>
 
             <div v-if="filteredTemplates.length" class="template-grid">
@@ -554,9 +610,9 @@ const handleTemplateDrop = (event: DragEvent) => {
 
             <div v-else class="empty-state">
               <FileText :size="22" />
-              <strong>未找到匹配模板</strong>
-              <span>调整分类或关键词后再试。</span>
-              <button class="reset-btn active" type="button" @click="resetFilters">清空搜索</button>
+              <strong>{{ searchKeyword.trim() ? '未找到匹配模板' : activeModeCopy.emptyTitle }}</strong>
+              <span>{{ searchKeyword.trim() ? '调整分类或关键词后再试。' : activeModeCopy.emptyDescription }}</span>
+              <button class="reset-btn active" type="button" @click="resetFilters">清空筛选</button>
             </div>
           </section>
         </section>
@@ -634,15 +690,15 @@ const handleTemplateDrop = (event: DragEvent) => {
 .templates-view {
   flex: 1;
   min-width: 0;
-  height: 100%;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 24px 32px 40px;
+  min-height: 100%;
+  overflow: visible;
+  padding: 22px 32px 48px;
   background: var(--bg-color);
   color: var(--text-main);
 }
 
 .templates-view.detail-view {
+  height: 100%;
   overflow: hidden;
   padding-bottom: 8px;
 }
@@ -667,118 +723,98 @@ const handleTemplateDrop = (event: DragEvent) => {
   min-height: 0;
 }
 
-.page-header {
+.market-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 14px;
+  gap: 16px;
+  min-height: 36px;
+  margin-bottom: 46px;
 }
 
-.page-title-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-.page-icon {
-  width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  color: var(--primary-color);
-  background: var(--card-bg);
-  box-shadow: var(--shadow-card);
-}
-
-.page-header h1 {
+.market-kicker {
   margin: 0;
   color: var(--text-strong);
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 750;
   line-height: 1.2;
+}
+
+.market-hero {
+  max-width: 760px;
+  margin: 0 auto 42px;
+  text-align: center;
+}
+
+.market-hero h1 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 32px;
+  font-weight: 760;
+  line-height: 1.22;
   letter-spacing: 0;
 }
 
-.new-template-btn {
-  min-height: 36px;
+.market-hero p {
+  max-width: 620px;
+  margin: 18px auto 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.65;
+  letter-spacing: 0;
+}
+
+.market-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.create-template-btn {
+  height: 34px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   flex-shrink: 0;
-  padding: 0 14px;
+  padding: 0 12px;
   border: 1px solid var(--primary-color);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--primary-color);
   color: var(--on-primary);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 680;
   line-height: 1;
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-color) 11%, transparent);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--primary-color) 16%, transparent);
   transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
 }
 
-.new-template-btn:hover {
+.create-template-btn:hover {
   transform: translateY(-1px);
   background: var(--primary-hover);
-  box-shadow: 0 14px 28px color-mix(in srgb, var(--primary-color) 15%, transparent);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--primary-color) 20%, transparent);
 }
 
 .content-section {
   min-height: 360px;
 }
 
-.section-header {
-  display: grid;
-  gap: 10px;
-  margin: 4px 0 18px;
-}
-
-.source-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.source-tabs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-}
-
-.source-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
 .search-control {
-  width: min(520px, 50%);
-  min-width: 360px;
-  height: 40px;
+  width: 100%;
+  min-width: 0;
+  height: 38px;
   display: flex;
   align-items: center;
   gap: 9px;
-  flex-shrink: 0;
   padding: 0 12px;
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--card-bg);
   color: var(--text-secondary);
   transition: border-color 0.16s ease, box-shadow 0.16s ease;
-}
-
-.page-search {
-  width: min(520px, 46%);
 }
 
 .search-control:focus-within {
@@ -802,40 +838,143 @@ const handleTemplateDrop = (event: DragEvent) => {
   color: var(--text-muted);
 }
 
+.create-template-btn,
+.sort-segment button,
 .source-tab {
-  min-height: 36px;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+}
+
+.source-tabs {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 22px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  scrollbar-width: none;
+}
+
+.source-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.source-tab {
+  min-width: 0;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   flex-shrink: 0;
-  padding: 0 14px;
-  border-radius: 10px;
-  color: var(--text-strong);
-  background: var(--surface-muted);
+  padding: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
   font-size: 14px;
   font-weight: 650;
   line-height: 1;
-  transition: background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.source-tab span {
+  white-space: nowrap;
 }
 
 .source-tab strong {
+  min-width: auto;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 0;
   color: var(--text-muted);
+  background: transparent;
   font-size: 12px;
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .source-tab:hover {
-  background: var(--surface-soft);
+  color: var(--primary-hover);
+  background: transparent;
 }
 
 .source-tab.active {
-  color: var(--primary-hover);
-  background: var(--primary-soft-strong);
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary-color) 10%, transparent);
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--text-strong);
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px var(--border-color);
 }
 
 .source-tab.active strong {
-  color: var(--primary-hover);
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--text-strong);
+  background: var(--card-bg);
+}
+
+.result-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -8px 0 18px;
+}
+
+.result-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.result-title strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.result-title span {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.sort-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.sort-segment button {
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.sort-segment button.active,
+.sort-segment button:hover {
+  color: var(--text-main);
+  background: var(--surface-soft);
 }
 
 .reset-btn {
@@ -875,18 +1014,24 @@ const handleTemplateDrop = (event: DragEvent) => {
   min-width: 0;
 }
 
-.list-heading {
+.list-section-heading {
   display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-bottom: 14px;
+  align-items: baseline;
+  gap: 8px;
+  margin: 2px 0 12px;
 }
 
-.result-count {
-  color: var(--text-secondary);
+.list-section-heading strong {
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.list-section-heading span {
+  color: var(--text-muted);
   font-size: 13px;
-  white-space: nowrap;
+  font-weight: 650;
 }
 
 .template-grid {
@@ -922,7 +1067,7 @@ const handleTemplateDrop = (event: DragEvent) => {
 .managed-template-card:focus-visible,
 .source-tab:focus-visible,
 .reset-btn:focus-visible,
-.new-template-btn:focus-visible,
+.create-template-btn:focus-visible,
 .create-close-btn:focus-visible,
 .upload-zone-btn:focus-visible,
 .preview-result-btn:focus-visible,
@@ -1574,20 +1719,13 @@ const handleTemplateDrop = (event: DragEvent) => {
     padding: 18px 16px 28px;
   }
 
-  .source-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
+  .market-controls {
+    grid-template-columns: 1fr;
   }
 
   .source-tabs {
     width: 100%;
     align-items: flex-start;
-  }
-
-  .source-actions {
-    width: 100%;
-    align-items: stretch;
-    flex-wrap: wrap;
   }
 
   .search-control {
@@ -1601,12 +1739,13 @@ const handleTemplateDrop = (event: DragEvent) => {
 }
 
 @media (max-width: 600px) {
-  .page-header {
+  .market-topbar {
     align-items: flex-start;
     flex-direction: column;
+    margin-bottom: 34px;
   }
 
-  .new-template-btn {
+  .create-template-btn {
     width: 100%;
     justify-content: center;
   }
@@ -1621,8 +1760,17 @@ const handleTemplateDrop = (event: DragEvent) => {
     width: 164px;
   }
 
-  .page-header h1 {
-    font-size: 21px;
+  .market-hero {
+    margin-bottom: 32px;
+    text-align: left;
+  }
+
+  .market-hero h1 {
+    font-size: 26px;
+  }
+
+  .market-hero p {
+    margin-top: 12px;
   }
 
   .thumbnail-page {
