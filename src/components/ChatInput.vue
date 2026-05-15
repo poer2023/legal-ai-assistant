@@ -455,13 +455,16 @@ const selectedComposerDeliveryItems = computed(() =>
   activeDeliverySkill.value ? inferDeliveryItems(activeDeliverySkill.value) : []
 );
 
-const getSkillDisplayName = (skillName: string) =>
-  getSkillByNameOrId(skillName)?.name || skillName.replace(/^\/+/, '');
+const getSkillDisplayName = (skillName: string) => {
+  const skill = getSkillByNameOrId(skillName);
+  const displayName = skill?.name || skillName.replace(/^\/+/, '');
+  return /类案检索分析报告/.test(displayName) ? '类案分析报告' : displayName;
+};
 
 const getSkillOwnerLabel = (skillName: string) => {
-  const skill = getSkillByNameOrId(skillName);
-  if (!skill) return '系统';
-  return skill.scope === 'team' ? '团队律师' : '李律师';
+  const normalizedName = skillName.trim().replace(/^\/+/, '');
+  if (normalizedName === 'skill-creator' || normalizedName === 'template-creator') return '系统';
+  return '李律师';
 };
 
 const getCaseAnalysisDeliveryItems = (): ComposerDeliveryItem[] => [
