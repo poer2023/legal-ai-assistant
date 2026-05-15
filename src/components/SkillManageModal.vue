@@ -38,7 +38,15 @@ import {
   type SkillPublishDestination,
 } from '../data/skillCatalog';
 import { getSkillAvatarStyle } from '../data/skillAvatars';
+import {
+  getSkillAuthorAvatarStyle as resolveSkillAuthorAvatarStyle,
+  getSkillAuthorAvatarText as resolveSkillAuthorAvatarText,
+  getSkillAuthorName as resolveSkillAuthorName,
+  hasSkillAuthorAvatarImage,
+  shouldShowSkillAuthor as resolveShouldShowSkillAuthor,
+} from '../data/profileIdentity';
 import { createSkillWithSkillCreator } from '../services/skillCreator';
+import { useOrgSession } from '../stores/orgSession';
 import LibraryTypeDropdown from './LibraryTypeDropdown.vue';
 
 const props = withDefaults(defineProps<{
@@ -56,6 +64,7 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
+const { currentUser } = useOrgSession();
 type SkillListPage = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
 
 const selectedSkill = ref<SkillCatalogItem | null>(null);
@@ -181,6 +190,11 @@ const getSkillUsageMeta = (skill: SkillCatalogItem) =>
   isSkillEnabled(skill)
     ? skill.usageCount && skill.usageCount > 0 ? `${skill.usageCount} 次使用` : '可直接调用'
     : '已停用，启用后可调用';
+
+const shouldShowSkillAuthor = (skill: SkillCatalogItem) => resolveShouldShowSkillAuthor(skill, currentUser.value);
+const getSkillAuthorName = (skill: SkillCatalogItem) => resolveSkillAuthorName(skill, currentUser.value);
+const getSkillAuthorAvatarText = (skill: SkillCatalogItem) => resolveSkillAuthorAvatarText(skill, currentUser.value);
+const getSkillAuthorAvatarStyle = (skill: SkillCatalogItem) => resolveSkillAuthorAvatarStyle(skill, currentUser.value);
 
 const activeListTitle = computed(() => {
   return skillListPageCopy[activeListPage.value].name;
@@ -748,6 +762,12 @@ onBeforeUnmount(() => {
               <span class="modal-frequent-copy">
                 <strong>{{ skill.name }}</strong>
                 <span>{{ getSkillUsageMeta(skill) }}</span>
+                <span v-if="shouldShowSkillAuthor(skill)" class="skill-author-meta">
+                  <span class="skill-author-avatar" :style="getSkillAuthorAvatarStyle(skill)">
+                    <span v-if="!hasSkillAuthorAvatarImage(skill, currentUser)">{{ getSkillAuthorAvatarText(skill) }}</span>
+                  </span>
+                  <span>{{ getSkillAuthorName(skill) }}</span>
+                </span>
               </span>
               <div class="modal-card-actions">
                 <button
@@ -904,6 +924,12 @@ onBeforeUnmount(() => {
               <span v-if="activeListPage === 'personal'" class="skill-state-badge" :class="{ closed: !isSkillEnabled(skill) }">
                 {{ isSkillEnabled(skill) ? '已启用' : '已停用' }}
               </span>
+            </div>
+            <div v-if="shouldShowSkillAuthor(skill)" class="skill-author-meta">
+              <span class="skill-author-avatar" :style="getSkillAuthorAvatarStyle(skill)">
+                <span v-if="!hasSkillAuthorAvatarImage(skill, currentUser)">{{ getSkillAuthorAvatarText(skill) }}</span>
+              </span>
+              <span>{{ getSkillAuthorName(skill) }}</span>
             </div>
             <p>{{ skill.description }}</p>
           </div>
@@ -1576,6 +1602,41 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
+.skill-author-meta {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.skill-author-avatar {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  background-position: center;
+  background-size: cover;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.skill-author-avatar span {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1;
+}
+
 .modal-list-heading {
   margin-top: 20px;
 }
@@ -1678,6 +1739,10 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   margin: 0 0 9px;
+}
+
+.skill-card-title-row + .skill-author-meta {
+  margin-bottom: 7px;
 }
 
 .managed-skill-card h3 {

@@ -41,6 +41,14 @@ import {
   type SkillCreatorGuideOption as GeneratedSkillCreatorOption,
   type SkillCreatorGuideStep as GeneratedSkillCreatorStep,
 } from '../services/skillCreatorGuide';
+import {
+  getSkillAuthorAvatarStyle,
+  getSkillAuthorAvatarText,
+  getSkillAuthorName,
+  hasSkillAuthorAvatarImage,
+  shouldUseProfileIdentity,
+} from '../data/profileIdentity';
+import { useOrgSession } from '../stores/orgSession';
 
 const props = defineProps<{
   modelValue?: string;
@@ -51,6 +59,8 @@ const emit = defineEmits<{
   'skill-guide-active-change': [active: boolean];
   submit: [value: string, options: { thinkingMode: string }];
 }>();
+
+const { currentUser } = useOrgSession();
 
 const inputValue = ref('');
 const showActionMenu = ref(false);
@@ -81,6 +91,8 @@ const inlineSkillQuery = ref('');
 const inlineTemplateQuery = ref('');
 const selectedSkillToken = ref<HTMLElement | null>(null);
 const selectedComposerSkillNames = ref<string[]>([]);
+const firstComposerSkillName = ref('');
+const editorFreeText = ref('');
 const inlineShortcutMenuPosition = ref({ left: 16, top: 48 });
 const selectedAssetPromptPrefix = '请使用 ';
 const skillCreatorPromptSuffix = ' 帮我创建一个可复用的技能，我的需求如下：';
@@ -455,6 +467,20 @@ const selectedComposerDeliveryItems = computed(() =>
   activeDeliverySkill.value ? inferDeliveryItems(activeDeliverySkill.value) : []
 );
 
+const showSkillFollowupHint = computed(() =>
+  skillTokenCount.value > 0 && editorFreeText.value.trim().length === 0
+);
+
+const skillFollowupHintText = computed(() => {
+  const skillName = firstComposerSkillName.value ? getSkillDisplayName(firstComposerSkillName.value) : '';
+  const prefix = skillName ? `已调用「${skillName}」，` : '';
+  return `${prefix}请继续输入本次任务材料，例如案件背景、争议焦点、法规条文、审查对象、输出要求等。`;
+});
+
+const activeEditorPlaceholder = computed(() =>
+  showSkillFollowupHint.value ? skillFollowupHintText.value : placeholderText()
+);
+
 const getSkillDisplayName = (skillName: string) => {
   const skill = getSkillByNameOrId(skillName);
   const displayName = skill?.name || skillName.replace(/^\/+/, '');
@@ -464,7 +490,8 @@ const getSkillDisplayName = (skillName: string) => {
 const getSkillOwnerLabel = (skillName: string) => {
   const normalizedName = skillName.trim().replace(/^\/+/, '');
   if (normalizedName === 'skill-creator' || normalizedName === 'template-creator') return '系统';
-  return '李律师';
+  const skill = getSkillByNameOrId(skillName);
+  return skill ? getSkillAuthorName(skill, currentUser.value) : '';
 };
 
 const getCaseAnalysisDeliveryItems = (): ComposerDeliveryItem[] => [
@@ -614,6 +641,7 @@ const skillCreatorReferenceAssets = ref<SkillCreatorReferenceAsset[]>([]);
 const activeSkillCreatorAssetTarget = ref<SkillCreatorAssetTarget>(null);
 const fixedSkillCreatorName = ref('');
 const fixedSkillCreatorDescription = ref('');
+const fixedSkillCreatorDetail = ref('');
 const fixedSkillCreatorTemplates = ref<SkillCreatorReferenceAsset[]>([]);
 const fixedSkillCreatorFiles = ref<SkillCreatorReferenceAsset[]>([]);
 const isFixedSkillCreatorTemplatePicker = ref(false);
@@ -881,10 +909,16 @@ function renderEditorPlainText(value: string) {
   });
 }
 
-const serializeEditorNode = (node: Node): string => {
+const serializeEditorNode = (node: Node, options: { includeInlineTokens?: boolean } = {}): string => {
+  const includeInlineTokens = options.includeInlineTokens ?? true;
+
   if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? '';
 
   if (node instanceof HTMLElement) {
+    if (!includeInlineTokens && node.matches(inlineTokenSelector)) {
+      return '';
+    }
+
     if (node.matches('.skill-inline-code')) {
       const skillName = node.dataset.skillName?.trim();
       return skillName ? `/${skillName}` : '';
@@ -895,12 +929,17 @@ const serializeEditorNode = (node: Node): string => {
     }
   }
 
-  return Array.from(node.childNodes).map(serializeEditorNode).join('');
+  return Array.from(node.childNodes).map((child) => serializeEditorNode(child, options)).join('');
 };
 
 const getEditorText = () => {
   const editor = editorRef.value;
   return (editor ? serializeEditorNode(editor) : '').replace(/\u200b/g, '');
+};
+
+const getEditorFreeText = () => {
+  const editor = editorRef.value;
+  return (editor ? serializeEditorNode(editor, { includeInlineTokens: false }) : '').replace(/\u200b/g, '');
 };
 
 const syncEditorState = () => {
@@ -909,6 +948,7 @@ const syncEditorState = () => {
 
   const skillTokens = Array.from(editor.querySelectorAll<HTMLElement>('.skill-inline-code'));
   skillTokenCount.value = skillTokens.length;
+  firstComposerSkillName.value = skillTokens[0]?.dataset.skillName?.trim() ?? '';
   hasSkillCreatorToken.value = Boolean(editor.querySelector('.skill-inline-code[data-skill-name="skill-creator"]'));
   selectedComposerSkillNames.value = skillTokens
     .map((token) => token.dataset.skillName?.trim() ?? '')
@@ -917,6 +957,7 @@ const syncEditorState = () => {
     '.template-inline-code, .asset-inline-code[data-asset-kind="template"]',
   ).length;
   inputValue.value = getEditorText();
+  editorFreeText.value = getEditorFreeText();
 };
 
 const getCurrentEditorRange = () => {
@@ -964,36 +1005,55 @@ const selectSkillToken = (token: HTMLElement) => {
 };
 
 const createSkillToken = (skillName: string) => {
+  const skill = getSkillByNameOrId(skillName);
   const displayName = getSkillDisplayName(skillName);
   const ownerLabel = getSkillOwnerLabel(skillName);
+  const usesProfileIdentity = Boolean(skill && shouldUseProfileIdentity(skill));
   const token = document.createElement('code');
   token.className = 'skill-inline-code';
   token.contentEditable = 'false';
   token.tabIndex = 0;
   token.dataset.skillName = skillName;
   token.dataset.skillDisplayName = displayName;
-  token.dataset.skillOwner = ownerLabel;
-  token.setAttribute('aria-label', `已选技能 ${ownerLabel} ${displayName}`);
+  if (ownerLabel) {
+    token.dataset.skillOwner = ownerLabel;
+  }
+  token.setAttribute('aria-label', ownerLabel ? `已选技能 ${ownerLabel} ${displayName}` : `已选技能 ${displayName}`);
 
   const avatar = document.createElement('span');
   avatar.className = 'skill-inline-avatar';
   avatar.setAttribute('aria-hidden', 'true');
-  avatar.textContent = ownerLabel.slice(0, 1).toUpperCase();
-
-  const owner = document.createElement('span');
-  owner.className = 'skill-inline-owner';
-  owner.textContent = ownerLabel;
-
-  const divider = document.createElement('span');
-  divider.className = 'skill-inline-divider';
-  divider.setAttribute('aria-hidden', 'true');
-  divider.textContent = '丨';
+  if (skill && hasSkillAuthorAvatarImage(skill, currentUser.value)) {
+    avatar.classList.add('custom-icon');
+    Object.assign(avatar.style, getSkillAuthorAvatarStyle(skill, currentUser.value));
+  } else if (skill && usesProfileIdentity) {
+    avatar.textContent = getSkillAuthorAvatarText(skill, currentUser.value);
+  } else if (skill?.iconDataUrl) {
+    avatar.classList.add('custom-icon');
+    avatar.style.backgroundImage = `url("${skill.iconDataUrl}")`;
+  } else if (skill && ownerLabel) {
+    avatar.textContent = getSkillAuthorAvatarText(skill, currentUser.value);
+  } else {
+    avatar.textContent = displayName.slice(0, 1).toUpperCase();
+  }
 
   const name = document.createElement('span');
   name.className = 'skill-inline-name';
   name.textContent = displayName;
 
-  token.append(avatar, owner, divider, name);
+  if (ownerLabel) {
+    const owner = document.createElement('span');
+    owner.className = 'skill-inline-owner';
+    owner.textContent = ownerLabel;
+
+    const divider = document.createElement('span');
+    divider.className = 'skill-inline-divider';
+    divider.setAttribute('aria-hidden', 'true');
+    divider.textContent = '丨';
+    token.append(avatar, owner, divider, name);
+  } else {
+    token.append(avatar, name);
+  }
   return token;
 };
 
@@ -1680,6 +1740,7 @@ const openSkillCreatorGuide = () => {
 const resetFixedSkillCreatorForm = () => {
   fixedSkillCreatorName.value = '';
   fixedSkillCreatorDescription.value = '';
+  fixedSkillCreatorDetail.value = '';
   fixedSkillCreatorTemplates.value = [];
   fixedSkillCreatorFiles.value = [];
   isFixedSkillCreatorTemplatePicker.value = false;
@@ -1948,6 +2009,11 @@ const createFixedSkillCreatorPrompt = () => {
     lines.push(`技能简介：${description}`);
   }
 
+  const detail = fixedSkillCreatorDetail.value.trim();
+  if (detail) {
+    lines.push(`技能详情：${detail}`);
+  }
+
   if (fixedSkillCreatorTemplates.value.length) {
     lines.push(`关联模板：${serializeFixedSkillCreatorAssets(fixedSkillCreatorTemplates.value)}`);
   }
@@ -1957,7 +2023,7 @@ const createFixedSkillCreatorPrompt = () => {
   }
 
   lines.push(
-    '请使用上述技能名称和技能简介作为技能草稿基础；关联模板仅作为输出结构参考，关联知识库仅作为创建时的知识材料参考。',
+    '请使用上述技能名称、技能简介和技能详情作为技能草稿基础；关联模板仅作为输出结构参考，关联知识库仅作为创建时的知识材料参考。',
   );
 
   return lines.join('\n');
@@ -2203,12 +2269,15 @@ onBeforeUnmount(() => {
     <span v-if="!hasComposerContent" class="chat-editor-placeholder" aria-hidden="true">
       {{ placeholderText() }}
     </span>
+    <span v-else-if="showSkillFollowupHint" class="chat-editor-placeholder skill-followup-hint" aria-hidden="true">
+      {{ skillFollowupHintText }}
+    </span>
     <div
       ref="editorRef"
       class="chat-editor-row"
       role="textbox"
       aria-label="输入内容"
-      :aria-placeholder="placeholderText()"
+      :aria-placeholder="activeEditorPlaceholder"
       aria-multiline="true"
       contenteditable="true"
       spellcheck="false"
@@ -2273,8 +2342,19 @@ onBeforeUnmount(() => {
           <span>技能简介</span>
           <textarea
             v-model="fixedSkillCreatorDescription"
-            rows="2"
+            class="fixed-creator-summary"
+            rows="1"
             placeholder="请输入技能简介"
+          ></textarea>
+        </label>
+
+        <label class="fixed-creator-field">
+          <span>技能详情</span>
+          <textarea
+            v-model="fixedSkillCreatorDetail"
+            class="fixed-creator-detail"
+            rows="2"
+            placeholder="请输入技能详情"
           ></textarea>
         </label>
 
@@ -2857,10 +2937,6 @@ onBeforeUnmount(() => {
       </article>
     </div>
 
-    <p class="composer-delivery-note">
-      <Info :size="16" />
-      <span>交付物展示在输入框下方，不占用输入内容区域。</span>
-    </p>
   </section>
 </template>
 
@@ -2929,6 +3005,13 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
+.skill-followup-hint {
+  top: 54px;
+  color: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  font-size: 14px;
+  line-height: 22px;
+}
+
 .chat-editor-row {
   position: relative;
   z-index: 1;
@@ -2953,30 +3036,30 @@ onBeforeUnmount(() => {
 
 .chat-editor-row :deep(.skill-inline-code) {
   max-width: min(430px, 82vw);
-  min-height: 38px;
+  min-height: 30px;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin: 0 7px;
-  padding: 4px 14px 4px 8px;
+  gap: 6px;
+  margin: 0 4px;
+  padding: 2px 9px 2px 5px;
   overflow: hidden;
-  border: 1px solid #d3dbe8;
-  border-radius: 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
   background: #ffffff;
   color: #111827;
   font-family: inherit;
-  font-size: 16px;
-  font-weight: 660;
-  line-height: 1;
+  font-size: 15px;
+  font-weight: 620;
+  line-height: 1.2;
   vertical-align: middle;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   white-space: nowrap;
   user-select: all;
 }
 
 .chat-editor-row :deep(.skill-inline-avatar) {
-  width: 30px;
-  height: 30px;
+  width: 23px;
+  height: 23px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2987,11 +3070,16 @@ onBeforeUnmount(() => {
     radial-gradient(circle at 50% 36%, #f8fafc 0 20%, transparent 21%),
     radial-gradient(circle at 50% 72%, #e0e7ff 0 32%, transparent 33%),
     linear-gradient(135deg, #dbeafe, #93c5fd);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.14);
   color: #1d4ed8;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1;
+}
+
+.chat-editor-row :deep(.skill-inline-avatar.custom-icon) {
+  background-position: center;
+  background-size: cover;
 }
 
 .chat-editor-row :deep(.skill-inline-owner),
@@ -3091,25 +3179,25 @@ onBeforeUnmount(() => {
 }
 
 .composer-delivery-panel {
-  margin-top: 12px;
-  padding: 24px 28px 22px;
+  margin-top: 8px;
+  padding: 12px 14px;
   border: 1px solid #d7dee9;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--card-bg);
-  box-shadow: 0 3px 14px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
 }
 
 .composer-delivery-header {
   display: flex;
   align-items: baseline;
-  gap: 20px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 10px;
 }
 
 .composer-delivery-header h3 {
   margin: 0;
   color: #111827;
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 800;
   line-height: 1.2;
 }
@@ -3117,41 +3205,41 @@ onBeforeUnmount(() => {
 .composer-delivery-header p {
   margin: 0;
   color: #64748b;
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 500;
   line-height: 1.4;
 }
 
 .composer-delivery-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 8px;
 }
 
 .composer-delivery-card {
   min-width: 0;
-  min-height: 92px;
+  min-height: 46px;
   display: flex;
   align-items: center;
-  gap: 18px;
-  padding: 16px 22px;
+  gap: 10px;
+  padding: 8px 10px;
   border: 1px solid #d7dee9;
-  border-radius: 9px;
+  border-radius: 8px;
   background: #ffffff;
 }
 
 .delivery-file-icon {
   --file-color: #2563eb;
   position: relative;
-  width: 48px;
-  height: 54px;
+  width: 28px;
+  height: 32px;
   display: inline-flex;
   align-items: flex-end;
   justify-content: center;
   flex: 0 0 auto;
-  padding-bottom: 8px;
-  border: 2px solid currentColor;
-  border-radius: 5px;
+  padding-bottom: 5px;
+  border: 1.5px solid currentColor;
+  border-radius: 4px;
   background: color-mix(in srgb, var(--file-color) 8%, #ffffff);
   color: var(--file-color);
 }
@@ -3159,12 +3247,12 @@ onBeforeUnmount(() => {
 .delivery-file-icon::after {
   content: "";
   position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 17px;
-  height: 17px;
-  border-left: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
+  top: -1.5px;
+  right: -1.5px;
+  width: 10px;
+  height: 10px;
+  border-left: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
   background: #ffffff;
   clip-path: polygon(0 0, 100% 100%, 0 100%);
 }
@@ -3172,15 +3260,15 @@ onBeforeUnmount(() => {
 .delivery-file-icon span {
   position: relative;
   z-index: 1;
-  width: 26px;
-  height: 24px;
+  width: 16px;
+  height: 15px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 3px;
   background: var(--file-color);
   color: #ffffff;
-  font-size: 15px;
+  font-size: 10px;
   font-weight: 800;
   line-height: 1;
 }
@@ -3196,7 +3284,7 @@ onBeforeUnmount(() => {
 .delivery-file-copy {
   min-width: 0;
   display: grid;
-  gap: 9px;
+  gap: 4px;
 }
 
 .delivery-file-copy strong,
@@ -3209,31 +3297,16 @@ onBeforeUnmount(() => {
 
 .delivery-file-copy strong {
   color: #111827;
-  font-size: 19px;
+  font-size: 13px;
   font-weight: 800;
   line-height: 1.2;
 }
 
 .delivery-file-copy small {
   color: #64748b;
-  font-size: 15px;
+  font-size: 11px;
   font-weight: 500;
   line-height: 1.2;
-}
-
-.composer-delivery-note {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 22px 0 0;
-  color: #64748b;
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.composer-delivery-note svg {
-  flex: 0 0 auto;
 }
 
 .left-actions {
@@ -3649,6 +3722,14 @@ onBeforeUnmount(() => {
 .fixed-creator-field textarea {
   min-height: 66px;
   resize: vertical;
+}
+
+.fixed-creator-field textarea.fixed-creator-summary {
+  min-height: 39px;
+}
+
+.fixed-creator-field textarea.fixed-creator-detail {
+  min-height: 66px;
 }
 
 .fixed-creator-field input::placeholder,
@@ -4537,16 +4618,16 @@ onBeforeUnmount(() => {
 
   .chat-editor-row :deep(.skill-inline-code) {
     max-width: min(100%, calc(100vw - 52px));
-    min-height: 36px;
-    gap: 8px;
-    margin: 2px 3px;
-    padding: 4px 10px 4px 6px;
-    font-size: 15px;
+    min-height: 29px;
+    gap: 6px;
+    margin: 1px 3px;
+    padding: 2px 8px 2px 5px;
+    font-size: 14px;
   }
 
   .chat-editor-row :deep(.skill-inline-avatar) {
-    width: 28px;
-    height: 28px;
+    width: 22px;
+    height: 22px;
   }
 
   .chat-editor-row :deep(.skill-inline-name) {
@@ -4554,33 +4635,33 @@ onBeforeUnmount(() => {
   }
 
   .composer-delivery-panel {
-    margin-top: 10px;
-    padding: 18px 16px;
+    margin-top: 8px;
+    padding: 12px;
   }
 
   .composer-delivery-header {
     display: grid;
-    gap: 6px;
-    margin-bottom: 14px;
+    gap: 4px;
+    margin-bottom: 10px;
   }
 
   .composer-delivery-header h3 {
-    font-size: 18px;
+    font-size: 15px;
   }
 
   .composer-delivery-grid {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 8px;
   }
 
   .composer-delivery-card {
-    min-height: 78px;
-    gap: 14px;
-    padding: 13px 14px;
+    min-height: 54px;
+    gap: 10px;
+    padding: 9px 10px;
   }
 
   .delivery-file-copy strong {
-    font-size: 17px;
+    font-size: 14px;
   }
 
   .input-actions {

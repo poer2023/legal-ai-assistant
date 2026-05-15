@@ -21,6 +21,7 @@ export type MockUser = {
   phone: string;
   displayName: string;
   avatarText: string;
+  avatarDataUrl?: string;
 };
 
 type OrgSessionState = {
@@ -48,6 +49,9 @@ const maskPhone = (phone: string) => {
 };
 
 const avatarTextForPhone = (phone: string) => phone.slice(-2) || '用';
+
+const avatarTextForName = (displayName: string, phone: string) =>
+  displayName.trim().slice(0, 1).toUpperCase() || avatarTextForPhone(phone);
 
 const createUser = (phone: string): MockUser => ({
   id: `user-${phone}`,
@@ -133,6 +137,7 @@ const readSession = (): OrgSessionState => {
         phone: user.phone,
         displayName: user.displayName,
         avatarText: typeof user.avatarText === 'string' ? user.avatarText : avatarTextForPhone(user.phone),
+        avatarDataUrl: typeof user.avatarDataUrl === 'string' ? user.avatarDataUrl : undefined,
       },
       organizations,
       currentOrganizationId: organizations.some((org) => org.id === currentOrganizationId)
@@ -227,6 +232,24 @@ export const useOrgSession = () => {
     return true;
   };
 
+  const updateUserProfile = (profile: { displayName: string; avatarDataUrl?: string }) => {
+    if (!state.value.user) return false;
+
+    const displayName = profile.displayName.trim() || state.value.user.displayName;
+    const avatarDataUrl = profile.avatarDataUrl?.trim();
+    state.value = {
+      ...state.value,
+      user: {
+        ...state.value.user,
+        displayName,
+        avatarText: avatarTextForName(displayName, state.value.user.phone),
+        avatarDataUrl: avatarDataUrl || undefined,
+      },
+    };
+    persistSession();
+    return true;
+  };
+
   const logout = () => {
     state.value = emptyState();
     persistSession();
@@ -244,5 +267,6 @@ export const useOrgSession = () => {
     normalizePhone,
     removeOrganization,
     selectOrganization,
+    updateUserProfile,
   };
 };

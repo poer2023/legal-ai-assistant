@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import {
   ChevronDown,
   Copy,
   Mic,
   MoreHorizontal,
-  Network,
   Plus,
   Search,
   Send,
@@ -15,8 +14,17 @@ import {
 } from 'lucide-vue-next';
 
 type FileKind = 'pdf' | 'word' | 'markdown' | 'sheet' | 'slide';
+type LibraryScope = 'team' | 'personal' | 'hidden' | 'group';
 
 const folders = ['企业并购', '知识产权', '未成年儿童保护', '民政部', '法律类案', '123', '测试'];
+
+const groupLibraries = [
+  { id: 'corporate', name: '公司业务组', count: 6, folders: ['并购项目', '股权激励', '投融资', '治理合规'] },
+  { id: 'dispute', name: '争议解决组', count: 5, folders: ['类案检索', '证据材料', '诉讼策略', '执行线索'] },
+  { id: 'compliance', name: '合规风控组', count: 4, folders: ['数据合规', '广告合规', '内控制度', '监管问询'] },
+  { id: 'labor', name: '劳动用工组', count: 3, folders: ['员工手册', '竞业限制', '用工争议', '社保福利'] },
+];
+const defaultGroupLibrary = groupLibraries[0]!;
 
 const files: Array<{
   id: number;
@@ -43,6 +51,83 @@ const files: Array<{
   { id: 14, title: '示例演示_200字.pptx', size: '28.96KB', words: '0.01万字', owner: '创建者', kind: 'slide', compactActions: true },
   { id: 15, title: 'die religionsgesprache der reformationszeit -- herausgegeben von gerhard muller.pdf', size: '9.36MB', words: '15.50万字', owner: '1111', kind: 'pdf', compactActions: true },
 ];
+
+const selectedLibraryScope = ref<LibraryScope>('team');
+const selectedGroupId = ref(defaultGroupLibrary.id);
+
+const libraryModeCopy: Record<LibraryScope, {
+  name: string;
+  searchPlaceholder: string;
+  composerPlaceholder: string;
+}> = {
+  team: {
+    name: '团队知识库',
+    searchPlaceholder: '搜索团队文件名、文件夹名称',
+    composerPlaceholder: '对团队知识库进行提问',
+  },
+  personal: {
+    name: '个人知识库',
+    searchPlaceholder: '搜索个人文件名、文件夹名称',
+    composerPlaceholder: '对个人知识库进行提问',
+  },
+  hidden: {
+    name: '隐藏知识库',
+    searchPlaceholder: '搜索隐藏文件名、文件夹名称',
+    composerPlaceholder: '对隐藏知识库进行提问',
+  },
+  group: {
+    name: '小组知识库',
+    searchPlaceholder: '搜索小组文件名、文件夹名称',
+    composerPlaceholder: '对小组知识库进行提问',
+  },
+};
+
+const libraryScopeTabs = computed(() => [
+  { key: 'team' as const, name: libraryModeCopy.team.name, count: files.length },
+  { key: 'personal' as const, name: libraryModeCopy.personal.name, count: 8 },
+  { key: 'hidden' as const, name: libraryModeCopy.hidden.name, count: 3 },
+  {
+    key: 'group' as const,
+    name: libraryModeCopy.group.name,
+    count: groupLibraries.reduce((total, group) => total + group.count, 0),
+  },
+]);
+
+const activeGroup = computed(() =>
+  groupLibraries.find((group) => group.id === selectedGroupId.value) ?? defaultGroupLibrary
+);
+
+const activeLibraryCopy = computed(() => libraryModeCopy[selectedLibraryScope.value]);
+const visibleFolders = computed(() => {
+  if (selectedLibraryScope.value === 'group') return activeGroup.value.folders;
+  if (selectedLibraryScope.value === 'personal') return ['我的合同库', '个人类案', '常用法规', '写作素材', '收藏文件'];
+  if (selectedLibraryScope.value === 'hidden') return ['保密项目', '敏感底稿', '内部审批'];
+  return folders;
+});
+const visibleFiles = computed(() => {
+  if (selectedLibraryScope.value === 'personal') return files.slice(0, 8);
+  if (selectedLibraryScope.value === 'hidden') return files.slice(2, 5);
+  if (selectedLibraryScope.value === 'group') {
+    const groupIndex = Math.max(0, groupLibraries.findIndex((group) => group.id === activeGroup.value.id));
+    const start = (groupIndex * 3) % files.length;
+    return files.slice(start, start + activeGroup.value.count);
+  }
+  return files;
+});
+const searchPlaceholder = computed(() =>
+  selectedLibraryScope.value === 'group'
+    ? `搜索${activeGroup.value.name}文件名、文件夹名称`
+    : activeLibraryCopy.value.searchPlaceholder
+);
+const composerPlaceholder = computed(() =>
+  selectedLibraryScope.value === 'group'
+    ? `对${activeGroup.value.name}知识库进行提问`
+    : activeLibraryCopy.value.composerPlaceholder
+);
+
+const setLibraryScope = (scope: LibraryScope) => {
+  selectedLibraryScope.value = scope;
+};
 
 const kindLabel: Record<FileKind, string> = {
   pdf: 'PDF',
@@ -71,38 +156,61 @@ const referenceSources = [
 <template>
   <div class="knowledge-page" :class="{ 'with-source-drawer': isReferenceDrawerOpen }">
     <section class="library-section">
-      <header class="library-header">
-        <div class="title-line">
-          <span class="title-icon-wrap">
-            <Network :size="26" />
-          </span>
-          <h2>团队知识库</h2>
-        </div>
-        <button class="add-button">
-          <Plus :size="18" />
-          <span>添加文件</span>
-          <ChevronDown :size="16" />
-        </button>
-      </header>
-
       <div class="library-body">
+        <div class="library-switcher">
+          <nav class="library-tabs" aria-label="知识库类型">
+            <button
+              v-for="tab in libraryScopeTabs"
+              :key="tab.key"
+              class="library-tab"
+              :class="{ active: selectedLibraryScope === tab.key }"
+              type="button"
+              @click="setLibraryScope(tab.key)"
+            >
+              <span>{{ tab.name }}</span>
+              <strong>{{ tab.count }}</strong>
+            </button>
+          </nav>
+
+          <nav v-if="selectedLibraryScope === 'group'" class="group-tabs" aria-label="小组知识库">
+            <button
+              v-for="group in groupLibraries"
+              :key="group.id"
+              class="group-tab"
+              :class="{ active: selectedGroupId === group.id }"
+              type="button"
+              @click="selectedGroupId = group.id"
+            >
+              <span>{{ group.name }}</span>
+              <strong>{{ group.count }}</strong>
+            </button>
+          </nav>
+        </div>
+
         <div class="search-row">
           <label class="library-search">
-            <Search :size="22" />
-            <input type="text" placeholder="搜索文件名、文件夹名称" />
+            <span class="search-icon-shell">
+              <Search :size="19" />
+            </span>
+            <input type="text" :placeholder="searchPlaceholder" />
             <button class="search-button">搜索</button>
           </label>
+          <button class="add-button">
+            <Plus :size="18" />
+            <span>添加文件</span>
+            <ChevronDown :size="16" />
+          </button>
         </div>
 
         <div class="folder-row">
-          <button v-for="folder in folders" :key="folder" class="folder-card">
+          <button v-for="folder in visibleFolders" :key="folder" class="folder-card">
             <span class="folder-icon" aria-hidden="true"></span>
             <span>{{ folder }}</span>
           </button>
         </div>
 
         <div class="file-list">
-          <article v-for="file in files" :key="file.id" class="file-row">
+          <article v-for="file in visibleFiles" :key="file.id" class="file-row">
             <span class="file-type" :class="`file-type-${file.kind}`">{{ kindLabel[file.kind] }}</span>
             <h3>{{ file.title }}</h3>
             <div class="file-meta">
@@ -295,7 +403,7 @@ const referenceSources = [
         <button>↻ 提问记录</button>
       </div>
       <div class="qa-composer">
-        <textarea placeholder="对团队知识库进行提问"></textarea>
+        <textarea :placeholder="composerPlaceholder"></textarea>
         <div class="composer-actions">
           <button aria-label="语音输入"><Mic :size="21" /></button>
           <button class="send-button" aria-label="发送">
@@ -359,58 +467,23 @@ const referenceSources = [
   background: var(--primary-soft);
 }
 
-.library-header {
-  height: 78px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 14px 16px 14px 17px;
-  background: var(--primary-soft);
-}
-
-.title-line {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.title-icon-wrap {
-  width: 48px;
-  height: 48px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border-radius: 999px;
-  color: var(--primary-color);
-  background: var(--card-bg);
-}
-
-.title-line h2 {
-  margin: 0;
-  color: var(--primary-color);
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 1.2;
-  white-space: nowrap;
-}
-
 .add-button {
-  height: 33px;
-  min-width: 136px;
+  height: var(--knowledge-control-height, 36px);
+  min-width: 116px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 13px;
-  border-radius: 8px;
-  background: var(--primary-color);
+  padding: 0 12px;
+  border-radius: 9px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-color) 96%, white) 0%, var(--primary-color) 100%);
   color: var(--on-primary);
   font-size: 14px;
   font-weight: 700;
-  box-shadow: 0 1px 0 rgba(10, 33, 90, 0.08);
+  box-shadow:
+    0 5px 12px color-mix(in srgb, var(--primary-color) 14%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .library-body {
@@ -422,22 +495,189 @@ const referenceSources = [
   background: var(--primary-soft);
 }
 
+.library-switcher {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-right: 16px;
+}
+
+.library-tabs,
+.group-tabs {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.library-tabs::-webkit-scrollbar,
+.group-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.library-tabs {
+  gap: 10px;
+}
+
+.group-tabs {
+  gap: 8px;
+  min-height: 32px;
+}
+
+.library-tab,
+.group-tab {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.library-tab {
+  position: relative;
+  height: 36px;
+  gap: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 650;
+  border: 1px solid transparent;
+}
+
+.library-tab span,
+.group-tab span {
+  white-space: nowrap;
+}
+
+.library-tab strong {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.library-tab:hover {
+  color: var(--primary-hover);
+}
+
+.library-tab.active {
+  border-color: color-mix(in srgb, var(--primary-color) 36%, var(--border-color));
+  gap: 8px;
+  padding: 0 12px 0 18px;
+  color: var(--primary-hover);
+  background: var(--primary-soft-strong);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 18%, transparent),
+    0 4px 10px color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+.library-tab.active::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+.library-tab.active strong {
+  min-width: 22px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--primary-hover);
+  background: var(--card-bg);
+}
+
+.group-tab {
+  height: 30px;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.group-tab strong {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.group-tab:hover,
+.group-tab.active {
+  border-color: var(--primary-border);
+  color: var(--primary-hover);
+  background: var(--card-bg);
+}
+
+.group-tab.active {
+  background: var(--primary-soft-strong);
+}
+
 .search-row {
+  --knowledge-control-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin-bottom: 16px;
   padding-right: 16px;
 }
 
 .library-search {
-  height: 47px;
+  height: var(--knowledge-control-height);
+  min-width: 0;
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-left: 14px;
-  border: 1.5px solid var(--primary-color);
-  border-radius: 10px;
-  color: var(--primary-color);
-  background: var(--card-bg);
+  gap: 8px;
+  padding: 4px 4px 4px 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--card-bg) 88%, var(--primary-soft));
+  box-shadow: none;
   overflow: hidden;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.library-search:focus-within {
+  border-color: color-mix(in srgb, var(--primary-color) 42%, var(--border-color));
+  background: var(--card-bg);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--primary-color) 9%, transparent);
+}
+
+.search-icon-shell {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
 }
 
 .library-search input {
@@ -445,7 +685,7 @@ const referenceSources = [
   min-width: 0;
   height: 100%;
   color: var(--text-main);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 500;
 }
 
@@ -454,13 +694,21 @@ const referenceSources = [
 }
 
 .search-button {
-  align-self: stretch;
-  width: 60px;
+  align-self: center;
+  width: 54px;
+  height: 28px;
   flex-shrink: 0;
-  background: var(--primary-color);
-  color: var(--on-primary);
-  font-size: 14px;
-  font-weight: 800;
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.search-button:hover {
+  background: var(--primary-soft);
+  color: var(--primary-color);
 }
 
 .folder-row {

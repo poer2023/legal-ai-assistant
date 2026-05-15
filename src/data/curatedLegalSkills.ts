@@ -1,4 +1,5 @@
 import type { SkillCatalogItem, SkillFile, SkillFileType } from './skillCatalog';
+import { getMockSkillAuthor } from './mockSkillAuthors';
 
 type SkillBlueprint = {
   id: string;
@@ -421,14 +422,21 @@ const blueprints: SkillBlueprint[] = [
   },
 ];
 
-export const curatedLegalSkills: SkillCatalogItem[] = blueprints.map((skill) => ({
-  id: skill.id,
-  name: skill.name,
-  description: skill.description,
-  category: skill.category,
-  routeName: 'chat',
-  tags: skill.tags,
-  files: createFiles(skill),
-  source: 'recommended',
-  status: 'active',
-}));
+export const curatedLegalSkills: SkillCatalogItem[] = blueprints.map((skill) => {
+  const author = getMockSkillAuthor(skill.id);
+
+  return {
+    id: skill.id,
+    name: skill.name,
+    description: skill.description,
+    category: skill.category,
+    routeName: 'chat',
+    tags: skill.tags,
+    files: createFiles(skill),
+    source: 'recommended',
+    status: 'active',
+    publisherName: author.name,
+    publisherAvatarUrl: author.avatarUrl,
+    useProfileIdentity: false,
+  };
+});

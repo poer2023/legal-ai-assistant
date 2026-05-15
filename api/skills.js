@@ -201,10 +201,22 @@ const toClientSkill = (row, organizationId) => ({
   source: 'custom',
   scope: row.scope === 'team' ? 'team' : 'personal',
   status: row.status === 'draft' ? 'draft' : 'active',
+  iconDataUrl: row.icon_data_url || undefined,
+  publisherName: row.publisher_name || undefined,
+  publisherAvatarUrl: row.publisher_avatar_url || undefined,
+  useProfileIdentity: typeof row.use_profile_identity === 'boolean' ? row.use_profile_identity : true,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   lastUsedAt: row.last_used_at || undefined,
   usageCount: typeof row.usage_count === 'number' ? row.usage_count : 0,
+});
+
+const withLocalPresentationFields = (row, payload) => ({
+  ...row,
+  icon_data_url: normalizeText(payload.iconDataUrl) || null,
+  publisher_name: normalizeText(payload.publisherName) || null,
+  publisher_avatar_url: normalizeText(payload.publisherAvatarUrl) || null,
+  use_profile_identity: typeof payload.useProfileIdentity === 'boolean' ? payload.useProfileIdentity : true,
 });
 
 const toStorageRow = (payload, organizationId) => {
@@ -287,7 +299,7 @@ const upsertSkill = async (payload, organizationId) => {
       throw createStorageError('线上技能持久化缺少 Supabase 服务端环境变量');
     }
 
-    const localRow = await upsertLocalRow(row);
+    const localRow = await upsertLocalRow(withLocalPresentationFields(row, payload));
     return toClientSkill(localRow, organizationId);
   }
 
@@ -305,15 +317,16 @@ const upsertSkill = async (payload, organizationId) => {
       throw createStorageError('Supabase 技能持久化失败', error);
     }
 
-    const localRow = await upsertLocalRow(row);
+    const localRow = await upsertLocalRow(withLocalPresentationFields(row, payload));
     return toClientSkill(localRow, organizationId);
   }
 
   const storedRow = Array.isArray(rows) ? rows[0] : rows;
+  const clientRow = withLocalPresentationFields(storedRow || row, payload);
   if (canWriteLocalSkills()) {
-    await upsertLocalRow(storedRow || row).catch(() => null);
+    await upsertLocalRow(clientRow).catch(() => null);
   }
-  return toClientSkill(storedRow || row, organizationId);
+  return toClientSkill(clientRow, organizationId);
 };
 
 const deleteSkill = async (id, organizationId) => {

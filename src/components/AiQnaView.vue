@@ -72,6 +72,8 @@ type ChatArtifact = {
 type SkillPublishVisibility = 'personal' | 'group' | 'team';
 type ShareablePublishVisibility = Exclude<SkillPublishVisibility, 'personal'>;
 
+const deprecatedMockHistoryIds = new Set(['mock-docx-nda', 'mock-nda-default']);
+
 type SkillPublishPermissionSettings = {
   allowCopy: boolean;
   allowRemix: boolean;
@@ -321,6 +323,46 @@ const hideSkillCreatorArtifactList = (content: string) => {
   return `${content.slice(0, listStart).trimEnd()}\n\n${rest.trimStart()}`;
 };
 
+const stripSkillCreatorProcessNarrative = (content: string) => {
+  const generatedHeading = content.match(/^##\s*2\.\s*生成技能\s*$/im);
+  if (generatedHeading?.index !== undefined) {
+    return content.slice(generatedHeading.index);
+  }
+
+  const firstArtifactHeading = generatedArtifactHeadingGlobalPattern.exec(content);
+  generatedArtifactHeadingGlobalPattern.lastIndex = 0;
+  return firstArtifactHeading?.index === undefined ? content : content.slice(firstArtifactHeading.index);
+};
+
+const formatSkillCreatorProcessContent = (content: string): string => {
+  let text = normalizeGeneratedArtifactBoundaries(content.replace(/\r\n/g, '\n'));
+  const generationStart = text.search(/<generation_markdown>/i);
+  if (generationStart >= 0) {
+    text = text.slice(generationStart).replace(/^<generation_markdown>/i, '');
+  }
+
+  text = text
+    .replace(/<\/generation_markdown>/ig, '')
+    .replace(/\n*##\s*4\.\s*待系统解析[\s\S]*?(?=<skill_json>|$)/i, '');
+
+  while (true) {
+    const jsonStart = text.search(/<skill_json>/i);
+    if (jsonStart < 0) break;
+
+    const beforeJson = text.slice(0, jsonStart);
+    const rest = text.slice(jsonStart);
+    const endMatch = rest.match(/<\/skill_json>/i);
+    if (!endMatch) {
+      text = beforeJson;
+      break;
+    }
+
+    text = beforeJson + rest.slice((endMatch.index ?? 0) + endMatch[0].length);
+  }
+
+  return hideSkillCreatorArtifactList(text.trimStart());
+};
+
 const formatSkillCreatorDisplayContent = (content: string): string => {
   let text = normalizeGeneratedArtifactBoundaries(content.replace(/\r\n/g, '\n'));
   const trimmed = text.trimStart().toLowerCase();
@@ -363,7 +405,7 @@ const formatSkillCreatorDisplayContent = (content: string): string => {
     text = text.slice(0, partialSkillJsonStart.index);
   }
 
-  return hideSkillCreatorArtifactList(text.trimStart());
+  return stripSkillCreatorProcessNarrative(hideSkillCreatorArtifactList(text.trimStart()).trimStart());
 };
 
 const extractCreatedSkillIdFromContent = (content: string): string => {
@@ -636,6 +678,133 @@ const renderArtifactCardHtml = (artifact: ChatArtifact): string => {
     '</span>',
     '<span class="artifact-card-kind">预览</span>',
     '</button>',
+  ].join('');
+};
+
+const isOutputArtifact = (artifact: ChatArtifact) =>
+  /(^|[/_.-])(output|outputs|pattern|patterns|template|report|draft|document)([/_.-]|$)/i.test(artifact.title);
+
+const isReferenceArtifact = (artifact: ChatArtifact) =>
+  /(^|[/_.-])(reference|references|checklist|rules|guardrails|intake|schema|prompt|prompts)([/_.-]|$)/i.test(artifact.title)
+  || /^SKILL\.md$/i.test(artifact.title) === false && /说明|规则|清单|约束|输入/.test(artifact.summary);
+
+const getSkillArtifactTypeMeta = (artifact: ChatArtifact) => {
+  if (/^SKILL\.md$/i.test(artifact.title)) {
+    return { label: '主入口', className: 'main', description: '技能说明与调用规则', presentation: 'plain' };
+  }
+  if (isOutputArtifact(artifact)) {
+    return { label: '模板类', className: 'template', description: '定义最终交付物结构', presentation: 'card' };
+  }
+  if (isReferenceArtifact(artifact)) {
+    return { label: '规则类', className: 'rule', description: '补充输入、检查或边界规则', presentation: 'plain' };
+  }
+  return { label: '支持文件', className: 'support', description: '技能运行所需的辅助内容', presentation: 'plain' };
+};
+
+const renderSkillArtifactPlainFileHtml = (artifact: ChatArtifact): string => {
+  const typeMeta = getSkillArtifactTypeMeta(artifact);
+  const iconLabel = typeMeta.className === 'rule' ? '规' : typeMeta.className === 'main' ? '入' : '文';
+  return [
+    `<button type="button" class="skill-file-link ${escapeAttribute(typeMeta.className)}" data-artifact-id="${escapeAttribute(artifact.id)}">`,
+    `<span class="skill-plain-file-icon" aria-hidden="true">${escapeHtml(iconLabel)}</span>`,
+    '<span>',
+    `<strong>${escapeHtml(artifact.title)}</strong>`,
+    '</span>',
+    '<span class="skill-file-action">查看</span>',
+    '</button>',
+  ].join('');
+};
+
+const renderSkillArtifactCardHtml = (artifact: ChatArtifact): string => {
+  const fileMeta = getArtifactFileMeta(artifact);
+  return [
+    `<button type="button" class="skill-template-file-card" data-artifact-id="${escapeAttribute(artifact.id)}">`,
+    '<span class="skill-template-file-icon" aria-hidden="true">',
+    `<span class="artifact-file-icon ${escapeAttribute(fileMeta.className)}"><span>${escapeHtml(fileMeta.label)}</span></span>`,
+    '</span>',
+    '<span class="skill-template-file-main">',
+    `<small>输出模板文件</small>`,
+    `<strong>${escapeHtml(artifact.title)}</strong>`,
+    '</span>',
+    '<span class="skill-file-action primary">查看</span>',
+    '</button>',
+  ].join('');
+};
+
+const renderSkillCreatorFileListHtml = (artifacts: ChatArtifact[]) => {
+  if (!artifacts.length) return '<p class="live-answer-paragraph">正在生成技能文件...</p>';
+
+  const sections: Array<{
+    key: string;
+    label: string;
+    description: string;
+    className: string;
+    presentation: string;
+    artifacts: ChatArtifact[];
+  }> = [];
+
+  artifacts.forEach((artifact) => {
+    const typeMeta = getSkillArtifactTypeMeta(artifact);
+    let section = sections.find((item) => item.key === typeMeta.className);
+    if (!section) {
+      section = {
+        key: typeMeta.className,
+        label: typeMeta.label,
+        description: typeMeta.description,
+        className: typeMeta.className,
+        presentation: typeMeta.presentation,
+        artifacts: [],
+      };
+      sections.push(section);
+    }
+    section.artifacts.push(artifact);
+  });
+
+  return sections.map((section, index) => {
+    const fileHtml = section.artifacts
+      .map((artifact) =>
+        section.presentation === 'card'
+          ? renderSkillArtifactCardHtml(artifact)
+          : renderSkillArtifactPlainFileHtml(artifact),
+      )
+      .join('');
+
+    return [
+      `<section class="skill-file-section ${escapeAttribute(section.className)}">`,
+      '<div class="skill-file-section-heading">',
+      `<span>${index + 1}.</span>`,
+      `<strong>${escapeHtml(section.label)}</strong>`,
+      `<small>${escapeHtml(section.description)}</small>`,
+      '</div>',
+      `<div class="skill-file-section-body">${fileHtml}</div>`,
+      '</section>',
+    ].join('');
+  }).join('');
+};
+
+const renderSkillCreatorSummaryMarkdown = (skill: SkillCatalogItem | null, artifacts: ChatArtifact[]) => {
+  const skillName = skill?.name || createdSkillIdFromAnswer.value || '新技能';
+  const skillId = skill?.id || createdSkillIdFromAnswer.value;
+  const usageLine = skillId
+    ? `后续可以在「技能」弹窗或技能管理页查看和编辑；需要共享时可到技能管理中发布；启用后可在输入框输入 \`/${skillId}\` 调用。`
+    : '后续可以在「技能」弹窗或技能管理页查看和编辑；需要共享时可到技能管理中发布；启用后可在输入框中通过技能名调用。';
+
+  return [
+    `已生成「${skillName}」技能。`,
+    '',
+    '生成文件：',
+    '',
+    usageLine,
+  ].join('\n');
+};
+
+const renderSkillCreatorSummaryHtml = (skill: SkillCatalogItem | null, artifacts: ChatArtifact[]) => {
+  const [intro = '', outro = ''] = renderSkillCreatorSummaryMarkdown(skill, artifacts).split(/\n生成文件：\n/);
+
+  return [
+    renderMarkdownBlocks(`${intro.trim()}\n\n生成文件：`),
+    `<div class="skill-result-file-list" aria-label="生成文件">${renderSkillCreatorFileListHtml(artifacts)}</div>`,
+    renderMarkdownBlocks(outro.trim()),
   ].join('');
 };
 
@@ -920,7 +1089,7 @@ const inferSkillCreatorAnswers = (prompt: string): SkillCreatorAnswers => {
 
 const renderCreatedSkillAnswer = (skill: SkillCatalogItem) => [
   `技能草稿已生成：${skill.name}`,
-  `当前发布范围：${skill.scope === 'team' ? '本团队' : '仅自己'}。可在右侧「发布设置」中修改名称、图标、描述和复制权限；启用技能后可输入 \`/${skill.id}\` 调用。`,
+  `当前保存范围：${skill.scope === 'team' ? '本团队' : '仅自己'}。右侧仅展示生成文件内容；启用技能后可输入 \`/${skill.id}\` 调用。`,
   `技能 ID：${skill.id}`,
 ].join('\n');
 
@@ -1113,11 +1282,15 @@ const generatedArtifacts = computed(() => {
     generatedOnly: isSkillCreatorConversation.value,
   });
 });
+const skillCreatorSummaryContent = computed(() =>
+  isSkillCreatorConversation.value
+    ? renderSkillCreatorSummaryMarkdown(skillCompletionSkill.value, generatedArtifacts.value)
+    : ''
+);
 const liveAnswerHtml = computed(() =>
-  renderLiveAnswerMarkdown(
-    renderableAnswerContent.value,
-    isSkillCreatorConversation.value ? generatedArtifacts.value : [],
-  ),
+  isSkillCreatorConversation.value
+    ? renderSkillCreatorSummaryHtml(skillCompletionSkill.value, generatedArtifacts.value)
+    : renderLiveAnswerMarkdown(renderableAnswerContent.value),
 );
 const hasLiveThinking = computed(() =>
   isSkillCreatorConversation.value
@@ -1142,21 +1315,26 @@ const shouldShowSkillGenerationStatus = computed(() =>
   && skillValidationStatus.value === 'idle'
 );
 const liveThinkingLabel = computed(() =>
-  isLiveThinkingStreaming.value ? '正在思考' : '思考过程'
+  isSkillCreatorConversation.value
+    ? isLiveThinkingStreaming.value ? '正在创建' : '创建过程'
+    : isLiveThinkingStreaming.value ? '正在思考' : '思考过程'
 );
 const liveThinkingHint = computed(() => {
-  if (isLiveThinkingStreaming.value) return '正在思考';
-  if (isLiveThinkingExpanded.value) return '收起思考过程';
-  if (liveThinkingContent.value.trim()) return '点击展开查看完整思考内容';
-  return isGeneratingAnswer.value ? '点击展开查看流式思考内容' : '本次历史暂未保存思考内容';
+  const processName = isSkillCreatorConversation.value ? '创建过程' : '思考过程';
+  if (isLiveThinkingStreaming.value) return isSkillCreatorConversation.value ? '正在创建' : '正在思考';
+  if (isLiveThinkingExpanded.value) return `收起${processName}`;
+  if (liveThinkingContent.value.trim()) return `点击展开查看完整${processName}`;
+  return isGeneratingAnswer.value ? `点击展开查看流式${processName}` : `本次历史暂未保存${processName}`;
 });
 const liveThinkingBodyHtml = computed(() =>
   renderLiveAnswerMarkdown(
     liveThinkingContent.value.trim()
       ? liveThinkingContent.value
+      : isSkillCreatorConversation.value && generatedAnswer.value.trim()
+        ? formatSkillCreatorProcessContent(generatedAnswer.value)
       : isGeneratingAnswer.value
-        ? '正在等待模型返回思考内容...'
-        : '这条历史没有保存到思考过程；后续生成会自动保留。',
+        ? `正在等待模型返回${isSkillCreatorConversation.value ? '创建过程' : '思考内容'}...`
+        : `这条历史没有保存到${isSkillCreatorConversation.value ? '创建过程' : '思考过程'}；后续生成会自动保留。`,
   )
 );
 
@@ -1185,7 +1363,7 @@ const skillCompletionIsEnabled = computed(() =>
   skillCompletionSkill.value ? isSkillEnabled(skillCompletionSkill.value) : false
 );
 const canShowSkillPublishSettings = computed(() =>
-  isSkillCreatorConversation.value && Boolean(skillCompletionSkill.value)
+  false
 );
 const currentPublishVisibility = computed(() =>
   publishVisibilityOptions.find((option) => option.id === publishSettings.value.visibility)
@@ -1491,10 +1669,11 @@ const syncConversationRoute = (historyId: string, prompt: string) => {
   if (route.query.historyId === historyId && route.query.prompt === normalizedPrompt) return;
 
   handledRoutePromptKey.value = `${historyId}:${normalizedPrompt}`;
+  const { mock: _mock, ...query } = route.query;
   void router.replace({
     name: 'chat',
     query: {
-      ...route.query,
+      ...query,
       prompt: normalizedPrompt,
       historyId,
     },
@@ -1705,6 +1884,7 @@ const completeLiveConversation = async (
             if (content.trim()) {
               isLiveThinkingExpanded.value = false;
             }
+            liveThinkingContent.value = content;
             syncAnswerContent(content);
             scheduleLiveOutputScroll('answer', 'artifact');
           },
@@ -1722,6 +1902,7 @@ const completeLiveConversation = async (
             if (!generatedAnswer.value.trim()) {
               isLiveThinkingExpanded.value = false;
             }
+            liveThinkingContent.value += token;
             appendAnswerToken(token);
             scheduleLiveOutputScroll('answer', 'artifact');
           },
@@ -1729,6 +1910,7 @@ const completeLiveConversation = async (
             isLiveThinkingExpanded.value = false;
             skillValidationStatus.value = payload.status;
             skillValidationMessage.value = payload.message || '正在校验技能完整度。';
+            liveThinkingContent.value += `\n\n系统校验：${skillValidationMessage.value}`;
             scheduleLiveOutputScroll('answer', 'artifact');
           },
         },
@@ -1768,7 +1950,7 @@ const completeLiveConversation = async (
       activeCreatedSkillId.value = verifiedSkill.id;
       syncPublishSettingsFromSkill(verifiedSkill);
       skillValidationStatus.value = 'complete';
-      skillValidationMessage.value = '技能完整度校验通过，已保存为个人草稿，可继续配置后发布。';
+      skillValidationMessage.value = '技能完整度校验通过，已保存为个人草稿，可在右侧查看生成文件。';
 
       const streamedContent = result.answerContent.trim();
       const resultContent = streamedContent || renderCreatedSkillAnswer(verifiedSkill);
@@ -1776,7 +1958,7 @@ const completeLiveConversation = async (
       answerModel.value = result.model || answerModel.value;
       isGeneratingAnswer.value = false;
       syncAnswerContent(resultContent);
-      void nextTick(openSkillPublishSettings);
+      void nextTick(openFirstGeneratedArtifact);
 
       const cachedItem = updateConversationAnswer(activeHistoryId.value || historyItem?.id, prompt, {
         content: resultContent,
@@ -1870,7 +2052,11 @@ const completeLiveConversation = async (
 const submitComposer = () => {
   if (!hasComposerContent.value) return;
 
-  void completeLiveConversation(inputValue.value.trim() || reportMock.userPrompt);
+  const nextPrompt = inputValue.value.trim()
+    || (selectedTemplate.value ? createTemplatePrompt(selectedTemplate.value) : '');
+  if (!nextPrompt) return;
+
+  void completeLiveConversation(nextPrompt);
 };
 
 const submitSharedComposer = (value: string, options?: { thinkingMode?: string }) => {
@@ -1884,26 +2070,14 @@ const submitSharedComposer = (value: string, options?: { thinkingMode?: string }
   void completeLiveConversation(nextValue);
 };
 
-const openDocxMock = (prompt?: string, historyId?: string) => {
-  const nextPrompt = prompt?.trim() || reportMock.userPrompt;
-  completeMockConversation(nextPrompt, !historyId, historyId);
-};
-
 const openRoutePrompt = async () => {
   await loadHistory();
-
-  if (route.query.mock === 'docx') {
-    openDocxMock(
-      typeof route.query.prompt === 'string' ? route.query.prompt : undefined,
-      typeof route.query.historyId === 'string' ? route.query.historyId : undefined,
-    );
-    return;
-  }
 
   const prompt = typeof route.query.prompt === 'string' ? route.query.prompt.trim() : '';
   if (!prompt) return;
 
-  const historyId = typeof route.query.historyId === 'string' ? route.query.historyId : undefined;
+  const rawHistoryId = typeof route.query.historyId === 'string' ? route.query.historyId : undefined;
+  const historyId = rawHistoryId && !deprecatedMockHistoryIds.has(rawHistoryId) ? rawHistoryId : undefined;
   const routeKey = `${String(historyId ?? '')}:${prompt}`;
   if (handledRoutePromptKey.value === routeKey) return;
   handledRoutePromptKey.value = routeKey;
@@ -2582,7 +2756,7 @@ watch(
 );
 
 watch(
-  () => [route.query.mock, route.query.prompt, route.query.historyId],
+  () => [route.query.prompt, route.query.historyId],
   () => {
     void openRoutePrompt();
   },
@@ -2727,44 +2901,13 @@ watch(
                     <span class="artifact-card-kind">预览</span>
                   </button>
                 </div>
-                <div v-if="shouldShowSkillValidation" class="skill-validation-card">
-                  <span class="skill-validation-spinner" aria-hidden="true"></span>
-                  <div>
-                    <strong>校验技能完整度</strong>
+                <div v-if="shouldShowSkillValidation" class="skill-validation-inline">
+                  <div class="skill-validation-copy">
+                    <strong class="live-status-shine">正在校验技能完整度</strong>
                     <span>{{ skillValidationMessage || '正在解析技能结构、文件完整性和持久化状态。' }}</span>
                   </div>
+                  <span class="skill-validation-bar" aria-hidden="true"></span>
                 </div>
-                <div v-if="shouldShowSkillCompletion && skillCompletionSkill" class="skill-completion-card">
-                  <div class="skill-completion-banner">
-                    <span class="skill-completion-icon">
-                      <Check :size="22" />
-                    </span>
-                    <span>生成完成</span>
-                  </div>
-                  <div class="skill-completion-body">
-                    <div class="skill-completion-copy">
-                      <strong>{{ skillCompletionSkill.name }}</strong>
-                      <code>/{{ skillCompletionSkill.id }}</code>
-                    </div>
-                  </div>
-                  <div class="skill-completion-actions">
-                    <button type="button" class="skill-completion-secondary" @click="openSkillPublishSettings">
-                      <Share2 :size="15" />
-                      配置发布
-                    </button>
-                    <button v-if="skillCompletionIsEnabled" type="button" class="skill-completion-cta" @click="useCreatedSkillNow">
-                      <Zap :size="15" />
-                      立即使用
-                    </button>
-                    <button v-else type="button" class="skill-completion-cta" @click="enableCreatedSkill">
-                      <Zap :size="15" />
-                      启用技能
-                    </button>
-                  </div>
-                </div>
-                <p v-if="shouldShowSkillCompletion && skillCompletionSkill" class="skill-completion-ending">
-                  技能文件已生成并校验通过，右侧已打开发布设置；启用后才会进入快捷技能菜单和聊天调用。
-                </p>
                 <p v-if="answerNotice" class="live-notice">{{ answerNotice }}</p>
                 <p v-if="answerError" class="live-error">{{ answerError }}</p>
               </section>
@@ -2956,65 +3099,10 @@ watch(
           </span>
           <div>
             <strong>{{ activeArtifact.title }}</strong>
-            <span>{{ artifactPanelMode === 'publish' ? '发布前设置' : isArtifactEditing ? 'Artifact 编辑' : activeArtifact.kind === 'code' ? activeArtifact.language : 'Artifact 预览' }}</span>
+            <span>{{ activeArtifact.kind === 'code' ? activeArtifact.language : 'Artifact 预览' }}</span>
           </div>
         </div>
-        <div v-if="canShowSkillPublishSettings" class="artifact-preview-tabs" role="tablist" aria-label="技能生成结果面板">
-          <button
-            type="button"
-            :class="{ active: artifactPanelMode === 'preview' }"
-            role="tab"
-            :aria-selected="artifactPanelMode === 'preview'"
-            @click="artifactPanelMode = 'preview'"
-          >
-            预览
-          </button>
-          <button
-            type="button"
-            :class="{ active: artifactPanelMode === 'publish' }"
-            role="tab"
-            :aria-selected="artifactPanelMode === 'publish'"
-            @click="artifactPanelMode = 'publish'"
-          >
-            发布设置
-          </button>
-        </div>
         <div class="artifact-preview-actions">
-          <template v-if="artifactPanelMode === 'preview' && isArtifactEditing">
-            <button
-              type="button"
-              class="artifact-preview-action"
-              aria-label="取消编辑"
-              title="取消编辑"
-              :disabled="isSavingArtifactEdit"
-              @click="cancelArtifactEdit"
-            >
-              <X :size="15" />
-              <span>取消</span>
-            </button>
-            <button
-              type="button"
-              class="artifact-preview-action primary"
-              aria-label="保存 Artifact"
-              title="保存 Artifact"
-              :disabled="isSavingArtifactEdit"
-              @click="saveArtifactEdit"
-            >
-              <Check :size="15" />
-              <span>{{ isSavingArtifactEdit ? '保存中' : '保存' }}</span>
-            </button>
-          </template>
-          <button
-            v-else-if="artifactPanelMode === 'preview'"
-            type="button"
-            class="artifact-preview-action"
-            aria-label="编辑 Artifact"
-            title="编辑 Artifact"
-            @click="startArtifactEdit"
-          >
-            <Pencil :size="15" />
-            <span>编辑</span>
-          </button>
           <button type="button" class="artifact-preview-close" aria-label="关闭文件预览" title="关闭文件预览" @click="closeArtifactPreview">
             <X :size="18" />
           </button>
@@ -3023,161 +3111,17 @@ watch(
 
       <div
         class="artifact-preview-scroll"
-        :class="{ 'is-editing': isArtifactEditing && artifactPanelMode === 'preview', 'is-publish-settings': artifactPanelMode === 'publish' }"
         ref="artifactPreviewScrollRef"
       >
-        <section v-if="artifactPanelMode === 'publish' && skillCompletionSkill" class="skill-publish-panel" aria-label="技能发布前设置">
-          <div class="publish-section publish-identity-section">
-            <div class="publish-icon-field">
-              <button type="button" class="publish-icon-preview" aria-label="上传技能图标" @click="choosePublishIcon">
-                <img v-if="publishSettings.iconDataUrl" :src="publishSettings.iconDataUrl" alt="" />
-                <span v-else>{{ publishIconFallback }}</span>
-              </button>
-              <div class="publish-icon-actions">
-                <button type="button" class="publish-small-action" @click="choosePublishIcon">
-                  <Upload :size="14" />
-                  上传图标
-                </button>
-                <button
-                  v-if="publishSettings.iconDataUrl"
-                  type="button"
-                  class="publish-small-action muted"
-                  @click="clearPublishIcon"
-                >
-                  移除
-                </button>
-                <input
-                  ref="publishIconInputRef"
-                  class="publish-icon-input"
-                  type="file"
-                  accept="image/*"
-                  @change="handlePublishIconUpload"
-                />
-              </div>
-            </div>
-
-            <label class="publish-field">
-              <span>技能名称</span>
-              <input v-model="publishSettings.name" type="text" maxlength="48" />
-            </label>
-
-            <label class="publish-field">
-              <span>技能描述</span>
-              <textarea v-model="publishSettings.description" rows="4" maxlength="360"></textarea>
-            </label>
-          </div>
-
-          <div class="publish-section">
-            <div class="publish-section-header">
-              <strong>发布范围</strong>
-              <span>{{ currentPublishVisibility.description }}</span>
-            </div>
-            <div class="publish-scope-list" role="radiogroup" aria-label="发布范围">
-              <button
-                v-for="option in publishVisibilityOptions"
-                :key="option.id"
-                type="button"
-                class="publish-scope-option"
-                :class="{ active: publishSettings.visibility === option.id }"
-                role="radio"
-                :aria-checked="publishSettings.visibility === option.id"
-                @click="publishSettings.visibility = option.id"
-              >
-                <span class="publish-scope-check">
-                  <Check v-if="publishSettings.visibility === option.id" :size="14" />
-                </span>
-                <span>
-                  <strong>{{ option.label }}</strong>
-                  <small>{{ option.description }}</small>
-                </span>
-              </button>
-            </div>
-          </div>
-
-          <div v-if="activePublishPermission" class="publish-section">
-            <div class="publish-section-header">
-              <strong>{{ currentPublishVisibility.label }}权限</strong>
-              <span>这些开关只影响{{ currentPublishVisibility.permissionSubject }}对技能副本的使用方式。</span>
-            </div>
-            <label class="publish-toggle">
-              <span>
-                <strong>允许查看详情</strong>
-                <small>{{ currentPublishVisibility.permissionSubject }}可以查看该技能详情和说明。</small>
-              </span>
-              <input
-                :checked="activePublishPermission.allowCopy"
-                type="checkbox"
-                @change="handleActivePermissionCopyChange"
-              />
-            </label>
-            <label class="publish-toggle" :class="{ disabled: !activePublishPermission.allowCopy }">
-              <span>
-                <strong>允许自行编辑</strong>
-                <small>自行编辑副本，不修改原技能。</small>
-              </span>
-              <input
-                :checked="activePublishPermission.allowRemix"
-                type="checkbox"
-                :disabled="!activePublishPermission.allowCopy"
-                @change="handleActivePermissionRemixChange"
-              />
-            </label>
-            <label class="publish-toggle">
-              <span>
-                <strong>显示发布者名称</strong>
-                <small>在技能详情和共享列表中展示发布者。</small>
-              </span>
-              <input
-                :checked="activePublishPermission.showPublisherName"
-                type="checkbox"
-                @change="handleActivePermissionPublisherVisibilityChange"
-              />
-            </label>
-            <label v-if="activePublishPermission.showPublisherName" class="publish-field compact">
-              <span>发布者名称</span>
-              <input
-                :value="activePublishPermission.publisherName"
-                type="text"
-                maxlength="32"
-                @input="handleActivePermissionPublisherNameInput"
-              />
-            </label>
-          </div>
-
-          <div class="publish-footer">
-            <div class="publish-footer-summary">
-              <strong>{{ currentPublishVisibility.label }}</strong>
-              <span>{{ publishSettingsSummary }}</span>
-            </div>
-            <div class="publish-footer-actions">
-              <button type="button" class="publish-draft-btn" :disabled="!canSavePublishSettings" @click="saveSkillPublishSettings('draft')">
-                保存草稿
-              </button>
-              <button type="button" class="publish-primary-btn" :disabled="!canSavePublishSettings" @click="saveSkillPublishSettings('publish')">
-                发布
-              </button>
-            </div>
-          </div>
-        </section>
-        <textarea
-          v-else-if="isArtifactEditing"
-          ref="artifactEditorRef"
-          v-model="artifactEditContent"
-          class="artifact-editor"
-          :aria-label="`编辑 ${activeArtifact.title}`"
-          spellcheck="false"
-        ></textarea>
-        <template v-else>
-          <iframe
-            v-if="activeArtifact.kind === 'html'"
-            class="artifact-html-frame"
-            title="HTML Artifact 预览"
-            sandbox=""
-            :srcdoc="activeArtifact.content"
-          ></iframe>
-          <pre v-else-if="activeArtifact.kind === 'code'" class="artifact-code-page"><code>{{ activeArtifact.content }}</code></pre>
-          <article v-else class="artifact-document-page" v-html="renderArtifactDocumentPreview(activeArtifact)"></article>
-        </template>
+        <iframe
+          v-if="activeArtifact.kind === 'html'"
+          class="artifact-html-frame"
+          title="HTML Artifact 预览"
+          sandbox=""
+          :srcdoc="activeArtifact.content"
+        ></iframe>
+        <pre v-else-if="activeArtifact.kind === 'code'" class="artifact-code-page"><code>{{ activeArtifact.content }}</code></pre>
+        <article v-else class="artifact-document-page" v-html="renderArtifactDocumentPreview(activeArtifact)"></article>
       </div>
     </aside>
 
@@ -4115,6 +4059,48 @@ watch(
   color: var(--primary-color);
 }
 
+.skill-validation-inline {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 16px;
+  color: var(--text-secondary);
+}
+
+.skill-validation-copy {
+  display: grid;
+  gap: 2px;
+}
+
+.skill-validation-copy span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.skill-validation-bar {
+  position: relative;
+  width: min(360px, 100%);
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary-soft) 72%, var(--border-soft));
+}
+
+.skill-validation-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 38%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--primary-color) 82%, #ffffff),
+    transparent
+  );
+  animation: validation-bar-sweep 1.25s ease-in-out infinite;
+}
+
 .live-thinking-body :deep(.live-answer-paragraph) {
   margin: 0 0 10px;
 }
@@ -4125,7 +4111,16 @@ watch(
   }
 }
 
-.skill-validation-card,
+@keyframes validation-bar-sweep {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(270%);
+  }
+}
+
 .skill-completion-card {
   min-height: 66px;
   display: grid;
@@ -4716,6 +4711,185 @@ watch(
 
 .live-answer-text :deep(.inline-artifact-card) {
   margin: 10px 0 14px;
+}
+
+.live-answer-text :deep(.skill-result-file-list) {
+  width: min(100%, 560px);
+  display: grid;
+  gap: 16px;
+  margin: 12px 0 16px;
+}
+
+.live-answer-text :deep(.skill-file-section) {
+  display: grid;
+  gap: 5px;
+}
+
+.live-answer-text :deep(.skill-file-section-heading) {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-strong);
+}
+
+.live-answer-text :deep(.skill-file-section-heading > span) {
+  min-width: 20px;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.live-answer-text :deep(.skill-file-section-heading strong) {
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.live-answer-text :deep(.skill-file-section-heading small) {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-answer-text :deep(.skill-file-section-body) {
+  display: grid;
+  gap: 8px;
+  padding-left: 26px;
+}
+
+.live-answer-text :deep(.skill-file-link) {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  padding: 1px 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.live-answer-text :deep(.skill-plain-file-icon) {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  border-radius: 5px;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.live-answer-text :deep(.skill-file-link.rule .skill-plain-file-icon) {
+  background: color-mix(in srgb, var(--primary-soft) 52%, var(--surface-soft));
+  color: var(--primary-color);
+}
+
+.live-answer-text :deep(.skill-file-link > span:nth-child(2)) {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+}
+
+.live-answer-text :deep(.skill-file-link strong) {
+  flex: 0 0 auto;
+  max-width: 58%;
+  overflow: hidden;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.32;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-answer-text :deep(.skill-file-link:hover strong) {
+  color: var(--primary-color);
+}
+
+.live-answer-text :deep(.skill-template-file-card) {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 64px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 26%, var(--border-color));
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--primary-soft) 44%, var(--card-bg)), var(--card-bg));
+  color: var(--text-main);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.live-answer-text :deep(.skill-template-file-card:hover) {
+  border-color: var(--primary-border);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.live-answer-text :deep(.skill-template-file-icon) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.live-answer-text :deep(.skill-template-file-main) {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.live-answer-text :deep(.skill-template-file-main small) {
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.live-answer-text :deep(.skill-template-file-main strong) {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.32;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-answer-text :deep(.skill-file-action) {
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.live-answer-text :deep(.skill-file-action.primary) {
+  background: var(--primary-color);
+  color: var(--on-primary);
 }
 
 .live-notice {

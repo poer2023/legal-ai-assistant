@@ -11,12 +11,9 @@ import {
   FileText,
   History,
   Home,
-  Lock,
   LogOut,
   MoreHorizontal,
-  Network,
   Pencil,
-  Plus,
   Puzzle,
   Scale,
   Trash2,
@@ -90,27 +87,16 @@ const isKnowledgeActive = computed(() => {
 });
 const isTeamActive = computed(() => route.path.startsWith('/team'));
 
-const isKnowledgeExpanded = ref(false);
-
-const toggleKnowledgeExpanded = () => {
-  isKnowledgeExpanded.value = !isKnowledgeExpanded.value;
-};
-
 const toggleSidebarCollapsed = () => {
   isCollapsed.value = !isCollapsed.value;
   if (isCollapsed.value) {
-    isKnowledgeExpanded.value = false;
     closeOrgSwitcher();
     closeHistoryMenu();
   }
 };
 
 const handleKnowledgeClick = () => {
-  if (isCollapsed.value) {
-    handleItemClick('knowledge');
-    return;
-  }
-  toggleKnowledgeExpanded();
+  handleItemClick('knowledge');
 };
 
 const toggleOrgSwitcher = () => {
@@ -259,12 +245,6 @@ onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick);
 });
 
-const knowledgeItems = [
-  { icon: Network, label: '团队知识库', routeName: 'knowledge', activeOnKnowledge: true },
-  { icon: User, label: '个人知识库', routeName: 'knowledge', activeOnKnowledge: false },
-  { icon: Lock, label: '隐藏知识库', routeName: 'knowledge', activeOnKnowledge: false },
-];
-
 const canManageTeam = computed(() => currentOrganization.value?.role === '管理员');
 const userDisplayName = computed(() => currentUser.value?.displayName ?? '个人中心');
 </script>
@@ -339,38 +319,16 @@ const userDisplayName = computed(() => currentUser.value?.displayName ?? '个人
       </button>
 
       <button
-        class="nav-item nav-item-with-toggle"
+        class="nav-item"
         type="button"
-        :class="{ 'parent-active': isKnowledgeActive }"
+        :class="{ active: isKnowledgeActive }"
         :title="isCollapsed ? '知识库' : undefined"
-        :aria-expanded="!isCollapsed && isKnowledgeExpanded"
-        :aria-label="isCollapsed ? '知识库' : isKnowledgeExpanded ? '收起知识库菜单' : '展开知识库菜单'"
+        aria-label="知识库"
         @click="handleKnowledgeClick"
       >
         <KnowledgeSearchIcon :size="18" class="nav-icon" />
         <span class="nav-label">知识库</span>
-        <ChevronUp v-if="isKnowledgeExpanded" :size="15" class="submenu-arrow" />
-        <ChevronDown v-else :size="15" class="submenu-arrow" />
       </button>
-
-      <div v-if="isKnowledgeExpanded" class="knowledge-submenu">
-        <button
-          v-for="item in knowledgeItems"
-          :key="item.label"
-          class="submenu-item"
-          :class="{ active: isKnowledgeActive && item.activeOnKnowledge }"
-          @click="handleItemClick(item.routeName)"
-        >
-          <component :is="item.icon" :size="15" class="submenu-icon" />
-          <span>{{ item.label }}</span>
-        </button>
-        <button class="submenu-item group-item" @click="handleItemClick('knowledge')">
-          <Users :size="15" class="submenu-icon" />
-          <span>小组知识库</span>
-          <Plus :size="14" class="group-plus" />
-          <ChevronDown :size="14" class="group-chevron" />
-        </button>
-      </div>
 
       <section class="history-section" aria-label="历史会话">
         <div

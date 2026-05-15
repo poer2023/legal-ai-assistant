@@ -14,8 +14,16 @@ const getStableHash = (value: string) => {
 };
 
 export const getSkillAvatarStyle = (
-  skill: Pick<SkillCatalogItem, 'id' | 'name' | 'category'>,
+  skill: Pick<SkillCatalogItem, 'id' | 'name' | 'category' | 'iconDataUrl'>,
 ) => {
+  if (skill.iconDataUrl) {
+    return {
+      backgroundImage: `url("${skill.iconDataUrl}")`,
+      backgroundPosition: 'center',
+      backgroundSize: 'cover',
+    };
+  }
+
   const seed = `${skill.id}|${skill.category}|${skill.name}`;
   const avatarIndex = getStableHash(seed) % avatarCount;
   const column = avatarIndex % avatarColumns;

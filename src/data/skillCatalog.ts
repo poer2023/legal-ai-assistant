@@ -4,6 +4,7 @@ import {
   type NonLitigationDocument,
 } from './nonLitigationDocuments';
 import { curatedLegalSkills } from './curatedLegalSkills';
+import { getMockSkillAuthor } from './mockSkillAuthors';
 import { getCurrentOrganizationId, getOrganizationScopedStorageKey } from '../stores/orgSession';
 
 export type SkillFileType = 'markdown' | 'typescript' | 'json' | 'yaml';
@@ -19,6 +20,7 @@ export type SkillFile = {
 export type SkillStatus = 'draft' | 'active';
 
 export type SkillPublishDestination = 'group' | 'team' | 'public';
+type SkillPublishDestinationInput = SkillPublishDestination | SkillPublishDestination[];
 
 export type SkillCatalogItem = {
   id: string;
@@ -31,6 +33,10 @@ export type SkillCatalogItem = {
   source?: 'default' | 'recommended' | 'custom';
   scope?: 'personal' | 'team';
   status?: SkillStatus;
+  iconDataUrl?: string;
+  publisherName?: string;
+  publisherAvatarUrl?: string;
+  useProfileIdentity?: boolean;
   createdAt?: string;
   updatedAt?: string;
   lastUsedAt?: string;
@@ -126,18 +132,25 @@ const createSkillFiles = (document: NonLitigationDocument): SkillFile[] => [
   },
 ];
 
-const legalWorkflowSkills: SkillCatalogItem[] = nonLitigationDocuments.map((document) => ({
-  id: document.id,
-  name: document.skillName,
-  description: document.preview,
-  category: document.category,
-  routeName: document.routeName,
-  tags: document.tags,
-  files: createSkillFiles(document),
-  source: 'default',
-  scope: 'team',
-  status: 'active',
-}));
+const legalWorkflowSkills: SkillCatalogItem[] = nonLitigationDocuments.map((document) => {
+  const author = getMockSkillAuthor(document.id);
+
+  return {
+    id: document.id,
+    name: document.skillName,
+    description: document.preview,
+    category: document.category,
+    routeName: document.routeName,
+    tags: document.tags,
+    files: createSkillFiles(document),
+    source: 'default',
+    scope: 'team',
+    status: 'active',
+    publisherName: author.name,
+    publisherAvatarUrl: author.avatarUrl,
+    useProfileIdentity: false,
+  };
+});
 
 export const allSkills: SkillCatalogItem[] = [...legalWorkflowSkills, ...curatedLegalSkills];
 
@@ -195,8 +208,17 @@ const normalizeCustomSkillScope = (scope: unknown): 'personal' | 'team' =>
 const normalizeCustomSkillStatus = (status: unknown): SkillStatus =>
   status === 'draft' ? 'draft' : 'active';
 
+const isSkillPublishDestination = (destination: unknown): destination is SkillPublishDestination =>
+  destination === 'group' || destination === 'team' || destination === 'public';
+
 const normalizeSkillPublishDestination = (destination: unknown): SkillPublishDestination =>
-  destination === 'group' || destination === 'public' ? destination : 'team';
+  isSkillPublishDestination(destination) ? destination : 'team';
+
+const normalizeSkillPublishDestinationList = (destinations: unknown): SkillPublishDestination[] => {
+  const values = Array.isArray(destinations) ? destinations : [destinations];
+  const normalized = values.filter(isSkillPublishDestination);
+  return Array.from(new Set(normalized.length ? normalized : ['team']));
+};
 
 const normalizeCustomSkill = (skill: unknown): SkillCatalogItem | null => {
   if (!skill || typeof skill !== 'object') return null;
@@ -245,6 +267,10 @@ const normalizeCustomSkill = (skill: unknown): SkillCatalogItem | null => {
     source: 'custom',
     scope: normalizeCustomSkillScope(item.scope),
     status: normalizeCustomSkillStatus(item.status),
+    iconDataUrl: typeof item.iconDataUrl === 'string' ? item.iconDataUrl : undefined,
+    publisherName: typeof item.publisherName === 'string' ? item.publisherName : undefined,
+    publisherAvatarUrl: typeof item.publisherAvatarUrl === 'string' ? item.publisherAvatarUrl : undefined,
+    useProfileIdentity: typeof item.useProfileIdentity === 'boolean' ? item.useProfileIdentity : true,
     createdAt: typeof item.createdAt === 'string' ? item.createdAt : undefined,
     updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : undefined,
     lastUsedAt: typeof item.lastUsedAt === 'string' ? item.lastUsedAt : undefined,
@@ -300,10 +326,10 @@ const writeStoredDisabledSkillIds = (ids: string[]) => {
 const normalizeSkillPublishDestinations = (value: unknown) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
 
-  return Object.entries(value as Record<string, unknown>).reduce<Record<string, SkillPublishDestination>>(
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, SkillPublishDestination[]>>(
     (destinations, [skillId, destination]) => {
       if (!skillId) return destinations;
-      destinations[skillId] = normalizeSkillPublishDestination(destination);
+      destinations[skillId] = normalizeSkillPublishDestinationList(destination);
       return destinations;
     },
     {},
@@ -320,7 +346,7 @@ const readStoredSkillPublishDestinations = () => {
   }
 };
 
-const writeStoredSkillPublishDestinations = (destinations: Record<string, SkillPublishDestination>) => {
+const writeStoredSkillPublishDestinations = (destinations: Record<string, SkillPublishDestination[]>) => {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(getOrganizationScopedStorageKey(skillPublishDestinationsStorageKey), JSON.stringify(destinations));
 };
@@ -376,7 +402,7 @@ writeStoredSkillIds(teamMarketSkillStorageKey, teamMarketSkillIds.value);
 const customSkills = ref<SkillCatalogItem[]>(readStoredCustomSkills());
 const skillUsageStats = ref<Record<string, SkillUsageStat>>(readStoredSkillUsageStats());
 const disabledSkillIds = ref<string[]>(readStoredDisabledSkillIds());
-const skillPublishDestinations = ref<Record<string, SkillPublishDestination>>(readStoredSkillPublishDestinations());
+const skillPublishDestinations = ref<Record<string, SkillPublishDestination[]>>(readStoredSkillPublishDestinations());
 const loadedRemoteCustomSkillOrganizationIds = new Set<string>();
 const remoteCustomSkillLoadPromises = new Map<string, Promise<void>>();
 
@@ -446,19 +472,25 @@ export const teamMarketSkills = computed<SkillCatalogItem[]>(() =>
 );
 
 export const getSkillPublishDestination = (skillId: string): SkillPublishDestination =>
-  skillPublishDestinations.value[skillId] ?? 'team';
+  skillPublishDestinations.value[skillId]?.[0] ?? 'team';
+
+export const getSkillPublishDestinations = (skillId: string): SkillPublishDestination[] =>
+  skillPublishDestinations.value[skillId] ?? ['team'];
+
+const hasSkillPublishDestination = (skillId: string, destination: SkillPublishDestination) =>
+  getSkillPublishDestinations(skillId).includes(destination);
 
 export const groupSharedSkills = computed<SkillCatalogItem[]>(() =>
-  teamMarketSkills.value.filter((skill) => getSkillPublishDestination(skill.id) === 'group'),
+  teamMarketSkills.value.filter((skill) => hasSkillPublishDestination(skill.id, 'group')),
 );
 
 export const teamSharedSkills = computed<SkillCatalogItem[]>(() =>
-  teamMarketSkills.value.filter((skill) => getSkillPublishDestination(skill.id) === 'team'),
+  teamMarketSkills.value.filter((skill) => hasSkillPublishDestination(skill.id, 'team')),
 );
 
 export const publicHubSkills = computed<SkillCatalogItem[]>(() =>
   dedupeSkills([
-    ...teamMarketSkills.value.filter((skill) => getSkillPublishDestination(skill.id) === 'public'),
+    ...teamMarketSkills.value.filter((skill) => hasSkillPublishDestination(skill.id, 'public')),
     ...officialRecommendedSkills,
   ]),
 );
@@ -522,17 +554,17 @@ export const removePersonalSkill = (skillId: string) => {
 
 export const publishSkillToTeamMarket = (
   skillId: string,
-  destination: SkillPublishDestination = 'team',
+  destination: SkillPublishDestinationInput = 'team',
 ) => {
-  const publishDestination = normalizeSkillPublishDestination(destination);
+  const publishDestinations = normalizeSkillPublishDestinationList(destination);
   const customSkill = customSkills.value.find((skill) => skill.id === skillId);
   if (!customSkill && !allSkillIds.has(skillId)) return false;
 
-  const previousDestination = skillPublishDestinations.value[skillId];
+  const previousDestinations = skillPublishDestinations.value[skillId] ?? [];
   const wasPublished = customSkill ? customSkill.scope === 'team' : teamMarketSkillIds.value.includes(skillId);
   skillPublishDestinations.value = {
     ...skillPublishDestinations.value,
-    [skillId]: publishDestination,
+    [skillId]: publishDestinations,
   };
   writeStoredSkillPublishDestinations(skillPublishDestinations.value);
   setSkillDisabled(skillId, false);
@@ -543,7 +575,7 @@ export const publishSkillToTeamMarket = (
   }
 
   if (teamMarketSkillIds.value.includes(skillId)) {
-    return previousDestination !== publishDestination || !wasPublished;
+    return previousDestinations.join('|') !== publishDestinations.join('|') || !wasPublished;
   }
 
   const nextIds = normalizeTeamMarketSkillIds([...teamMarketSkillIds.value, skillId]);

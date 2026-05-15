@@ -1,70 +1,5 @@
 [
   {
-    "id": "org-yongjian-law:test-skill",
-    "slug": "org-yongjian-law:test-skill",
-    "name": "测试技能",
-    "description": "咨询意见生成技能，输入团队知识库文档，输出咨询意见模板或条款库，仅限个人使用。",
-    "category": "legal-consulting",
-    "route_name": "chat",
-    "tags": [
-      "咨询意见",
-      "模板生成",
-      "条款库",
-      "个人使用"
-    ],
-    "scope": "personal",
-    "source": "custom",
-    "status": "active",
-    "files": [
-      {
-        "id": "test-skill-SKILL-md",
-        "name": "SKILL.md",
-        "path": "SKILL.md",
-        "type": "markdown",
-        "content": "---\nname: test-skill\ndescription: \"咨询意见生成技能，输入团队知识库文档，输出咨询意见模板或条款库，仅限个人使用。\"\n---\n\n# 测试技能\n\n## 使用场景\n- 用户上传团队知识库文档并请求生成咨询意见模板或条款库\n\n## 输入要求\n- 团队知识库\n\n## 工作流\n1. 接收输入：用户上传知识库文档（必需），可选提供模板文件\n2. 分析内容：解析文档，提取关键法律点、分析逻辑和建议结论\n3. 结构组织：严格按模板结构（如果提供）或默认结构（背景/分析/方案/风险/条款）输出\n4. 输出生成：将内容写入 Markdown 文件，保持标题层级和列表/表格\n5. 质量检查：执行 checks 中的检查项，确保无事实矛盾\n\n## 输出要求\n- 模板 / 条款库\n\n## 质量检查\n- 输出是否包含输入文档中的法律依据？\n- 输出结构是否与用户提供的模板一致？\n- 是否存在与输入文档矛盾的表述？\n- 是否有明显的逻辑断层或章节遗漏？\n\n## 边界规则\n- 不得编造任何法律法规、判例或监管口径\n- 不得包含输入文档中不存在的事实\n- 不得生成对外交付文本（除非用户明确要求）\n- 当信息不足时，在输出中标明【待确认】\n\n## 需要时读取\n\n- references/intake.md：启动前问题、材料清单、缺失信息处理和澄清规则。\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。\n- examples/example-input.md：示例输入结构。\n- examples/example-output.md：示例输出骨架。"
-      },
-      {
-        "id": "test-skill-references-intake-md",
-        "name": "intake.md",
-        "path": "references/intake.md",
-        "type": "markdown",
-        "content": "# 测试技能启动与信息收集\n\n## 适用边界\n- 技能类别：legal-consulting\n- 关键词：咨询意见、模板生成、条款库、个人使用\n- 用户上传团队知识库文档并请求生成咨询意见模板或条款库\n\n## 启动前必问\n- 这次输出要给谁看：内部法务、业务负责人、外部律师、对方、法院/仲裁机构、监管机构还是客户？\n- 适用法域、业务场景、交易/案件阶段、用户立场和需要解决的具体问题是什么？\n- 是否有硬期限、上线/签署/提交节点、必须保留的商业条件或不可触碰红线？\n- 已提供哪些材料，哪些材料尚未提供，哪些事实只能作为假设？\n- 期望输出是 Word 文书、审查意见、风险矩阵、谈判清单、整改路线图、邮件草稿还是汇报摘要？\n\n## 输入材料清单\n- 团队知识库\n\n## 缺失信息处理\n- 如果缺失信息会影响结论、风险等级或建议动作，先列为“待确认事项”。\n- 如果用户要求继续生成，必须在输出开头说明“基于目前材料”。\n- 不得为了让输出完整而补造合同条款、案件事实、法规依据、审批记录、时间节点或当事人立场。\n- 对期限、金额、主体、材料版本、适用法域、授权范围等关键字段，必须保留不确定性标记。"
-      },
-      {
-        "id": "test-skill-references-checklist-md",
-        "name": "checklist.md",
-        "path": "references/checklist.md",
-        "type": "markdown",
-        "content": "# 测试技能检查清单\n\n## 输入核验\n- 团队知识库\n\n## 执行步骤\n1. 接收输入：用户上传知识库文档（必需），可选提供模板文件\n2. 分析内容：解析文档，提取关键法律点、分析逻辑和建议结论\n3. 结构组织：严格按模板结构（如果提供）或默认结构（背景/分析/方案/风险/条款）输出\n4. 输出生成：将内容写入 Markdown 文件，保持标题层级和列表/表格\n5. 质量检查：执行 checks 中的检查项，确保无事实矛盾\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 输出是否包含输入文档中的法律依据？\n- 输出结构是否与用户提供的模板一致？\n- 是否存在与输入文档矛盾的表述？\n- 是否有明显的逻辑断层或章节遗漏？\n\n## 边界\n- 不得编造任何法律法规、判例或监管口径\n- 不得包含输入文档中不存在的事实\n- 不得生成对外交付文本（除非用户明确要求）\n- 当信息不足时，在输出中标明【待确认】"
-      },
-      {
-        "id": "test-skill-references-output-patterns-md",
-        "name": "output-patterns.md",
-        "path": "references/output-patterns.md",
-        "type": "markdown",
-        "content": "# 测试技能输出模式\n\n## 推荐输出结构\n- 模板 / 条款库\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
-      },
-      {
-        "id": "test-skill-examples-example-input-md",
-        "name": "example-input.md",
-        "path": "examples/example-input.md",
-        "type": "markdown",
-        "content": "# 测试技能示例输入\n\n以下仅作为输入结构示例，真实使用时必须替换为用户自己的材料。\n\n```text\n任务目标：请基于以下材料生成结构化法律工作流输出。\n适用法域：待确认。\n用户立场：待确认。\n输出用途：内部审查 / 对外沟通 / Word 文书 / 风险矩阵。\n已提供材料：\n1. 材料 A：……\n2. 材料 B：……\n关键限制：不得编造未提供事实；缺失信息列为待确认。\n```"
-      },
-      {
-        "id": "test-skill-examples-example-output-md",
-        "name": "example-output.md",
-        "path": "examples/example-output.md",
-        "type": "markdown",
-        "content": "# 测试技能示例输出骨架\n\n## 基于目前材料的初步结论\n- 结论：……\n- 关键假设：……\n- 需要复核：……\n\n## 风险 / 问题矩阵\n| 项目 | 材料依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n| 示例事项 | 材料位置或事实来源 | P0/P1/P2/P3 | 具体后果 | 可执行动作 | 责任人或缺口 |\n\n## 下一步\n- 补充材料：……\n- 律师复核：……\n- 对外沟通：……"
-      }
-    ],
-    "usage_count": 3,
-    "last_used_at": "2026-05-15T11:18:43.352+00:00",
-    "created_at": "2026-05-14T09:00:11.409+00:00",
-    "updated_at": "2026-05-15T11:18:43.355+00:00"
-  },
-  {
     "id": "org-yongjian-law:class-case-retrieval-analysis-report",
     "slug": "org-yongjian-law:class-case-retrieval-analysis-report",
     "name": "类案检索分析报告",
@@ -124,10 +59,176 @@
         "content": "# 类案检索分析报告示例输出骨架\n\n## 基于目前材料的初步结论\n- 结论：……\n- 关键假设：……\n- 需要复核：……\n\n## 风险 / 问题矩阵\n| 项目 | 材料依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n| 示例事项 | 材料位置或事实来源 | P0/P1/P2/P3 | 具体后果 | 可执行动作 | 责任人或缺口 |\n\n## 下一步\n- 补充材料：……\n- 律师复核：……\n- 对外沟通：……"
       }
     ],
+    "usage_count": 5,
+    "last_used_at": "2026-05-15T19:12:55.737Z",
+    "created_at": "2026-05-14T08:09:09.681Z",
+    "updated_at": "2026-05-15T19:12:55.740Z",
+    "icon_data_url": null,
+    "publisher_name": "顾明远",
+    "publisher_avatar_url": "/mock-skill-authors/author-01.webp",
+    "use_profile_identity": false
+  },
+  {
+    "id": "org-yongjian-law:class-cases-analysis-report",
+    "slug": "org-yongjian-law:class-cases-analysis-report",
+    "name": "类案检索分析报告",
+    "description": "Generate an initial draft of a precedent-search analysis report based on user-provided case facts and disputed issues. Suitable for advisory scenarios.",
+    "category": "法律检索与分析",
+    "route_name": "chat",
+    "tags": [
+      "类案检索",
+      "分析报告",
+      "咨询意见"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "draft",
+    "files": [
+      {
+        "id": "class-cases-analysis-report-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: class-cases-analysis-report\ndescription: \"Generate an initial draft of a precedent-search analysis report based on user-provided case facts and disputed issues. Suitable for advisory scenarios.\"\n---\n\n# 类案检索分析报告\n\n## 使用场景\n- 用户需要基于案件事实和争议焦点快速生成类案检索分析报告初稿\n- 用户已掌握基本事实但希望获得结构化报告框架\n- 咨询意见场景中需要引用类案支撑观点\n\n## 输入要求\n- 纯文字描述规则\n\n## 工作流\n1. 接收用户输入的纯文字描述\n2. 对照 references/checklist.md 检查输入完整性，识别缺失字段\n3. 按 references/output-patterns.md 构建报告骨架\n4. 将用户输入填充到对应章节\n5. 对需要人工检索的内容（具体案例、裁判观点）标注 {{待补充}}\n6. 输出完整 markdown 文本\n\n## 输出要求\n- Word 文书初稿\n\n## 质量检查\n- 输入是否涵盖 checklist 中所有必填字段？若否，输出待确认提示\n- 报告中的案情章节是否准确反映用户输入，无事实歪曲\n- 占位符是否清晰标记，没有错误填充不存在的内容\n- 争议焦点是否与用户描述完全对应\n\n## 边界规则\n- 不得编造任何具体案例、法院观点、裁判文书文号或法律条文\n- 输出仅限草稿框架，不具法律效力\n- 用户未提供检索结果时不得生成虚假案例摘要\n- 不得在输出中索要用户个人信息或案件机密\n\n## 需要时读取\n\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。"
+      },
+      {
+        "id": "class-cases-analysis-report-references-checklist-md",
+        "name": "checklist.md",
+        "path": "references/checklist.md",
+        "type": "markdown",
+        "content": "# 类案检索分析报告检查清单\n\n## 输入核验\n- 纯文字描述规则\n\n## 执行步骤\n1. 接收用户输入的纯文字描述\n2. 对照 references/checklist.md 检查输入完整性，识别缺失字段\n3. 按 references/output-patterns.md 构建报告骨架\n4. 将用户输入填充到对应章节\n5. 对需要人工检索的内容（具体案例、裁判观点）标注 {{待补充}}\n6. 输出完整 markdown 文本\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 输入是否涵盖 checklist 中所有必填字段？若否，输出待确认提示\n- 报告中的案情章节是否准确反映用户输入，无事实歪曲\n- 占位符是否清晰标记，没有错误填充不存在的内容\n- 争议焦点是否与用户描述完全对应\n\n## 边界\n- 不得编造任何具体案例、法院观点、裁判文书文号或法律条文\n- 输出仅限草稿框架，不具法律效力\n- 用户未提供检索结果时不得生成虚假案例摘要\n- 不得在输出中索要用户个人信息或案件机密"
+      },
+      {
+        "id": "class-cases-analysis-report-references-output-patterns-md",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# 类案检索分析报告输出模式\n\n## 推荐输出结构\n- Word 文书初稿\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
+      }
+    ],
     "usage_count": 0,
     "last_used_at": null,
-    "created_at": "2026-05-14T08:09:09.681+00:00",
-    "updated_at": "2026-05-15T10:44:05.506+00:00"
+    "created_at": "2026-05-15T18:12:05.697Z",
+    "updated_at": "2026-05-15T18:12:05.872Z",
+    "icon_data_url": null,
+    "publisher_name": null,
+    "publisher_avatar_url": null,
+    "use_profile_identity": true
+  },
+  {
+    "id": "org-yongjian-law:regulatory-gap-analysis",
+    "slug": "org-yongjian-law:regulatory-gap-analysis",
+    "name": "法规差距分析助手",
+    "description": "Analyze a pure-text rule description (e.g., new regulation requirement, standard clause) against existing regulations or practices, and output a Word-ready gap analysis report draft. Input: plain text rule description. Output: structured gap analysis report with risk levels and improvement suggestions.",
+    "category": "法律分析",
+    "route_name": "chat",
+    "tags": [
+      "法规差距分析",
+      "咨询意见",
+      "合规"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "active",
+    "files": [
+      {
+        "id": "regulatory-gap-analysis-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: regulatory-gap-analysis\ndescription: \"Analyze a pure-text rule description (e.g., new regulation requirement, standard clause) against existing regulations or practices, and output a Word-ready gap analysis report draft. Input: plain text rule description. Output: structured gap analysis report with risk levels and improvement suggestions.\"\n---\n\n# 法规差距分析助手\n\n## 使用场景\n- 用户输入法规条文或规则描述，要求进行差距分析\n\n## 输入要求\n- 用户提供业务目标、材料文本、适用法域、己方立场、输出用途和关键限制。\n\n## 工作流\n1. 接收用户输入的规则描述\n2. 识别规则中的关键要求：义务内容、执行标准、时间节点、适用范围等\n3. 与用户提供的现有规定或实践进行逐条对比（如未提供，需假设为当前通用实践并说明局限性）\n4. 逐条分析差距：是否已有对应规定、是否完全符合、存在部分缺失、存在冲突\n5. 标注每条差距的严重程度：高（需立即调整）、中（需关注）、低（建议优化）\n6. 生成差距分析报告初稿，包含：规则概述、现有规定/实践概述、逐条差距分析、风险评估、改进建议\n\n## 输出要求\n- Word 文书初稿\n\n## 质量检查\n- 规则描述是否清晰，无歧义\n- 现有规定或实践是否已提供，或已明确假设\n- 差距分析是否覆盖所有关键要求\n- 风险等级是否基于客观判断，且标注合理\n- 改进建议是否具有可操作性\n\n## 边界规则\n- 不得编造法律法规条文，仅基于用户提供的信息进行分析\n- 差距分析应客观中立，不给出具体法律意见或决策建议\n- 对于不确定的规则或现有规定，应明确标注「待确认」\n- 输出应为结构化报告，禁止输出非相关内容\n\n## 需要时读取\n- references/checklist.md：输入核验、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、红线/修改语言和沟通模式。"
+      },
+      {
+        "id": "regulatory-gap-analysis-references-checklist-md",
+        "name": "checklist.md",
+        "path": "references/checklist.md",
+        "type": "markdown",
+        "content": "# 法规差距分析助手检查清单\n\n## 输入核验\n- 确认材料类型、适用法域、己方立场、业务目标、输出用途和必须保留的边界。\n- 缺少关键材料时先列待补充事项，不直接补写事实。\n\n## 执行步骤\n1. 接收用户输入的规则描述\n2. 识别规则中的关键要求：义务内容、执行标准、时间节点、适用范围等\n3. 与用户提供的现有规定或实践进行逐条对比（如未提供，需假设为当前通用实践并说明局限性）\n4. 逐条分析差距：是否已有对应规定、是否完全符合、存在部分缺失、存在冲突\n5. 标注每条差距的严重程度：高（需立即调整）、中（需关注）、低（建议优化）\n6. 生成差距分析报告初稿，包含：规则概述、现有规定/实践概述、逐条差距分析、风险评估、改进建议\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 规则描述是否清晰，无歧义\n- 现有规定或实践是否已提供，或已明确假设\n- 差距分析是否覆盖所有关键要求\n- 风险等级是否基于客观判断，且标注合理\n- 改进建议是否具有可操作性\n\n## 边界\n- 不得编造法律法规条文，仅基于用户提供的信息进行分析\n- 差距分析应客观中立，不给出具体法律意见或决策建议\n- 对于不确定的规则或现有规定，应明确标注「待确认」\n- 输出应为结构化报告，禁止输出非相关内容"
+      },
+      {
+        "id": "regulatory-gap-analysis-references-output-patterns-md",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# 输出模式（稳定结构）\n\n## 报告结构\n1. **规则概述**：提炼输入规则的要点（200字以内）\n2. **现有规定/实践概述**：简要说明对比基准\n3. **差距分析表**：\n| 序号 | 规则要求 | 现有规定/实践 | 差距描述 | 风险等级 | 建议 |\n|------|----------|----------------|----------|----------|------|\n| 1    | ...      | ...            | ...      | 高/中/低 | ...  |\n4. **风险评估**：对高/中风险项的综合评估\n5. **改进建议**：按优先级排列的行动要点\n\n## 表格字段说明\n- 规则要求：直接引用或概括输入规则原文\n- 现有规定/实践：若用户提供则引用，否则标注「当前实践中未发现对应规定（待确认）」\n- 差距描述：说明是否缺失/冲突/不完全一致\n- 风险等级：高、中、低三档\n- 建议：具体行动方向（如修改制度、更新流程、补充条款）\n\n## 可复制文本（可直接取用）\n- “经逐条对比，共发现X项差距，其中高风险X项、中风险X项、低风险X项。”\n- “建议优先处理高风险项，具体措施详见改进建议部分。”\n\n## 禁止输出\n- 不得输出具体的法律结论（如“该行为违法”）\n- 不得输出与差距分析无关的内容\n- 不得编造未提供的现有规定名称或文号"
+      }
+    ],
+    "usage_count": 1,
+    "last_used_at": "2026-05-15T17:05:37.674Z",
+    "created_at": "2026-05-13T04:02:26.108Z",
+    "updated_at": "2026-05-15T17:05:37.681Z",
+    "icon_data_url": null,
+    "publisher_name": "陆明薇",
+    "publisher_avatar_url": "/mock-skill-authors/author-12.webp",
+    "use_profile_identity": false
+  },
+  {
+    "id": "org-yongjian-law:test-skill",
+    "slug": "org-yongjian-law:test-skill",
+    "name": "测试技能",
+    "description": "咨询意见生成技能，输入团队知识库文档，输出咨询意见模板或条款库，仅限个人使用。",
+    "category": "legal-consulting",
+    "route_name": "chat",
+    "tags": [
+      "咨询意见",
+      "模板生成",
+      "条款库",
+      "个人使用"
+    ],
+    "scope": "team",
+    "source": "custom",
+    "status": "active",
+    "files": [
+      {
+        "id": "test-skill-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: test-skill\ndescription: \"咨询意见生成技能，输入团队知识库文档，输出咨询意见模板或条款库，仅限个人使用。\"\n---\n\n# 测试技能\n\n## 使用场景\n- 用户上传团队知识库文档并请求生成咨询意见模板或条款库\n\n## 输入要求\n- 团队知识库\n\n## 工作流\n1. 接收输入：用户上传知识库文档（必需），可选提供模板文件\n2. 分析内容：解析文档，提取关键法律点、分析逻辑和建议结论\n3. 结构组织：严格按模板结构（如果提供）或默认结构（背景/分析/方案/风险/条款）输出\n4. 输出生成：将内容写入 Markdown 文件，保持标题层级和列表/表格\n5. 质量检查：执行 checks 中的检查项，确保无事实矛盾\n\n## 输出要求\n- 模板 / 条款库\n\n## 质量检查\n- 输出是否包含输入文档中的法律依据？\n- 输出结构是否与用户提供的模板一致？\n- 是否存在与输入文档矛盾的表述？\n- 是否有明显的逻辑断层或章节遗漏？\n\n## 边界规则\n- 不得编造任何法律法规、判例或监管口径\n- 不得包含输入文档中不存在的事实\n- 不得生成对外交付文本（除非用户明确要求）\n- 当信息不足时，在输出中标明【待确认】\n\n## 需要时读取\n\n- references/intake.md：启动前问题、材料清单、缺失信息处理和澄清规则。\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。\n- examples/example-input.md：示例输入结构。\n- examples/example-output.md：示例输出骨架。"
+      },
+      {
+        "id": "test-skill-references-intake-md",
+        "name": "intake.md",
+        "path": "references/intake.md",
+        "type": "markdown",
+        "content": "# 测试技能启动与信息收集\n\n## 适用边界\n- 技能类别：legal-consulting\n- 关键词：咨询意见、模板生成、条款库、个人使用\n- 用户上传团队知识库文档并请求生成咨询意见模板或条款库\n\n## 启动前必问\n- 这次输出要给谁看：内部法务、业务负责人、外部律师、对方、法院/仲裁机构、监管机构还是客户？\n- 适用法域、业务场景、交易/案件阶段、用户立场和需要解决的具体问题是什么？\n- 是否有硬期限、上线/签署/提交节点、必须保留的商业条件或不可触碰红线？\n- 已提供哪些材料，哪些材料尚未提供，哪些事实只能作为假设？\n- 期望输出是 Word 文书、审查意见、风险矩阵、谈判清单、整改路线图、邮件草稿还是汇报摘要？\n\n## 输入材料清单\n- 团队知识库\n\n## 缺失信息处理\n- 如果缺失信息会影响结论、风险等级或建议动作，先列为“待确认事项”。\n- 如果用户要求继续生成，必须在输出开头说明“基于目前材料”。\n- 不得为了让输出完整而补造合同条款、案件事实、法规依据、审批记录、时间节点或当事人立场。\n- 对期限、金额、主体、材料版本、适用法域、授权范围等关键字段，必须保留不确定性标记。"
+      },
+      {
+        "id": "test-skill-references-checklist-md",
+        "name": "checklist.md",
+        "path": "references/checklist.md",
+        "type": "markdown",
+        "content": "# 测试技能检查清单\n\n## 输入核验\n- 团队知识库\n\n## 执行步骤\n1. 接收输入：用户上传知识库文档（必需），可选提供模板文件\n2. 分析内容：解析文档，提取关键法律点、分析逻辑和建议结论\n3. 结构组织：严格按模板结构（如果提供）或默认结构（背景/分析/方案/风险/条款）输出\n4. 输出生成：将内容写入 Markdown 文件，保持标题层级和列表/表格\n5. 质量检查：执行 checks 中的检查项，确保无事实矛盾\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 输出是否包含输入文档中的法律依据？\n- 输出结构是否与用户提供的模板一致？\n- 是否存在与输入文档矛盾的表述？\n- 是否有明显的逻辑断层或章节遗漏？\n\n## 边界\n- 不得编造任何法律法规、判例或监管口径\n- 不得包含输入文档中不存在的事实\n- 不得生成对外交付文本（除非用户明确要求）\n- 当信息不足时，在输出中标明【待确认】"
+      },
+      {
+        "id": "test-skill-references-output-patterns-md",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# 测试技能输出模式\n\n## 推荐输出结构\n- 模板 / 条款库\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
+      },
+      {
+        "id": "test-skill-examples-example-input-md",
+        "name": "example-input.md",
+        "path": "examples/example-input.md",
+        "type": "markdown",
+        "content": "# 测试技能示例输入\n\n以下仅作为输入结构示例，真实使用时必须替换为用户自己的材料。\n\n```text\n任务目标：请基于以下材料生成结构化法律工作流输出。\n适用法域：待确认。\n用户立场：待确认。\n输出用途：内部审查 / 对外沟通 / Word 文书 / 风险矩阵。\n已提供材料：\n1. 材料 A：……\n2. 材料 B：……\n关键限制：不得编造未提供事实；缺失信息列为待确认。\n```"
+      },
+      {
+        "id": "test-skill-examples-example-output-md",
+        "name": "example-output.md",
+        "path": "examples/example-output.md",
+        "type": "markdown",
+        "content": "# 测试技能示例输出骨架\n\n## 基于目前材料的初步结论\n- 结论：……\n- 关键假设：……\n- 需要复核：……\n\n## 风险 / 问题矩阵\n| 项目 | 材料依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n| 示例事项 | 材料位置或事实来源 | P0/P1/P2/P3 | 具体后果 | 可执行动作 | 责任人或缺口 |\n\n## 下一步\n- 补充材料：……\n- 律师复核：……\n- 对外沟通：……"
+      }
+    ],
+    "usage_count": 7,
+    "last_used_at": "2026-05-15T15:24:51.183Z",
+    "created_at": "2026-05-14T09:00:11.409Z",
+    "updated_at": "2026-05-15T15:36:48.297Z",
+    "publisher_name": "林若澜",
+    "publisher_avatar_url": "/mock-skill-authors/author-02.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:legal-document-writing",
@@ -192,7 +293,10 @@
     "usage_count": 1,
     "last_used_at": "2026-05-15T10:43:57.44+00:00",
     "created_at": "2026-05-14T09:08:17.587+00:00",
-    "updated_at": "2026-05-15T10:43:57.443+00:00"
+    "updated_at": "2026-05-15T10:43:57.443+00:00",
+    "publisher_name": "周知行",
+    "publisher_avatar_url": "/mock-skill-authors/author-03.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:contract-review-redline",
@@ -264,7 +368,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-14T08:33:58.382+00:00",
-    "updated_at": "2026-05-14T08:34:04.1+00:00"
+    "updated_at": "2026-05-14T08:34:04.1+00:00",
+    "publisher_name": "沈安宁",
+    "publisher_avatar_url": "/mock-skill-authors/author-04.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:fa-lu-wen-shu",
@@ -329,7 +436,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-14T07:44:42.32+00:00",
-    "updated_at": "2026-05-14T07:44:49.943+00:00"
+    "updated_at": "2026-05-14T07:44:49.943+00:00",
+    "publisher_name": "许景川",
+    "publisher_avatar_url": "/mock-skill-authors/author-05.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:case-analysis-report",
@@ -372,7 +482,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T03:32:27.808+00:00",
-    "updated_at": "2026-05-14T04:36:21.719+00:00"
+    "updated_at": "2026-05-14T04:36:21.719+00:00",
+    "publisher_name": "陈清禾",
+    "publisher_avatar_url": "/mock-skill-authors/author-06.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:legal-consultation-drafting",
@@ -415,7 +528,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-12T11:29:38.864+00:00",
-    "updated_at": "2026-05-14T04:36:21.536+00:00"
+    "updated_at": "2026-05-14T04:36:21.536+00:00",
+    "publisher_name": "赵亦衡",
+    "publisher_avatar_url": "/mock-skill-authors/author-07.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:legal-consultation-opinion-draft",
@@ -466,7 +582,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-12T11:19:47.03+00:00",
-    "updated_at": "2026-05-14T04:36:21.479+00:00"
+    "updated_at": "2026-05-14T04:36:21.479+00:00",
+    "publisher_name": "梁书妍",
+    "publisher_avatar_url": "/mock-skill-authors/author-08.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:write-legal-document",
@@ -515,7 +634,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-12T11:18:25.955+00:00",
-    "updated_at": "2026-05-14T04:36:21.445+00:00"
+    "updated_at": "2026-05-14T04:36:21.445+00:00",
+    "publisher_name": "孙启明",
+    "publisher_avatar_url": "/mock-skill-authors/author-09.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:legal-opinion-draft",
@@ -565,7 +687,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-12T11:14:04.166+00:00",
-    "updated_at": "2026-05-14T04:36:21.405+00:00"
+    "updated_at": "2026-05-14T04:36:21.405+00:00",
+    "publisher_name": "唐予安",
+    "publisher_avatar_url": "/mock-skill-authors/author-10.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:legal-consultation-document-drafting",
@@ -608,50 +733,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T02:42:19.543+00:00",
-    "updated_at": "2026-05-14T04:36:21.325+00:00"
-  },
-  {
-    "id": "org-yongjian-law:regulatory-gap-analysis",
-    "slug": "org-yongjian-law:regulatory-gap-analysis",
-    "name": "法规差距分析助手",
-    "description": "Analyze a pure-text rule description (e.g., new regulation requirement, standard clause) against existing regulations or practices, and output a Word-ready gap analysis report draft. Input: plain text rule description. Output: structured gap analysis report with risk levels and improvement suggestions.",
-    "category": "法律分析",
-    "route_name": "chat",
-    "tags": [
-      "法规差距分析",
-      "咨询意见",
-      "合规"
-    ],
-    "scope": "personal",
-    "source": "custom",
-    "status": "active",
-    "files": [
-      {
-        "id": "regulatory-gap-analysis-SKILL-md",
-        "name": "SKILL.md",
-        "path": "SKILL.md",
-        "type": "markdown",
-        "content": "---\nname: regulatory-gap-analysis\ndescription: \"Analyze a pure-text rule description (e.g., new regulation requirement, standard clause) against existing regulations or practices, and output a Word-ready gap analysis report draft. Input: plain text rule description. Output: structured gap analysis report with risk levels and improvement suggestions.\"\n---\n\n# 法规差距分析助手\n\n## 使用场景\n- 用户输入法规条文或规则描述，要求进行差距分析\n\n## 输入要求\n- 用户提供业务目标、材料文本、适用法域、己方立场、输出用途和关键限制。\n\n## 工作流\n1. 接收用户输入的规则描述\n2. 识别规则中的关键要求：义务内容、执行标准、时间节点、适用范围等\n3. 与用户提供的现有规定或实践进行逐条对比（如未提供，需假设为当前通用实践并说明局限性）\n4. 逐条分析差距：是否已有对应规定、是否完全符合、存在部分缺失、存在冲突\n5. 标注每条差距的严重程度：高（需立即调整）、中（需关注）、低（建议优化）\n6. 生成差距分析报告初稿，包含：规则概述、现有规定/实践概述、逐条差距分析、风险评估、改进建议\n\n## 输出要求\n- Word 文书初稿\n\n## 质量检查\n- 规则描述是否清晰，无歧义\n- 现有规定或实践是否已提供，或已明确假设\n- 差距分析是否覆盖所有关键要求\n- 风险等级是否基于客观判断，且标注合理\n- 改进建议是否具有可操作性\n\n## 边界规则\n- 不得编造法律法规条文，仅基于用户提供的信息进行分析\n- 差距分析应客观中立，不给出具体法律意见或决策建议\n- 对于不确定的规则或现有规定，应明确标注「待确认」\n- 输出应为结构化报告，禁止输出非相关内容\n\n## 需要时读取\n- references/checklist.md：输入核验、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、红线/修改语言和沟通模式。"
-      },
-      {
-        "id": "regulatory-gap-analysis-references-checklist-md",
-        "name": "checklist.md",
-        "path": "references/checklist.md",
-        "type": "markdown",
-        "content": "# 法规差距分析助手检查清单\n\n## 输入核验\n- 确认材料类型、适用法域、己方立场、业务目标、输出用途和必须保留的边界。\n- 缺少关键材料时先列待补充事项，不直接补写事实。\n\n## 执行步骤\n1. 接收用户输入的规则描述\n2. 识别规则中的关键要求：义务内容、执行标准、时间节点、适用范围等\n3. 与用户提供的现有规定或实践进行逐条对比（如未提供，需假设为当前通用实践并说明局限性）\n4. 逐条分析差距：是否已有对应规定、是否完全符合、存在部分缺失、存在冲突\n5. 标注每条差距的严重程度：高（需立即调整）、中（需关注）、低（建议优化）\n6. 生成差距分析报告初稿，包含：规则概述、现有规定/实践概述、逐条差距分析、风险评估、改进建议\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 规则描述是否清晰，无歧义\n- 现有规定或实践是否已提供，或已明确假设\n- 差距分析是否覆盖所有关键要求\n- 风险等级是否基于客观判断，且标注合理\n- 改进建议是否具有可操作性\n\n## 边界\n- 不得编造法律法规条文，仅基于用户提供的信息进行分析\n- 差距分析应客观中立，不给出具体法律意见或决策建议\n- 对于不确定的规则或现有规定，应明确标注「待确认」\n- 输出应为结构化报告，禁止输出非相关内容"
-      },
-      {
-        "id": "regulatory-gap-analysis-references-output-patterns-md",
-        "name": "output-patterns.md",
-        "path": "references/output-patterns.md",
-        "type": "markdown",
-        "content": "# 输出模式（稳定结构）\n\n## 报告结构\n1. **规则概述**：提炼输入规则的要点（200字以内）\n2. **现有规定/实践概述**：简要说明对比基准\n3. **差距分析表**：\n| 序号 | 规则要求 | 现有规定/实践 | 差距描述 | 风险等级 | 建议 |\n|------|----------|----------------|----------|----------|------|\n| 1    | ...      | ...            | ...      | 高/中/低 | ...  |\n4. **风险评估**：对高/中风险项的综合评估\n5. **改进建议**：按优先级排列的行动要点\n\n## 表格字段说明\n- 规则要求：直接引用或概括输入规则原文\n- 现有规定/实践：若用户提供则引用，否则标注「当前实践中未发现对应规定（待确认）」\n- 差距描述：说明是否缺失/冲突/不完全一致\n- 风险等级：高、中、低三档\n- 建议：具体行动方向（如修改制度、更新流程、补充条款）\n\n## 可复制文本（可直接取用）\n- “经逐条对比，共发现X项差距，其中高风险X项、中风险X项、低风险X项。”\n- “建议优先处理高风险项，具体措施详见改进建议部分。”\n\n## 禁止输出\n- 不得输出具体的法律结论（如“该行为违法”）\n- 不得输出与差距分析无关的内容\n- 不得编造未提供的现有规定名称或文号"
-      }
-    ],
-    "usage_count": 0,
-    "last_used_at": null,
-    "created_at": "2026-05-13T04:02:26.108+00:00",
-    "updated_at": "2026-05-14T04:36:21.145+00:00"
+    "updated_at": "2026-05-14T04:36:21.325+00:00",
+    "publisher_name": "何景初",
+    "publisher_avatar_url": "/mock-skill-authors/author-11.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:product-launch-legal-review",
@@ -694,7 +779,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T04:23:57.986+00:00",
-    "updated_at": "2026-05-14T04:36:21.081+00:00"
+    "updated_at": "2026-05-14T04:36:21.081+00:00",
+    "publisher_name": "高云岚",
+    "publisher_avatar_url": "/mock-skill-authors/author-13.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:legal-timeline-organizer",
@@ -737,7 +825,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T04:30:28.279+00:00",
-    "updated_at": "2026-05-14T04:36:20.928+00:00"
+    "updated_at": "2026-05-14T04:36:20.928+00:00",
+    "publisher_name": "郑嘉言",
+    "publisher_avatar_url": "/mock-skill-authors/author-14.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:marketing-claim-review",
@@ -782,7 +873,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T06:02:08.641+00:00",
-    "updated_at": "2026-05-14T04:36:20.905+00:00"
+    "updated_at": "2026-05-14T04:36:20.905+00:00",
+    "publisher_name": "王砚舟",
+    "publisher_avatar_url": "/mock-skill-authors/author-15.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:legal-clinic-consultation-draft",
@@ -820,7 +914,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T06:13:01.477+00:00",
-    "updated_at": "2026-05-14T04:36:20.402+00:00"
+    "updated_at": "2026-05-14T04:36:20.402+00:00",
+    "publisher_name": "叶知夏",
+    "publisher_avatar_url": "/mock-skill-authors/author-16.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:regulatory-source-verification",
@@ -879,7 +976,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T06:36:22.925+00:00",
-    "updated_at": "2026-05-14T04:36:20.401+00:00"
+    "updated_at": "2026-05-14T04:36:20.401+00:00",
+    "publisher_name": "曹亦辰",
+    "publisher_avatar_url": "/mock-skill-authors/author-17.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:privacy-regulatory-gap-analysis",
@@ -937,7 +1037,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T06:58:15.289+00:00",
-    "updated_at": "2026-05-14T04:36:20.399+00:00"
+    "updated_at": "2026-05-14T04:36:20.399+00:00",
+    "publisher_name": "姚思衡",
+    "publisher_avatar_url": "/mock-skill-authors/author-18.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:legal-consultation-opinion",
@@ -973,7 +1076,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-14T03:57:12.979+00:00",
-    "updated_at": "2026-05-14T04:36:20.396+00:00"
+    "updated_at": "2026-05-14T04:36:20.396+00:00",
+    "publisher_name": "钟语桐",
+    "publisher_avatar_url": "/mock-skill-authors/author-19.webp",
+    "use_profile_identity": false
   },
   {
     "id": "org-yongjian-law:regulatory-monitoring",
@@ -1032,7 +1138,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-14T04:13:22.56+00:00",
-    "updated_at": "2026-05-14T04:36:20.394+00:00"
+    "updated_at": "2026-05-14T04:36:20.394+00:00",
+    "publisher_name": "方谨行",
+    "publisher_avatar_url": "/mock-skill-authors/author-20.webp",
+    "use_profile_identity": false
   },
   {
     "id": "regulatory-monitoring",
@@ -1091,7 +1200,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-14T04:13:22.56+00:00",
-    "updated_at": "2026-05-14T04:13:24.142+00:00"
+    "updated_at": "2026-05-14T04:13:24.142+00:00",
+    "publisher_name": "蒋云深",
+    "publisher_avatar_url": "/mock-skill-authors/author-21.webp",
+    "use_profile_identity": false
   },
   {
     "id": "contract-review-redline",
@@ -1163,7 +1275,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-14T04:10:14.636+00:00",
-    "updated_at": "2026-05-14T04:10:27.967+00:00"
+    "updated_at": "2026-05-14T04:10:27.967+00:00",
+    "publisher_name": "宋知夏",
+    "publisher_avatar_url": "/mock-skill-authors/author-22.webp",
+    "use_profile_identity": false
   },
   {
     "id": "legal-consultation-opinion",
@@ -1199,7 +1314,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-14T03:57:12.979+00:00",
-    "updated_at": "2026-05-14T03:57:16.887+00:00"
+    "updated_at": "2026-05-14T03:57:16.887+00:00",
+    "publisher_name": "程予衡",
+    "publisher_avatar_url": "/mock-skill-authors/author-23.webp",
+    "use_profile_identity": false
   },
   {
     "id": "privacy-regulatory-gap-analysis",
@@ -1257,7 +1375,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T06:58:15.289Z",
-    "updated_at": "2026-05-13T06:58:23.633Z"
+    "updated_at": "2026-05-13T06:58:23.633Z",
+    "publisher_name": "罗清越",
+    "publisher_avatar_url": "/mock-skill-authors/author-24.webp",
+    "use_profile_identity": false
   },
   {
     "id": "regulatory-source-verification",
@@ -1316,7 +1437,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T06:36:22.925Z",
-    "updated_at": "2026-05-13T06:36:23.038Z"
+    "updated_at": "2026-05-13T06:36:23.038Z",
+    "publisher_name": "秦承言",
+    "publisher_avatar_url": "/mock-skill-authors/author-25.webp",
+    "use_profile_identity": false
   },
   {
     "id": "legal-clinic-consultation-draft",
@@ -1354,7 +1478,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T06:13:01.477Z",
-    "updated_at": "2026-05-13T06:13:01.604Z"
+    "updated_at": "2026-05-13T06:13:01.604Z",
+    "publisher_name": "顾明远",
+    "publisher_avatar_url": "/mock-skill-authors/author-01.webp",
+    "use_profile_identity": false
   },
   {
     "id": "marketing-claim-review",
@@ -1399,7 +1526,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T06:02:08.641Z",
-    "updated_at": "2026-05-13T06:02:08.960Z"
+    "updated_at": "2026-05-13T06:02:08.960Z",
+    "publisher_name": "林若澜",
+    "publisher_avatar_url": "/mock-skill-authors/author-02.webp",
+    "use_profile_identity": false
   },
   {
     "id": "legal-timeline-organizer",
@@ -1442,7 +1572,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T04:30:28.279Z",
-    "updated_at": "2026-05-13T04:30:28.496Z"
+    "updated_at": "2026-05-13T04:30:28.496Z",
+    "publisher_name": "周知行",
+    "publisher_avatar_url": "/mock-skill-authors/author-03.webp",
+    "use_profile_identity": false
   },
   {
     "id": "product-launch-legal-review",
@@ -1485,7 +1618,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T04:23:57.986Z",
-    "updated_at": "2026-05-13T04:23:59.036Z"
+    "updated_at": "2026-05-13T04:23:59.036Z",
+    "publisher_name": "沈安宁",
+    "publisher_avatar_url": "/mock-skill-authors/author-04.webp",
+    "use_profile_identity": false
   },
   {
     "id": "regulatory-gap-analysis",
@@ -1528,7 +1664,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T04:02:26.108Z",
-    "updated_at": "2026-05-13T04:02:26.645Z"
+    "updated_at": "2026-05-13T04:02:26.645Z",
+    "publisher_name": "许景川",
+    "publisher_avatar_url": "/mock-skill-authors/author-05.webp",
+    "use_profile_identity": false
   },
   {
     "id": "legal-consultation-document-drafting",
@@ -1571,7 +1710,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T02:42:19.543Z",
-    "updated_at": "2026-05-13T03:44:00.203Z"
+    "updated_at": "2026-05-13T03:44:00.203Z",
+    "publisher_name": "陈清禾",
+    "publisher_avatar_url": "/mock-skill-authors/author-06.webp",
+    "use_profile_identity": false
   },
   {
     "id": "legal-opinion-drafting",
@@ -1615,7 +1757,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-12T11:23:57.731Z",
-    "updated_at": "2026-05-13T03:44:00.034Z"
+    "updated_at": "2026-05-13T03:44:00.034Z",
+    "publisher_name": "赵亦衡",
+    "publisher_avatar_url": "/mock-skill-authors/author-07.webp",
+    "use_profile_identity": false
   },
   {
     "id": "legal-opinion-draft",
@@ -1665,7 +1810,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-12T11:14:04.166Z",
-    "updated_at": "2026-05-13T03:43:58.977Z"
+    "updated_at": "2026-05-13T03:43:58.977Z",
+    "publisher_name": "梁书妍",
+    "publisher_avatar_url": "/mock-skill-authors/author-08.webp",
+    "use_profile_identity": false
   },
   {
     "id": "write-legal-document",
@@ -1714,7 +1862,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-12T11:18:25.955Z",
-    "updated_at": "2026-05-13T03:43:58.976Z"
+    "updated_at": "2026-05-13T03:43:58.976Z",
+    "publisher_name": "孙启明",
+    "publisher_avatar_url": "/mock-skill-authors/author-09.webp",
+    "use_profile_identity": false
   },
   {
     "id": "legal-consultation-opinion-draft",
@@ -1765,7 +1916,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-12T11:19:47.030Z",
-    "updated_at": "2026-05-13T03:43:58.973Z"
+    "updated_at": "2026-05-13T03:43:58.973Z",
+    "publisher_name": "唐予安",
+    "publisher_avatar_url": "/mock-skill-authors/author-10.webp",
+    "use_profile_identity": false
   },
   {
     "id": "legal-consultation-drafting",
@@ -1808,7 +1962,10 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-12T11:29:38.864Z",
-    "updated_at": "2026-05-13T03:43:58.972Z"
+    "updated_at": "2026-05-13T03:43:58.972Z",
+    "publisher_name": "何景初",
+    "publisher_avatar_url": "/mock-skill-authors/author-11.webp",
+    "use_profile_identity": false
   },
   {
     "id": "case-analysis-report",
@@ -1851,6 +2008,9 @@
     "usage_count": 0,
     "last_used_at": null,
     "created_at": "2026-05-13T03:32:27.808Z",
-    "updated_at": "2026-05-13T03:43:58.874Z"
+    "updated_at": "2026-05-13T03:43:58.874Z",
+    "publisher_name": "陆明薇",
+    "publisher_avatar_url": "/mock-skill-authors/author-12.webp",
+    "use_profile_identity": false
   }
 ]

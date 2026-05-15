@@ -10,8 +10,11 @@ import {
   X,
 } from 'lucide-vue-next';
 import { templateAssets, type TemplateAsset, type TemplateDocumentSection } from '../data/legalAssets';
+import { getMockSkillAuthor } from '../data/mockSkillAuthors';
+import { hasTemplatePublishDestination } from '../data/templateCatalog';
 import { sendDeepSeekMessage } from '../services/deepseekChat';
 import LibraryTypeDropdown from './LibraryTypeDropdown.vue';
+import TemplateCreateModal from './TemplateCreateModal.vue';
 import TemplateDetailPanel from './TemplateDetailPanel.vue';
 
 type ExtractionState = 'idle' | 'reading' | 'analyzing' | 'done' | 'error';
@@ -54,6 +57,10 @@ const templateFilePath = (template: TemplateAsset) => {
   const original = originalFilesByTemplateId.value[template.id];
   return original ? `uploaded://${original.fileName}` : `assets/templates/${template.id}.md`;
 };
+const getTemplateAuthor = (template: TemplateAsset) => getMockSkillAuthor(template.id, 9);
+const getTemplateAuthorAvatarStyle = (template: TemplateAsset) => ({
+  backgroundImage: `url("${getTemplateAuthor(template).avatarUrl}")`,
+});
 const isDetailOpen = computed(() => Boolean(selectedTemplate.value));
 const selectedOriginalFile = computed(() =>
   selectedTemplate.value ? originalFilesByTemplateId.value[selectedTemplate.value.id] : undefined
@@ -74,6 +81,14 @@ const primaryTemplateCategories = [
   '并购交易',
   '基金业务',
   '合规日常',
+];
+
+const sourceTabsKeys: SourceFilter[] = [
+  'personal',
+  'group-shared',
+  'team-shared',
+  'public-hub',
+  'recommended',
 ];
 
 const templateModeCopy: Record<SourceFilter, { name: string; emptyTitle: string; emptyDescription: string }> = {
@@ -104,12 +119,25 @@ const templateModeCopy: Record<SourceFilter, { name: string; emptyTitle: string;
   },
 };
 
-const getTemplateSourceKind = (template: TemplateAsset): SourceFilter => {
+const getTemplateStaticSourceKind = (template: TemplateAsset): SourceFilter => {
   if (template.source.includes('小组')) return 'group-shared';
   if (template.source.includes('团队')) return 'team-shared';
   if (template.source.includes('公共')) return 'public-hub';
   if (template.source.includes('推荐') || template.source.includes('官方')) return 'recommended';
   return 'personal';
+};
+
+const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter) => {
+  if (source === 'group-shared') {
+    return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'group');
+  }
+  if (source === 'team-shared') {
+    return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'team');
+  }
+  if (source === 'public-hub') {
+    return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'public');
+  }
+  return getTemplateStaticSourceKind(template) === source;
 };
 
 const sourceTabs = computed(() => {
@@ -122,7 +150,9 @@ const sourceTabs = computed(() => {
   };
 
   combinedTemplates.value.forEach((template) => {
-    counts[getTemplateSourceKind(template)] += 1;
+    sourceTabsKeys.forEach((source) => {
+      if (isTemplateVisibleInSource(template, source)) counts[source] += 1;
+    });
   });
 
   return [
@@ -139,7 +169,7 @@ const isPersonalMode = computed(() => selectedSource.value === 'personal');
 const shouldShowCategoryFilter = computed(() => selectedSource.value === 'recommended');
 
 const sourceFilteredTemplates = computed(() => {
-  return combinedTemplates.value.filter((template) => getTemplateSourceKind(template) === selectedSource.value);
+  return combinedTemplates.value.filter((template) => isTemplateVisibleInSource(template, selectedSource.value));
 });
 
 const categoryTabs = computed(() => {
@@ -600,6 +630,10 @@ const handleTemplateDrop = (event: DragEvent) => {
 
                 <div class="tile-caption">
                   <h2>{{ template.name }}</h2>
+                  <div class="tile-author">
+                    <span class="tile-author-avatar" :style="getTemplateAuthorAvatarStyle(template)" aria-hidden="true"></span>
+                    <span>{{ getTemplateAuthor(template).name }}</span>
+                  </div>
                   <div class="tile-meta">
                     <span>{{ template.source }}</span>
                     <span>{{ template.updatedAt }}</span>
@@ -617,70 +651,14 @@ const handleTemplateDrop = (event: DragEvent) => {
           </section>
         </section>
 
-        <div v-if="showCreateModal" class="template-create-backdrop" @click.self="closeCreateModal">
-          <section class="template-create-modal" role="dialog" aria-modal="true" aria-labelledby="template-create-title">
-            <button class="create-close-btn" type="button" aria-label="关闭新建模板" @click="closeCreateModal">
-              <X :size="18" />
-            </button>
-
-            <header class="create-modal-header">
-              <span class="create-modal-icon" aria-hidden="true">
-                <Sparkles :size="20" />
-              </span>
-              <div>
-                <h2 id="template-create-title">新建模板</h2>
-                <p>上传已有模板，AI 提取字段、结构和预览内容，原件会随模板保留。</p>
-              </div>
-            </header>
-
-            <div class="create-modal-body">
-              <div class="create-guide">
-                <div>
-                  <Check :size="15" />
-                  <span>上传原件</span>
-                </div>
-                <div>
-                  <Sparkles :size="15" />
-                  <span>生成模板壳</span>
-                </div>
-                <div>
-                  <FileText :size="15" />
-                  <span>预览页查看</span>
-                </div>
-              </div>
-
-              <label
-                class="template-upload-zone"
-                :class="{ active: Boolean(uploadedTemplateFile), dragging: isTemplateDragActive }"
-                @dragenter.prevent="isTemplateDragActive = true"
-                @dragover.prevent="isTemplateDragActive = true"
-                @dragleave.prevent="isTemplateDragActive = false"
-                @drop.prevent="handleTemplateDrop"
-              >
-                <input
-                  type="file"
-                  accept=".doc,.docx,.pdf,.txt,.md,.markdown,.rtf"
-                  hidden
-                  @change="handleUploadedTemplateChange"
-                />
-                <span class="upload-zone-icon" aria-hidden="true">
-                  <Upload :size="24" />
-                </span>
-                <strong>{{ uploadedTemplateFile?.name || '点击或拖拽上传模板原件' }}</strong>
-                <span>
-                  {{ uploadedTemplateFile ? `${formatFileSize(uploadedTemplateFile.size)} · 正在进入预览页` : '支持 doc、docx、pdf、txt、md、rtf；上传后立即生成占位模板' }}
-                </span>
-              </label>
-
-              <p v-if="extractionState === 'reading' || extractionState === 'analyzing'" class="extract-status">
-                正在读取原件，随后会自动打开模板预览页。
-              </p>
-              <p v-else-if="extractionState === 'error'" class="extract-status error">
-                {{ extractionError }}
-              </p>
-            </div>
-          </section>
-        </div>
+        <TemplateCreateModal
+          v-if="showCreateModal"
+          :uploaded-file="uploadedTemplateFile"
+          :extraction-state="extractionState"
+          :extraction-error="extractionError"
+          @close="closeCreateModal"
+          @upload="analyzeUploadedTemplate"
+        />
       </template>
     </main>
   </div>
@@ -1170,6 +1148,37 @@ const handleTemplateDrop = (event: DragEvent) => {
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tile-author {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.tile-author span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-author-avatar {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-color) 70%, transparent);
 }
 
 .tile-meta {

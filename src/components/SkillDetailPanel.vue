@@ -16,11 +16,21 @@ import {
   isSkillEnabled,
   isSkillAvailable,
   isRecommendedSkill,
+  publishSkillToTeamMarket,
   setSkillEnabled,
   upsertCustomSkill,
+  type SkillPublishDestination,
   type SkillCatalogItem,
   type SkillFile,
 } from '../data/skillCatalog';
+import {
+  getSkillAuthorAvatarStyle,
+  getSkillAuthorAvatarText,
+  getSkillAuthorName,
+  hasSkillAuthorAvatarImage,
+  getProfileDisplayName,
+} from '../data/profileIdentity';
+import { useOrgSession } from '../stores/orgSession';
 
 const props = withDefaults(
   defineProps<{
@@ -54,7 +64,7 @@ type TreeGroup = {
 };
 
 type DetailPanelMode = 'preview' | 'publish';
-type SkillPublishVisibility = 'personal' | 'group' | 'team';
+type SkillPublishVisibility = 'personal' | SkillPublishDestination;
 type ShareablePublishVisibility = Exclude<SkillPublishVisibility, 'personal'>;
 
 type SkillPublishPermissionSettings = {
@@ -67,13 +77,15 @@ type SkillPublishPermissionSettings = {
 type SkillPublishSettings = {
   iconDataUrl: string;
   name: string;
+  useProfileIdentity: boolean;
   description: string;
-  visibility: SkillPublishVisibility;
+  visibilities: SkillPublishVisibility[];
   scopePermissions: Record<ShareablePublishVisibility, SkillPublishPermissionSettings>;
 };
 
-const defaultPublisherName = '涌见AI';
+const defaultPublisherName = '李律师';
 const skillPublishSettingsStorageKey = 'legal-version-skill-publish-settings';
+const { currentUser } = useOrgSession();
 
 const createDefaultPublishPermission = (): SkillPublishPermissionSettings => ({
   allowCopy: false,
@@ -91,8 +103,8 @@ const publishVisibilityOptions: Array<{
   { id: 'personal', label: '仅自己', description: '只保存在个人技能区，可随时继续调整。' },
   { id: 'group', label: '小组', description: '小组成员可以在技能库中查看和调用。', permissionSubject: '小组成员' },
   { id: 'team', label: '本团队', description: '本团队成员可以在技能库中查看和调用。', permissionSubject: '本团队成员' },
+  { id: 'public', label: '公共库', description: '公开后可进入公共库，更多用户可以发现和安装。', permissionSubject: '公共库用户' },
 ];
-const defaultPublishVisibilityOption = publishVisibilityOptions[0]!;
 
 const activeFileId = ref('');
 const expandedTreeKeys = ref<Record<string, boolean>>({});
@@ -104,11 +116,13 @@ const publishIconInputRef = ref<HTMLInputElement | null>(null);
 const publishSettings = ref<SkillPublishSettings>({
   iconDataUrl: '',
   name: '',
+  useProfileIdentity: true,
   description: '',
-  visibility: 'personal',
+  visibilities: ['personal'],
   scopePermissions: {
     group: createDefaultPublishPermission(),
     team: createDefaultPublishPermission(),
+    public: createDefaultPublishPermission(),
   },
 });
 const statusMessage = ref('');
@@ -192,20 +206,22 @@ const selectedSkillIsEnabled = computed(() => isSkillEnabled(props.skill));
 
 const panelClass = computed(() => `${props.layout}-layout`);
 
-type StoredPublishSettings = Partial<Omit<SkillPublishSettings, 'visibility' | 'scopePermissions'>> & {
+type StoredPublishSettings = Partial<Omit<SkillPublishSettings, 'visibilities' | 'scopePermissions'>> & {
   visibility?: SkillPublishVisibility | 'public';
+  visibilities?: unknown;
   scopePermissions?: Partial<Record<ShareablePublishVisibility, Partial<SkillPublishPermissionSettings>>>;
 } & Partial<SkillPublishPermissionSettings>;
 
 const isShareablePublishVisibility = (value: unknown): value is ShareablePublishVisibility =>
-  value === 'group' || value === 'team';
+  value === 'group' || value === 'team' || value === 'public';
 
 const isPublishVisibility = (value: unknown): value is SkillPublishVisibility =>
   value === 'personal' || isShareablePublishVisibility(value);
 
-const normalizeStoredPublishVisibility = (value: unknown): SkillPublishVisibility | '' => {
-  if (value === 'public') return 'group';
-  return isPublishVisibility(value) ? value : '';
+const normalizePublishVisibilities = (value: unknown): SkillPublishVisibility[] => {
+  const values = Array.isArray(value) ? value : [value];
+  const normalized = values.filter(isPublishVisibility);
+  return Array.from(new Set(normalized.length ? normalized : ['personal']));
 };
 
 const hasLegacyPublishPermission = (settings: StoredPublishSettings) =>
@@ -253,8 +269,9 @@ const writeStoredPublishSettings = (skillId: string, settings: SkillPublishSetti
 
 const createPublishSettingsForSkill = (skill: SkillCatalogItem): SkillPublishSettings => {
   const stored = readStoredPublishSettings()[skill.id] ?? {};
-  const storedVisibility = normalizeStoredPublishVisibility(stored.visibility);
-  const visibility = storedVisibility || 'personal';
+  const visibilities = normalizePublishVisibilities(
+    Array.isArray(stored.visibilities) ? stored.visibilities : stored.visibility,
+  );
   const storedScopePermissions = stored.scopePermissions && typeof stored.scopePermissions === 'object'
     ? stored.scopePermissions
     : {};
@@ -264,55 +281,93 @@ const createPublishSettingsForSkill = (skill: SkillCatalogItem): SkillPublishSet
     if (scopedPermission && typeof scopedPermission === 'object') {
       return normalizePublishPermission(scopedPermission);
     }
-    if (storedVisibility === option && hasLegacyPublishPermission(stored)) {
+    if (visibilities.includes(option) && hasLegacyPublishPermission(stored)) {
       return legacyPermission;
     }
     return createDefaultPublishPermission();
   };
 
   return {
-    iconDataUrl: typeof stored.iconDataUrl === 'string' ? stored.iconDataUrl : '',
+    iconDataUrl: typeof stored.iconDataUrl === 'string' ? stored.iconDataUrl : skill.iconDataUrl || '',
     name: typeof stored.name === 'string' && stored.name.trim() ? stored.name : skill.name,
+    useProfileIdentity: typeof stored.useProfileIdentity === 'boolean'
+      ? stored.useProfileIdentity
+      : skill.useProfileIdentity !== false,
     description: typeof stored.description === 'string' && stored.description.trim()
       ? stored.description
       : skill.description,
-    visibility,
+    visibilities,
     scopePermissions: {
       group: createPermissionForVisibility('group'),
       team: createPermissionForVisibility('team'),
+      public: createPermissionForVisibility('public'),
     },
   };
 };
 
-const currentPublishVisibility = computed(() =>
-  publishVisibilityOptions.find((option) => option.id === publishSettings.value.visibility)
-    ?? defaultPublishVisibilityOption
+const selectedPublishVisibilityOptions = computed(() =>
+  publishVisibilityOptions.filter((option) => publishSettings.value.visibilities.includes(option.id))
 );
 
-const activePublishPermission = computed(() => {
-  const { visibility, scopePermissions } = publishSettings.value;
-  return isShareablePublishVisibility(visibility) ? scopePermissions[visibility] : null;
-});
+const selectedShareablePublishOptions = computed(() =>
+  selectedPublishVisibilityOptions.value.filter(
+    (option): option is typeof option & { id: ShareablePublishVisibility } =>
+      isShareablePublishVisibility(option.id),
+  )
+);
+
+const publishVisibilityDescription = computed(() =>
+  selectedPublishVisibilityOptions.value.length
+    ? `已选择 ${selectedPublishVisibilityOptions.value.map((option) => option.label).join('、')}，可同时发布到多个范围。`
+    : '请选择至少一个发布范围。'
+);
 
 const publishSettingsSummary = computed(() => {
-  const permissionSettings = activePublishPermission.value;
-  if (!permissionSettings) return '仅保存在个人技能区，无需设置范围内权限';
+  const previewSkill = {
+    ...props.skill,
+    useProfileIdentity: publishSettings.value.useProfileIdentity,
+  };
+  const authorName = getSkillAuthorName(previewSkill, currentUser.value);
+  const identity = publishSettings.value.useProfileIdentity
+    ? `使用个人资料：${getProfileDisplayName(currentUser.value)} / ${publishSettings.value.name || props.skill.name}`
+    : authorName
+      ? `技能作者：${authorName} / ${publishSettings.value.name || props.skill.name}`
+      : `仅显示技能：${publishSettings.value.name || props.skill.name}`;
+  const shareableLabels = selectedShareablePublishOptions.value.map((option) => option.label);
+  if (!shareableLabels.length) return `仅保存在个人技能区 · ${identity}`;
 
-  const permission = permissionSettings.allowCopy
-    ? permissionSettings.allowRemix ? '允许查看详情和自行编辑' : '允许查看详情'
-    : '不允许查看详情';
-  const publisher = permissionSettings.showPublisherName
-    ? `显示发布者：${permissionSettings.publisherName || defaultPublisherName}`
-    : '隐藏发布者';
-  return `${currentPublishVisibility.value.label} · ${permission} · ${publisher}`;
+  return `发布到：${shareableLabels.join('、')} · ${identity}`;
 });
+
+const publishIdentityPreviewSkill = computed(() => ({
+  ...props.skill,
+  useProfileIdentity: publishSettings.value.useProfileIdentity,
+}));
+const profileIdentityPreviewName = computed(() =>
+  getSkillAuthorName(publishIdentityPreviewSkill.value, currentUser.value) || '未设置作者'
+);
+const profileIdentityPreviewText = computed(() =>
+  getSkillAuthorAvatarText(publishIdentityPreviewSkill.value, currentUser.value) || '作'
+);
+const profileIdentityPreviewStyle = computed(() =>
+  getSkillAuthorAvatarStyle(publishIdentityPreviewSkill.value, currentUser.value)
+);
+const profileIdentityPreviewHasImage = computed(() =>
+  hasSkillAuthorAvatarImage(publishIdentityPreviewSkill.value, currentUser.value)
+);
+const profileIdentityPreviewSource = computed(() =>
+  publishSettings.value.useProfileIdentity ? '来自个人中心' : '来自技能作者'
+);
 
 const publishIconFallback = computed(() =>
   (publishSettings.value.name || props.skill.name || '技').trim().slice(0, 1).toUpperCase()
 );
 
 const canSavePublishSettings = computed(() =>
-  Boolean(publishSettings.value.name.trim() && publishSettings.value.description.trim())
+  Boolean(
+    publishSettings.value.name.trim()
+    && publishSettings.value.description.trim()
+  )
 );
 
 const setStatus = (message: string) => {
@@ -465,9 +520,11 @@ const handlePublishIconUpload = (event: Event) => {
   reader.readAsDataURL(file);
 };
 
-const updateActivePublishPermission = (patch: Partial<SkillPublishPermissionSettings>) => {
-  const { visibility, scopePermissions } = publishSettings.value;
-  if (!isShareablePublishVisibility(visibility)) return;
+const updatePublishPermission = (
+  visibility: ShareablePublishVisibility,
+  patch: Partial<SkillPublishPermissionSettings>,
+) => {
+  const { scopePermissions } = publishSettings.value;
   const nextPermission = {
     ...scopePermissions[visibility],
     ...patch,
@@ -485,46 +542,77 @@ const updateActivePublishPermission = (patch: Partial<SkillPublishPermissionSett
   };
 };
 
-const handleActivePermissionCopyChange = (event: Event) => {
+const handlePermissionCopyChange = (visibility: ShareablePublishVisibility, event: Event) => {
   const allowCopy = (event.target as HTMLInputElement).checked;
-  updateActivePublishPermission({
+  updatePublishPermission(visibility, {
     allowCopy,
-    allowRemix: allowCopy ? activePublishPermission.value?.allowRemix : false,
+    allowRemix: allowCopy ? publishSettings.value.scopePermissions[visibility].allowRemix : false,
   });
 };
 
-const handleActivePermissionRemixChange = (event: Event) => {
-  updateActivePublishPermission({
+const handlePermissionRemixChange = (visibility: ShareablePublishVisibility, event: Event) => {
+  updatePublishPermission(visibility, {
     allowRemix: (event.target as HTMLInputElement).checked,
   });
 };
 
-const handleActivePermissionPublisherVisibilityChange = (event: Event) => {
-  updateActivePublishPermission({
-    showPublisherName: (event.target as HTMLInputElement).checked,
-  });
+const isPublishVisibilitySelected = (visibility: SkillPublishVisibility) =>
+  publishSettings.value.visibilities.includes(visibility);
+
+const isScopePermissionEnabled = (visibility: SkillPublishVisibility) =>
+  isShareablePublishVisibility(visibility) && isPublishVisibilitySelected(visibility);
+
+const getScopePermission = (visibility: SkillPublishVisibility) =>
+  isShareablePublishVisibility(visibility)
+    ? publishSettings.value.scopePermissions[visibility]
+    : null;
+
+const isScopePermissionAllowCopy = (visibility: SkillPublishVisibility) =>
+  Boolean(getScopePermission(visibility)?.allowCopy);
+
+const isScopePermissionAllowRemix = (visibility: SkillPublishVisibility) =>
+  Boolean(getScopePermission(visibility)?.allowRemix);
+
+const handleScopePermissionCopyChange = (visibility: SkillPublishVisibility, event: Event) => {
+  if (!isShareablePublishVisibility(visibility)) return;
+  handlePermissionCopyChange(visibility, event);
 };
 
-const handleActivePermissionPublisherNameInput = (event: Event) => {
-  updateActivePublishPermission({
-    publisherName: (event.target as HTMLInputElement).value,
-  });
+const handleScopePermissionRemixChange = (visibility: SkillPublishVisibility, event: Event) => {
+  if (!isShareablePublishVisibility(visibility)) return;
+  handlePermissionRemixChange(visibility, event);
+};
+
+const togglePublishVisibility = (visibility: SkillPublishVisibility) => {
+  const current = publishSettings.value.visibilities;
+  const next = current.includes(visibility)
+    ? current.filter((item) => item !== visibility)
+    : [...current, visibility];
+
+  publishSettings.value = {
+    ...publishSettings.value,
+    visibilities: normalizePublishVisibilities(next),
+  };
 };
 
 const normalizePublishSettings = (settings: SkillPublishSettings): SkillPublishSettings => ({
   ...settings,
   name: settings.name.trim(),
   description: settings.description.trim(),
-  visibility: isPublishVisibility(settings.visibility) ? settings.visibility : 'personal',
+  useProfileIdentity: Boolean(settings.useProfileIdentity),
+  visibilities: normalizePublishVisibilities(settings.visibilities),
   scopePermissions: {
     group: normalizePublishPermission(settings.scopePermissions.group),
     team: normalizePublishPermission(settings.scopePermissions.team),
+    public: normalizePublishPermission(settings.scopePermissions.public),
   },
 });
 
-const formatPublishDestination = (visibility: SkillPublishVisibility) => {
-  if (visibility === 'personal') return '仅自己';
-  return publishVisibilityOptions.find((option) => option.id === visibility)?.label ?? '仅自己';
+const formatPublishDestinations = (visibilities: SkillPublishVisibility[]) => {
+  const labels = publishVisibilityOptions
+    .filter((option) => visibilities.includes(option.id))
+    .map((option) => option.label);
+  return labels.length ? labels.join('、') : '未选择范围';
 };
 
 const saveSkillPublishSettings = (mode: 'draft' | 'publish') => {
@@ -538,8 +626,10 @@ const saveSkillPublishSettings = (mode: 'draft' | 'publish') => {
   const updatedSkill = upsertCustomSkill({
     ...props.skill,
     name: settings.name,
+    iconDataUrl: settings.iconDataUrl,
+    useProfileIdentity: settings.useProfileIdentity,
     description: settings.description,
-    scope: mode === 'publish' && settings.visibility !== 'personal' ? 'team' : 'personal',
+    scope: mode === 'publish' && settings.visibilities.some(isShareablePublishVisibility) ? 'team' : 'personal',
     status: mode === 'publish' ? 'active' : 'draft',
   });
 
@@ -550,10 +640,16 @@ const saveSkillPublishSettings = (mode: 'draft' | 'publish') => {
 
   publishSettings.value = settings;
   writeStoredPublishSettings(updatedSkill.id, settings);
+  if (mode === 'publish') {
+    const destinations = settings.visibilities.filter(isShareablePublishVisibility);
+    if (destinations.length) {
+      publishSkillToTeamMarket(updatedSkill.id, destinations);
+    }
+  }
   emit('updated', updatedSkill);
   setStatus(
     mode === 'publish'
-      ? `技能已发布到${formatPublishDestination(settings.visibility)}`
+      ? `技能已发布到${formatPublishDestinations(settings.visibilities)}`
       : '技能发布设置已保存为草稿',
   );
 };
@@ -616,12 +712,14 @@ watch(
   () => [
     publishSettings.value.scopePermissions.group.allowCopy,
     publishSettings.value.scopePermissions.team.allowCopy,
+    publishSettings.value.scopePermissions.public.allowCopy,
   ] as const,
-  ([groupAllowCopy, teamAllowCopy]) => {
-    const { group, team } = publishSettings.value.scopePermissions;
+  ([groupAllowCopy, teamAllowCopy, publicAllowCopy]) => {
+    const { group, team, public: publicPermission } = publishSettings.value.scopePermissions;
     if (
       (groupAllowCopy || !group.allowRemix)
       && (teamAllowCopy || !team.allowRemix)
+      && (publicAllowCopy || !publicPermission.allowRemix)
     ) {
       return;
     }
@@ -631,6 +729,7 @@ watch(
       scopePermissions: {
         group: groupAllowCopy ? group : { ...group, allowRemix: false },
         team: teamAllowCopy ? team : { ...team, allowRemix: false },
+        public: publicAllowCopy ? publicPermission : { ...publicPermission, allowRemix: false },
       },
     };
   },
@@ -829,38 +928,61 @@ onBeforeUnmount(() => {
     <section v-else class="skill-publish-shell" aria-label="技能发布设置">
       <div class="skill-publish-panel">
         <div class="publish-section publish-identity-section">
-          <div class="publish-icon-field">
-            <button type="button" class="publish-icon-preview" aria-label="上传技能图标" @click="choosePublishIcon">
-              <img v-if="publishSettings.iconDataUrl" :src="publishSettings.iconDataUrl" alt="" />
-              <span v-else>{{ publishIconFallback }}</span>
-            </button>
-            <div class="publish-icon-actions">
-              <button type="button" class="publish-small-action" @click="choosePublishIcon">
-                <Upload :size="14" />
-                上传图标
-              </button>
-              <button
-                v-if="publishSettings.iconDataUrl"
-                type="button"
-                class="publish-small-action muted"
-                @click="clearPublishIcon"
-              >
-                移除
-              </button>
-              <input
-                ref="publishIconInputRef"
-                class="publish-icon-input"
-                type="file"
-                accept="image/*"
-                @change="handlePublishIconUpload"
-              />
-            </div>
-          </div>
+          <div class="publish-identity-row">
+            <div class="publish-skill-info-group">
+              <div class="publish-avatar-control">
+                <span class="publish-control-label">技能头像</span>
+                <div class="publish-avatar-line">
+                  <button
+                    type="button"
+                    class="publish-icon-preview"
+                    aria-label="更换技能头像"
+                    title="更换技能头像"
+                    @click="choosePublishIcon"
+                  >
+                    <span class="publish-icon-thumb">
+                      <img v-if="publishSettings.iconDataUrl" :src="publishSettings.iconDataUrl" alt="" />
+                      <span v-else>{{ publishIconFallback }}</span>
+                    </span>
+                    <span class="publish-icon-change">
+                      <Upload :size="13" />
+                      <span>更换</span>
+                    </span>
+                  </button>
+                  <input
+                    ref="publishIconInputRef"
+                    class="publish-icon-input"
+                    type="file"
+                    accept="image/*"
+                    @change="handlePublishIconUpload"
+                  />
+                </div>
+              </div>
 
-          <label class="publish-field">
-            <span>技能名称</span>
-            <input v-model="publishSettings.name" type="text" maxlength="48" />
-          </label>
+              <label class="publish-field publish-name-field">
+                <span>技能名称</span>
+                <input v-model="publishSettings.name" type="text" maxlength="48" />
+              </label>
+            </div>
+
+            <label class="publish-author-info-group">
+              <span class="publish-control-label">使用作者信息</span>
+              <div class="publish-author-card">
+                <div class="profile-identity-preview">
+                  <span class="profile-identity-avatar" :style="profileIdentityPreviewStyle">
+                    <span v-if="!profileIdentityPreviewHasImage">{{ profileIdentityPreviewText }}</span>
+                  </span>
+                  <span>
+                    <strong>{{ profileIdentityPreviewName }}</strong>
+                    <small>{{ profileIdentityPreviewSource }}</small>
+                  </span>
+                </div>
+                <span class="publish-switch-slot">
+                  <input v-model="publishSettings.useProfileIdentity" type="checkbox" />
+                </span>
+              </div>
+            </label>
+          </div>
 
           <label class="publish-field">
             <span>技能描述</span>
@@ -871,83 +993,63 @@ onBeforeUnmount(() => {
         <div class="publish-section">
           <div class="publish-section-header">
             <strong>发布范围</strong>
-            <span>{{ currentPublishVisibility.description }}</span>
+            <span>{{ publishVisibilityDescription }}</span>
           </div>
-          <div class="publish-scope-list" role="radiogroup" aria-label="发布范围">
-            <button
+          <div class="publish-scope-list" role="group" aria-label="发布范围">
+            <div
               v-for="option in publishVisibilityOptions"
               :key="option.id"
-              type="button"
               class="publish-scope-option"
-              :class="{ active: publishSettings.visibility === option.id }"
-              role="radio"
-              :aria-checked="publishSettings.visibility === option.id"
-              @click="publishSettings.visibility = option.id"
+              :class="{ active: isPublishVisibilitySelected(option.id) }"
+              role="checkbox"
+              tabindex="0"
+              :aria-checked="isPublishVisibilitySelected(option.id)"
+              @click="togglePublishVisibility(option.id)"
+              @keydown.enter.prevent="togglePublishVisibility(option.id)"
+              @keydown.space.prevent="togglePublishVisibility(option.id)"
             >
-              <span class="publish-scope-check">
-                <Check v-if="publishSettings.visibility === option.id" :size="14" />
-              </span>
-              <span>
-                <strong>{{ option.label }}</strong>
-                <small>{{ option.description }}</small>
-              </span>
-            </button>
-          </div>
-        </div>
+              <div class="publish-scope-head">
+                <span class="publish-scope-check">
+                  <Check v-if="isPublishVisibilitySelected(option.id)" :size="14" />
+                </span>
+                <span class="publish-scope-copy">
+                  <strong>{{ option.label }}</strong>
+                  <small>{{ option.description }}</small>
+                </span>
+              </div>
 
-        <div v-if="activePublishPermission" class="publish-section">
-          <div class="publish-section-header">
-            <strong>{{ currentPublishVisibility.label }}权限</strong>
-            <span>这些开关只影响{{ currentPublishVisibility.permissionSubject }}对技能副本的使用方式。</span>
+              <div
+                v-if="isShareablePublishVisibility(option.id)"
+                class="publish-scope-permissions"
+                :class="{ disabled: !isScopePermissionEnabled(option.id) }"
+                @click.stop
+              >
+                <label class="publish-inline-toggle">
+                  <span>查看详情</span>
+                  <input
+                    :checked="isScopePermissionAllowCopy(option.id)"
+                    :disabled="!isScopePermissionEnabled(option.id)"
+                    type="checkbox"
+                    @change="handleScopePermissionCopyChange(option.id, $event)"
+                  />
+                </label>
+                <label class="publish-inline-toggle">
+                  <span>自行编辑</span>
+                  <input
+                    :checked="isScopePermissionAllowRemix(option.id)"
+                    :disabled="!isScopePermissionEnabled(option.id) || !isScopePermissionAllowCopy(option.id)"
+                    type="checkbox"
+                    @change="handleScopePermissionRemixChange(option.id, $event)"
+                  />
+                </label>
+              </div>
+            </div>
           </div>
-          <label class="publish-toggle">
-            <span>
-              <strong>允许查看详情</strong>
-              <small>{{ currentPublishVisibility.permissionSubject }}可以查看该技能详情和说明。</small>
-            </span>
-            <input
-              :checked="activePublishPermission.allowCopy"
-              type="checkbox"
-              @change="handleActivePermissionCopyChange"
-            />
-          </label>
-          <label class="publish-toggle" :class="{ disabled: !activePublishPermission.allowCopy }">
-            <span>
-              <strong>允许自行编辑</strong>
-              <small>自行编辑副本，不修改原技能。</small>
-            </span>
-            <input
-              :checked="activePublishPermission.allowRemix"
-              type="checkbox"
-              :disabled="!activePublishPermission.allowCopy"
-              @change="handleActivePermissionRemixChange"
-            />
-          </label>
-          <label class="publish-toggle">
-            <span>
-              <strong>显示发布者名称</strong>
-              <small>在技能详情和共享列表中展示发布者。</small>
-            </span>
-            <input
-              :checked="activePublishPermission.showPublisherName"
-              type="checkbox"
-              @change="handleActivePermissionPublisherVisibilityChange"
-            />
-          </label>
-          <label v-if="activePublishPermission.showPublisherName" class="publish-field compact">
-            <span>发布者名称</span>
-            <input
-              :value="activePublishPermission.publisherName"
-              type="text"
-              maxlength="32"
-              @input="handleActivePermissionPublisherNameInput"
-            />
-          </label>
         </div>
 
         <div class="publish-footer">
           <div class="publish-footer-summary">
-            <strong>{{ currentPublishVisibility.label }}</strong>
+            <strong>{{ formatPublishDestinations(publishSettings.visibilities) }}</strong>
             <span>{{ publishSettingsSummary }}</span>
           </div>
           <div class="publish-footer-actions">
@@ -1454,50 +1556,119 @@ onBeforeUnmount(() => {
 }
 
 .publish-identity-section {
-  gap: 16px;
-}
-
-.publish-icon-field {
-  display: flex;
-  align-items: center;
   gap: 14px;
 }
 
+.publish-identity-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  align-items: end;
+  gap: 34px;
+}
+
+.publish-skill-info-group,
+.publish-author-info-group {
+  min-width: 0;
+  display: grid;
+  align-items: end;
+  gap: 12px;
+}
+
+.publish-skill-info-group {
+  grid-template-columns: 106px minmax(0, 1fr);
+}
+
+.publish-author-info-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.publish-avatar-control,
+.publish-profile-switch {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.publish-control-label {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 16px;
+}
+
+.publish-avatar-line {
+  height: 40px;
+  display: flex;
+  align-items: center;
+}
+
 .publish-icon-preview {
-  width: 64px;
-  height: 64px;
+  position: relative;
+  width: 106px;
+  height: 40px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 8px 3px 4px;
   overflow: hidden;
-  border: 1px solid var(--primary-border);
-  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--primary-border) 72%, var(--border-color));
+  border-radius: 9px;
   color: var(--primary-color);
-  background: var(--primary-soft);
-  font-size: 24px;
-  font-weight: 900;
+  background: color-mix(in srgb, var(--primary-soft) 48%, var(--card-bg));
+  font-size: 12px;
+  font-weight: 850;
 }
 
-.publish-icon-preview img {
+.publish-icon-preview:hover {
+  border-color: var(--primary-border);
+  background: var(--primary-soft);
+}
+
+.publish-icon-thumb {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--primary-border) 72%, transparent);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 34% 22%, rgba(255, 255, 255, 0.95), transparent 36%),
+    var(--primary-soft);
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.publish-icon-change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.publish-icon-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.publish-icon-actions {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .publish-icon-input {
   display: none;
 }
 
-.publish-small-action,
 .publish-draft-btn,
 .publish-primary-btn {
   height: 32px;
@@ -1511,34 +1682,88 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.publish-small-action {
-  padding: 0 10px;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  background: var(--card-bg);
-}
-
-.publish-small-action:hover {
-  color: var(--primary-color);
-  border-color: var(--primary-border);
-  background: var(--primary-soft);
-}
-
-.publish-small-action.muted {
-  color: var(--text-muted);
-}
-
 .publish-field {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 6px;
 }
 
-.publish-field span,
-.publish-section-header strong {
+.publish-field small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.publish-author-card {
+  width: 100%;
+  height: 40px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  background: var(--card-bg);
+}
+
+.profile-identity-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  height: 40px;
+}
+
+.profile-identity-avatar {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: 999px;
+  color: var(--on-primary);
+  background: var(--primary-color);
+  background-position: center;
+  background-size: cover;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.profile-identity-preview > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.profile-identity-preview strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-strong);
   font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.profile-identity-preview small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.2;
+}
+
+.publish-field > span,
+.publish-section-header strong {
+  color: var(--text-strong);
+  font-size: 12px;
   font-weight: 850;
+  line-height: 16px;
 }
 
 .publish-field input,
@@ -1553,7 +1778,7 @@ onBeforeUnmount(() => {
 }
 
 .publish-field input {
-  height: 38px;
+  height: 40px;
   padding: 0 11px;
 }
 
@@ -1590,27 +1815,40 @@ onBeforeUnmount(() => {
 
 .publish-scope-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .publish-scope-option {
-  min-height: 104px;
+  min-height: 118px;
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
+  flex-direction: column;
+  gap: 12px;
   padding: 12px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   color: var(--text-main);
   background: var(--card-bg);
   text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
 }
 
 .publish-scope-option:hover,
 .publish-scope-option.active {
   border-color: var(--primary-border);
   background: color-mix(in srgb, var(--primary-soft) 40%, var(--card-bg));
+}
+
+.publish-scope-option.active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-border) 54%, transparent);
+}
+
+.publish-scope-head {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
 }
 
 .publish-scope-check {
@@ -1632,11 +1870,53 @@ onBeforeUnmount(() => {
   background: var(--primary-color);
 }
 
-.publish-scope-option > span:last-child {
+.publish-scope-copy {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.publish-scope-permissions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.publish-scope-permissions.disabled {
+  opacity: 0.46;
+}
+
+.publish-inline-toggle {
+  min-width: 0;
+  height: 32px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-muted) 70%, var(--card-bg));
+  cursor: pointer;
+}
+
+.publish-scope-permissions.disabled .publish-inline-toggle {
+  cursor: not-allowed;
+}
+
+.publish-inline-toggle > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .publish-scope-option strong,
@@ -1649,12 +1929,12 @@ onBeforeUnmount(() => {
 }
 
 .publish-toggle {
-  min-height: 56px;
+  min-height: 42px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 16px;
-  padding: 11px 12px;
+  gap: 10px;
+  padding: 7px 10px;
   border: 1px solid var(--border-soft);
   border-radius: 10px;
   background: var(--surface-muted);
@@ -1668,12 +1948,27 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
-.publish-toggle input {
-  width: 38px;
-  height: 22px;
+.identity-toggle small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publish-switch-slot {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.publish-author-card input,
+.publish-toggle input,
+.publish-inline-toggle input {
+  width: 40px;
+  height: 23px;
   position: relative;
   appearance: none;
   border: 1px solid var(--border-color);
@@ -1683,7 +1978,9 @@ onBeforeUnmount(() => {
   transition: background-color 0.16s ease, border-color 0.16s ease;
 }
 
-.publish-toggle input::after {
+.publish-author-card input::after,
+.publish-toggle input::after,
+.publish-inline-toggle input::after {
   content: '';
   position: absolute;
   top: 2px;
@@ -1696,16 +1993,22 @@ onBeforeUnmount(() => {
   transition: transform 0.16s ease;
 }
 
-.publish-toggle input:checked {
+.publish-author-card input:checked,
+.publish-toggle input:checked,
+.publish-inline-toggle input:checked {
   border-color: var(--primary-color);
   background: var(--primary-color);
 }
 
-.publish-toggle input:checked::after {
-  transform: translateX(16px);
+.publish-author-card input:checked::after,
+.publish-toggle input:checked::after,
+.publish-inline-toggle input:checked::after {
+  transform: translateX(17px);
 }
 
-.publish-toggle input:disabled {
+.publish-author-card input:disabled,
+.publish-toggle input:disabled,
+.publish-inline-toggle input:disabled {
   cursor: not-allowed;
 }
 
@@ -1781,8 +2084,9 @@ onBeforeUnmount(() => {
 .tree-child:focus-visible,
 .tree-file:focus-visible,
 .publish-icon-preview:focus-visible,
-.publish-small-action:focus-visible,
 .publish-scope-option:focus-visible,
+.publish-author-card input:focus-visible,
+.publish-inline-toggle input:focus-visible,
 .publish-toggle input:focus-visible,
 .publish-draft-btn:focus-visible,
 .publish-primary-btn:focus-visible {
@@ -1794,6 +2098,16 @@ onBeforeUnmount(() => {
   .skill-detail-shell,
   .page-layout .skill-detail-shell {
     grid-template-columns: 180px minmax(0, 1fr);
+  }
+
+  .publish-identity-row {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .publish-skill-info-group,
+  .publish-author-info-group {
+    grid-template-columns: 106px minmax(0, 1fr);
   }
 
   .publish-scope-list {
@@ -1839,6 +2153,15 @@ onBeforeUnmount(() => {
 
   .skill-publish-panel {
     padding: 18px 16px 0;
+  }
+
+  .publish-identity-row {
+    grid-template-columns: 1fr;
+  }
+
+  .publish-skill-info-group,
+  .publish-author-info-group {
+    grid-template-columns: 1fr;
   }
 
   .publish-footer {

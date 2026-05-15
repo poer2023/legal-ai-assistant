@@ -13,7 +13,11 @@ import {
   type TemplateAsset,
   type TemplateDocumentSection,
 } from '../data/legalAssets';
+import { getMockSkillAuthor } from '../data/mockSkillAuthors';
+import { hasTemplatePublishDestination } from '../data/templateCatalog';
+import { sendDeepSeekMessage } from '../services/deepseekChat';
 import LibraryTypeDropdown from './LibraryTypeDropdown.vue';
+import TemplateCreateModal from './TemplateCreateModal.vue';
 
 const emit = defineEmits<{
   (event: 'close'): void;
@@ -21,15 +25,39 @@ const emit = defineEmits<{
   (event: 'create'): void;
 }>();
 
+type ExtractionState = 'idle' | 'reading' | 'analyzing' | 'done' | 'error';
+type AiExtractedTemplatePayload = {
+  name?: unknown;
+  docType?: unknown;
+  preview?: unknown;
+  requiredFields?: unknown;
+  tags?: unknown;
+  sections?: unknown;
+};
+type UploadedOriginalTemplate = {
+  fileName: string;
+  fileSize: number;
+  fileType: string;
+  originalText: string;
+};
 type SourceFilter = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
 type TemplateSectionId = string;
 
 const selectedTemplate = ref<TemplateAsset | null>(null);
+const customTemplateAssets = ref<TemplateAsset[]>([]);
+const originalFilesByTemplateId = ref<Record<string, UploadedOriginalTemplate>>({});
+const extractionStateByTemplateId = ref<Record<string, ExtractionState>>({});
+const extractionMessageByTemplateId = ref<Record<string, string>>({});
 const activeSectionId = ref<TemplateSectionId>('section-0');
 const statusMessage = ref('');
 const searchKeyword = ref('');
 const selectedSource = ref<SourceFilter>('personal');
 const selectedCategory = ref('全部');
+const showCreateModal = ref(false);
+const uploadedTemplateFile = ref<File | null>(null);
+const extractionState = ref<ExtractionState>('idle');
+const extractionError = ref('');
+const extractionNote = ref('');
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
 const primaryTemplateCategories = [
@@ -42,6 +70,14 @@ const primaryTemplateCategories = [
   '并购交易',
   '基金业务',
   '合规日常',
+];
+
+const sourceTabsKeys: SourceFilter[] = [
+  'personal',
+  'group-shared',
+  'team-shared',
+  'public-hub',
+  'recommended',
 ];
 
 const templateListPageCopy: Record<SourceFilter, { name: string; emptyTitle: string; emptyDescription: string }> = {
@@ -72,12 +108,27 @@ const templateListPageCopy: Record<SourceFilter, { name: string; emptyTitle: str
   },
 };
 
-const getTemplateSourceKind = (template: TemplateAsset): SourceFilter => {
+const combinedTemplates = computed(() => [...customTemplateAssets.value, ...templateAssets]);
+
+const getTemplateStaticSourceKind = (template: TemplateAsset): SourceFilter => {
   if (template.source.includes('小组')) return 'group-shared';
   if (template.source.includes('团队')) return 'team-shared';
   if (template.source.includes('公共')) return 'public-hub';
   if (template.source.includes('推荐') || template.source.includes('官方')) return 'recommended';
   return 'personal';
+};
+
+const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter) => {
+  if (source === 'group-shared') {
+    return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'group');
+  }
+  if (source === 'team-shared') {
+    return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'team');
+  }
+  if (source === 'public-hub') {
+    return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'public');
+  }
+  return getTemplateStaticSourceKind(template) === source;
 };
 
 const sourceTabs = computed(() => {
@@ -89,8 +140,10 @@ const sourceTabs = computed(() => {
     recommended: 0,
   };
 
-  templateAssets.forEach((template) => {
-    counts[getTemplateSourceKind(template)] += 1;
+  combinedTemplates.value.forEach((template) => {
+    sourceTabsKeys.forEach((source) => {
+      if (isTemplateVisibleInSource(template, source)) counts[source] += 1;
+    });
   });
 
   return [
@@ -107,7 +160,7 @@ const isPersonalMode = computed(() => selectedSource.value === 'personal');
 const shouldShowCategoryFilter = computed(() => selectedSource.value === 'recommended');
 
 const sourceFilteredTemplates = computed(() => {
-  return templateAssets.filter((template) => getTemplateSourceKind(template) === selectedSource.value);
+  return combinedTemplates.value.filter((template) => isTemplateVisibleInSource(template, selectedSource.value));
 });
 
 const categoryTabs = computed(() => {
@@ -149,7 +202,14 @@ const visibleTemplates = computed(() => {
   });
 });
 
-const templateFilePath = (template: TemplateAsset) => `assets/templates/${template.id}.md`;
+const templateFilePath = (template: TemplateAsset) => {
+  const original = originalFilesByTemplateId.value[template.id];
+  return original ? `uploaded://${original.fileName}` : `assets/templates/${template.id}.md`;
+};
+const getTemplateAuthor = (template: TemplateAsset) => getMockSkillAuthor(template.id, 9);
+const getTemplateAuthorAvatarStyle = (template: TemplateAsset) => ({
+  backgroundImage: `url("${getTemplateAuthor(template).avatarUrl}")`,
+});
 
 const setSource = (source: SourceFilter) => {
   selectedSource.value = source;
@@ -159,6 +219,285 @@ const setSource = (source: SourceFilter) => {
 const resetFilters = () => {
   searchKeyword.value = '';
   selectedCategory.value = '全部';
+};
+
+const openCreateModal = () => {
+  showCreateModal.value = true;
+  extractionState.value = 'idle';
+  extractionError.value = '';
+  extractionNote.value = '';
+  uploadedTemplateFile.value = null;
+};
+
+const closeCreateModal = () => {
+  showCreateModal.value = false;
+};
+
+const formatFileSize = (size: number) => {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const normalizeText = (value: unknown, fallback: string) => {
+  if (typeof value !== 'string') return fallback;
+  const normalized = value.trim();
+  return normalized || fallback;
+};
+
+const normalizeStringList = (value: unknown, fallback: string[]) => {
+  if (!Array.isArray(value)) return fallback;
+
+  const normalized = value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return normalized.length ? Array.from(new Set(normalized)).slice(0, 8) : fallback;
+};
+
+const normalizeDocumentSections = (
+  value: unknown,
+  fallback: TemplateDocumentSection[],
+): TemplateDocumentSection[] => {
+  if (!Array.isArray(value)) return fallback;
+
+  const sections = value
+    .filter((section): section is Record<string, unknown> => Boolean(section) && typeof section === 'object')
+    .map((section) => {
+      const title = normalizeText(section.title, '');
+      if (!title) return null;
+
+      const paragraphs = normalizeStringList(section.paragraphs, []);
+      const items = normalizeStringList(section.items, []);
+      const tableSource = section.table;
+      const table = tableSource && typeof tableSource === 'object'
+        ? tableSource as Record<string, unknown>
+        : null;
+      const headers = normalizeStringList(table?.headers, []);
+      const rows = Array.isArray(table?.rows)
+        ? table.rows
+            .filter((row): row is unknown[] => Array.isArray(row))
+            .map((row) => row.map((cell) => normalizeText(cell, '')).filter(Boolean))
+            .filter((row) => row.length)
+        : [];
+
+      return {
+        title,
+        ...(paragraphs.length ? { paragraphs } : {}),
+        ...(items.length ? { items } : {}),
+        ...(headers.length && rows.length ? { table: { headers, rows } } : {}),
+      };
+    })
+    .filter((section): section is TemplateDocumentSection => Boolean(section));
+
+  return sections.length ? sections : fallback;
+};
+
+const inferDocType = (fileName: string, originalText: string) => {
+  const source = `${fileName} ${originalText}`.toLowerCase();
+  if (/尽调|调查|清单|dd|diligence/.test(source)) return '尽职调查';
+  if (/法律意见|意见书|memo|备忘录|咨询/.test(source)) return '咨询意见';
+  if (/投资|融资|股权|基金/.test(source)) return '投资交易';
+  if (/合规|制度|内控/.test(source)) return '合规日常';
+  if (/合同|协议|委托|函|承诺/.test(source)) return '交易文件';
+  return '自定义模板';
+};
+
+const createUploadedFallbackSections = (
+  file: File,
+  preview: string,
+  requiredFields: string[],
+): TemplateDocumentSection[] => [
+  {
+    title: '一、模板定位',
+    paragraphs: [preview],
+  },
+  {
+    title: '二、AI 提取字段',
+    table: {
+      headers: ['字段', '填写内容', '提取说明'],
+      rows: requiredFields.map((field) => [field, `【${field}】`, '从原模板结构中识别，使用前建议复核。']),
+    },
+  },
+  {
+    title: '三、原件保留',
+    items: [
+      `原始文件：${file.name}`,
+      `文件大小：${formatFileSize(file.size)}`,
+      '后续可用原件与提取模板进行比对、校验和版本追溯。',
+    ],
+  },
+  {
+    title: '四、使用建议',
+    items: [
+      '先复核字段是否覆盖业务场景。',
+      '确认条款顺序、定义和附件要求是否与原件一致。',
+      '生成正式文书前保留待确认事项，不把缺失信息写成确定结论。',
+    ],
+  },
+];
+
+const createGeneratingSections = (file: File): TemplateDocumentSection[] => [
+  {
+    title: '一、生成状态',
+    paragraphs: [
+      `正在从“${file.name}”提取模板结构、字段和可复用预览内容。`,
+      '生成期间可先查看已保留的原件信息，完成后会自动展示提取后的模板正文。',
+    ],
+  },
+  {
+    title: '二、原件保留',
+    items: [
+      `原始文件：${file.name}`,
+      `文件大小：${formatFileSize(file.size)}`,
+      '原件会保留在当前模板记录中，便于后续回溯和比对。',
+    ],
+  },
+];
+
+const extractJsonPayload = (content: string): AiExtractedTemplatePayload | null => {
+  const fenced = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const source = fenced?.[1] ?? content;
+  const start = source.indexOf('{');
+  const end = source.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return null;
+
+  try {
+    const parsed = JSON.parse(source.slice(start, end + 1)) as unknown;
+    return parsed && typeof parsed === 'object' ? parsed as AiExtractedTemplatePayload : null;
+  } catch {
+    return null;
+  }
+};
+
+const runAiExtraction = async (file: File, originalText: string) => {
+  const canSendContent = originalText.trim() && !originalText.startsWith('已保留原始文件：');
+  if (!canSendContent) return null;
+
+  const prompt = [
+    '请分析用户上传的法律模板原文，提取成模板可预览的结构。',
+    '只返回 JSON，不要解释。JSON 字段如下：',
+    '{ "name": "模板名称", "docType": "文书分类", "preview": "一句话用途", "requiredFields": ["字段"], "tags": ["标签"], "sections": [{ "title": "章节标题", "paragraphs": ["段落"], "items": ["要点"] }] }',
+    '文书分类优先使用：项目启动、尽职调查、咨询意见、交易文件、投资交易、资本市场、并购交易、基金业务、合规日常、自定义模板。',
+    `文件名：${file.name}`,
+    `原文：\n${originalText.slice(0, 6000)}`,
+  ].join('\n\n');
+
+  const result = await sendDeepSeekMessage(prompt, {
+    mode: 'consult',
+    thinkingMode: 'quick',
+    searchModes: [],
+  });
+
+  return extractJsonPayload(result.content);
+};
+
+const readUploadedTemplateText = async (file: File) => {
+  const extension = file.name.split('.').pop()?.toLowerCase() ?? '';
+  const textLikeExtensions = ['txt', 'md', 'markdown', 'rtf', 'csv', 'json', 'html', 'xml'];
+  const isTextLike = file.type.startsWith('text/') || textLikeExtensions.includes(extension);
+
+  if (!isTextLike) {
+    return [
+      `已保留原始文件：${file.name}`,
+      `文件类型：${file.type || extension || '未知'}`,
+      `文件大小：${formatFileSize(file.size)}`,
+      '',
+      '当前浏览器预览不直接展开该格式正文，接入服务端解析后可读取完整原件内容。',
+    ].join('\n');
+  }
+
+  return (await file.text()).slice(0, 12000);
+};
+
+const createUploadedTemplateAsset = (
+  file: File,
+  originalText: string,
+  payload: AiExtractedTemplatePayload | null,
+  templateId: string,
+  state: 'generating' | 'done' = 'done',
+) => {
+  const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim() || '上传模板';
+  const docType = normalizeText(payload?.docType, inferDocType(file.name, originalText));
+  const name = normalizeText(payload?.name, baseName);
+  const requiredFields = normalizeStringList(payload?.requiredFields, ['文书名称', '适用场景', '主体信息', '关键条款', '待补充材料']);
+  const preview = state === 'generating'
+    ? `正在从“${file.name}”生成模板，原件已保留。`
+    : normalizeText(payload?.preview, `从“${file.name}”智能提取的可复用模板，原件已保留用于回溯。`);
+  const tags = normalizeStringList(payload?.tags, ['上传模板', 'AI 提取', '原件保留']);
+  const fallbackSections = createUploadedFallbackSections(file, preview, requiredFields);
+
+  return {
+    id: templateId,
+    name,
+    docType,
+    source: state === 'generating' ? '生成中 · 原件保留' : 'AI 提取 · 原件保留',
+    applicableSkills: ['模板提取'],
+    agent: '模板提取助手',
+    requiredFields,
+    preview,
+    routeName: 'templates',
+    tags,
+    updatedAt: new Date().toISOString().slice(0, 10),
+    documentSections: state === 'generating'
+      ? createGeneratingSections(file)
+      : normalizeDocumentSections(payload?.sections, fallbackSections),
+  } satisfies TemplateAsset;
+};
+
+const analyzeUploadedTemplate = async (file: File) => {
+  uploadedTemplateFile.value = file;
+  extractionError.value = '';
+  extractionNote.value = '';
+  extractionState.value = 'reading';
+
+  try {
+    const originalText = await readUploadedTemplateText(file);
+    const templateId = `uploaded-template-${Date.now()}`;
+    const placeholderTemplate = createUploadedTemplateAsset(file, originalText, null, templateId, 'generating');
+
+    customTemplateAssets.value = [
+      placeholderTemplate,
+      ...customTemplateAssets.value.filter((item) => item.name !== placeholderTemplate.name),
+    ];
+    originalFilesByTemplateId.value[templateId] = {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      originalText,
+    };
+    extractionStateByTemplateId.value[templateId] = 'analyzing';
+    extractionMessageByTemplateId.value[templateId] = '生成模板中...';
+    selectedCategory.value = '全部';
+    selectedSource.value = 'personal';
+    selectedTemplate.value = placeholderTemplate;
+    closeCreateModal();
+
+    extractionState.value = 'analyzing';
+
+    let payload: AiExtractedTemplatePayload | null = null;
+    try {
+      payload = await runAiExtraction(file, originalText);
+      extractionNote.value = payload ? '已完成 AI 结构提取，原件已随模板保留。' : '已完成结构化提取，原件已随模板保留。';
+    } catch {
+      extractionNote.value = 'AI 服务暂不可用，已先使用本地结构化提取并保留原件。';
+    }
+
+    const template = createUploadedTemplateAsset(file, originalText, payload, templateId, 'done');
+    customTemplateAssets.value = customTemplateAssets.value.map((item) =>
+      item.id === templateId ? template : item
+    );
+    if (selectedTemplate.value?.id === templateId) {
+      selectedTemplate.value = template;
+    }
+    extractionStateByTemplateId.value[templateId] = 'done';
+    extractionMessageByTemplateId.value[templateId] = extractionNote.value;
+    extractionState.value = 'done';
+  } catch (error) {
+    extractionError.value = error instanceof Error ? error.message : '模板读取失败，请重新上传。';
+    extractionState.value = 'error';
+  }
 };
 
 const createFallbackDocumentSections = (template: TemplateAsset): TemplateDocumentSection[] => [
@@ -297,7 +636,7 @@ const scrollToSection = (sectionId: TemplateSectionId) => {
 };
 
 const createTemplate = () => {
-  emit('create');
+  openCreateModal();
 };
 
 onBeforeUnmount(() => {
@@ -409,6 +748,10 @@ onBeforeUnmount(() => {
 
             <div class="tile-caption">
               <h2>{{ template.name }}</h2>
+              <div class="tile-author">
+                <span class="tile-author-avatar" :style="getTemplateAuthorAvatarStyle(template)" aria-hidden="true"></span>
+                <span>{{ getTemplateAuthor(template).name }}</span>
+              </div>
               <div class="tile-meta">
                 <span>{{ template.source }}</span>
                 <span>{{ template.updatedAt }}</span>
@@ -509,6 +852,14 @@ onBeforeUnmount(() => {
         </div>
       </template>
     </section>
+    <TemplateCreateModal
+      v-if="showCreateModal"
+      :uploaded-file="uploadedTemplateFile"
+      :extraction-state="extractionState"
+      :extraction-error="extractionError"
+      @close="closeCreateModal"
+      @upload="analyzeUploadedTemplate"
+    />
   </div>
 </template>
 
@@ -996,6 +1347,37 @@ onBeforeUnmount(() => {
   letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tile-author {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  margin-top: 6px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.tile-author span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-author-avatar {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-color) 70%, transparent);
 }
 
 .tile-meta {
