@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import {
+  Check,
   ChevronDown,
   Copy,
   Mic,
@@ -15,16 +16,32 @@ import {
 
 type FileKind = 'pdf' | 'word' | 'markdown' | 'sheet' | 'slide';
 type LibraryScope = 'team' | 'personal' | 'hidden' | 'group';
+type GroupLibrary = {
+  id: string;
+  name: string;
+  count: number;
+  folders: string[];
+  intro?: string;
+  memberIds?: string[];
+};
+type GroupMember = {
+  id: string;
+  name: string;
+  phone: string;
+  avatar: string;
+  isCurrent?: boolean;
+};
 
 const folders = ['企业并购', '知识产权', '未成年儿童保护', '民政部', '法律类案', '123', '测试'];
 
-const groupLibraries = [
+const initialGroupLibraries: GroupLibrary[] = [
   { id: 'corporate', name: '公司业务组', count: 6, folders: ['并购项目', '股权激励', '投融资', '治理合规'] },
   { id: 'dispute', name: '争议解决组', count: 5, folders: ['类案检索', '证据材料', '诉讼策略', '执行线索'] },
   { id: 'compliance', name: '合规风控组', count: 4, folders: ['数据合规', '广告合规', '内控制度', '监管问询'] },
   { id: 'labor', name: '劳动用工组', count: 3, folders: ['员工手册', '竞业限制', '用工争议', '社保福利'] },
 ];
-const defaultGroupLibrary = groupLibraries[0]!;
+const groupLibraries = ref<GroupLibrary[]>(initialGroupLibraries);
+const defaultGroupLibrary = initialGroupLibraries[0]!;
 
 const files: Array<{
   id: number;
@@ -54,6 +71,24 @@ const files: Array<{
 
 const selectedLibraryScope = ref<LibraryScope>('team');
 const selectedGroupId = ref(defaultGroupLibrary.id);
+const isCreateGroupModalOpen = ref(false);
+const newGroupName = ref('');
+const newGroupIntro = ref('');
+const memberSearchKeyword = ref('');
+const selectedMemberIds = ref<Set<string>>(new Set(['me']));
+
+const groupMembers: GroupMember[] = [
+  { id: 'me', name: '188****2830（我）', phone: '188****2830', avatar: '1', isCurrent: true },
+  { id: 'creator', name: '创建者', phone: '18836821691', avatar: '创' },
+  { id: 'u585697', name: '585697', phone: '18627585697', avatar: '5' },
+  { id: 'u700187', name: '700187', phone: '18917001878', avatar: '7' },
+  { id: 'laoli', name: '老李', phone: '18930126633', avatar: '老' },
+  { id: 'zhushuanglin2', name: '朱双林2', phone: '13290041843', avatar: '朱' },
+  { id: 'baozi', name: '包子', phone: '15021202690', avatar: '包' },
+  { id: 'jieyu', name: '洁玉', phone: '15755569042', avatar: '洁' },
+  { id: 'u1111', name: '1111', phone: '18917001801', avatar: '1' },
+  { id: 'heili', name: '黑莉', phone: '18108127692', avatar: '黑' },
+];
 
 const libraryModeCopy: Record<LibraryScope, {
   name: string;
@@ -89,12 +124,12 @@ const libraryScopeTabs = computed(() => [
   {
     key: 'group' as const,
     name: libraryModeCopy.group.name,
-    count: groupLibraries.reduce((total, group) => total + group.count, 0),
+    count: groupLibraries.value.reduce((total, group) => total + group.count, 0),
   },
 ]);
 
 const activeGroup = computed(() =>
-  groupLibraries.find((group) => group.id === selectedGroupId.value) ?? defaultGroupLibrary
+  groupLibraries.value.find((group) => group.id === selectedGroupId.value) ?? defaultGroupLibrary
 );
 
 const activeLibraryCopy = computed(() => libraryModeCopy[selectedLibraryScope.value]);
@@ -108,7 +143,7 @@ const visibleFiles = computed(() => {
   if (selectedLibraryScope.value === 'personal') return files.slice(0, 8);
   if (selectedLibraryScope.value === 'hidden') return files.slice(2, 5);
   if (selectedLibraryScope.value === 'group') {
-    const groupIndex = Math.max(0, groupLibraries.findIndex((group) => group.id === activeGroup.value.id));
+    const groupIndex = Math.max(0, groupLibraries.value.findIndex((group) => group.id === activeGroup.value.id));
     const start = (groupIndex * 3) % files.length;
     return files.slice(start, start + activeGroup.value.count);
   }
@@ -127,6 +162,61 @@ const composerPlaceholder = computed(() =>
 
 const setLibraryScope = (scope: LibraryScope) => {
   selectedLibraryScope.value = scope;
+};
+
+const groupNameCount = computed(() => newGroupName.value.length);
+const groupIntroCount = computed(() => newGroupIntro.value.length);
+const selectedMemberCount = computed(() => selectedMemberIds.value.size);
+const canCreateGroup = computed(() => newGroupName.value.trim().length > 0 && selectedMemberCount.value >= 2);
+const filteredGroupMembers = computed(() => {
+  const keyword = memberSearchKeyword.value.trim().toLowerCase();
+  if (!keyword) return groupMembers;
+  return groupMembers.filter((member) =>
+    [member.name, member.phone].join(' ').toLowerCase().includes(keyword),
+  );
+});
+
+const openCreateGroupModal = () => {
+  newGroupName.value = '';
+  newGroupIntro.value = '';
+  memberSearchKeyword.value = '';
+  selectedMemberIds.value = new Set(['me']);
+  isCreateGroupModalOpen.value = true;
+};
+
+const closeCreateGroupModal = () => {
+  isCreateGroupModalOpen.value = false;
+};
+
+const toggleGroupMember = (member: GroupMember) => {
+  if (member.isCurrent) return;
+  const nextSelected = new Set(selectedMemberIds.value);
+  if (nextSelected.has(member.id)) {
+    nextSelected.delete(member.id);
+  } else {
+    nextSelected.add(member.id);
+  }
+  selectedMemberIds.value = nextSelected;
+};
+
+const createGroup = () => {
+  if (!canCreateGroup.value) return;
+  const trimmedName = newGroupName.value.trim();
+  const id = `group-${Date.now()}`;
+  groupLibraries.value = [
+    ...groupLibraries.value,
+    {
+      id,
+      name: trimmedName,
+      count: 0,
+      folders: ['共享文件', '项目资料', '协作底稿'],
+      intro: newGroupIntro.value.trim(),
+      memberIds: Array.from(selectedMemberIds.value),
+    },
+  ];
+  selectedLibraryScope.value = 'group';
+  selectedGroupId.value = id;
+  closeCreateGroupModal();
 };
 
 const kindLabel: Record<FileKind, string> = {
@@ -183,6 +273,10 @@ const referenceSources = [
             >
               <span>{{ group.name }}</span>
               <strong>{{ group.count }}</strong>
+            </button>
+            <button class="group-create-tab" type="button" @click="openCreateGroupModal">
+              <Plus :size="14" />
+              <span>新建小组</span>
             </button>
           </nav>
         </div>
@@ -436,6 +530,106 @@ const referenceSources = [
         </article>
       </div>
     </aside>
+
+    <div
+      v-if="isCreateGroupModalOpen"
+      class="group-modal-backdrop"
+      role="presentation"
+      @click.self="closeCreateGroupModal"
+    >
+      <section class="group-create-modal" role="dialog" aria-modal="true" aria-labelledby="group-create-title">
+        <header class="group-create-header">
+          <div>
+            <strong id="group-create-title">新建小组</strong>
+            <span>创建后会同步生成一个小组知识库</span>
+          </div>
+          <button type="button" aria-label="关闭新建小组" @click="closeCreateGroupModal">
+            <X :size="18" />
+          </button>
+        </header>
+
+        <div class="group-modal-section">
+          <h3>基本信息</h3>
+          <label class="group-form-field">
+            <span class="field-label-row">
+              <span class="field-title"><strong>*</strong> 小组名称</span>
+              <small>{{ groupNameCount }}/15</small>
+            </span>
+            <input
+              v-model="newGroupName"
+              maxlength="15"
+              type="text"
+              placeholder="请输入 1-15 字的小组名称"
+            />
+          </label>
+          <label class="group-form-field">
+            <span class="field-label-row">
+              <span class="field-title">小组简介</span>
+              <small>{{ groupIntroCount }}/30</small>
+            </span>
+            <textarea
+              v-model="newGroupIntro"
+              maxlength="30"
+              rows="3"
+              placeholder="简要描述小组的职责或目标（30 字以内）"
+            ></textarea>
+          </label>
+        </div>
+
+        <div class="group-modal-section member-section">
+          <div class="member-section-header">
+            <div>
+              <h3>添加成员</h3>
+              <p>至少选择 2 人（包含自己）</p>
+            </div>
+            <label class="member-search">
+              <Search :size="15" />
+              <input v-model="memberSearchKeyword" type="text" placeholder="搜索成员姓名或手机号后4位" />
+              <button type="button">搜索</button>
+            </label>
+          </div>
+
+          <div class="member-table" role="table" aria-label="小组成员列表">
+            <div class="member-table-row member-table-head" role="row">
+              <span role="columnheader">成员姓名</span>
+              <span role="columnheader">手机号</span>
+              <span role="columnheader">选择</span>
+            </div>
+            <button
+              v-for="member in filteredGroupMembers"
+              :key="member.id"
+              class="member-table-row"
+              type="button"
+              role="row"
+              :class="{ selected: selectedMemberIds.has(member.id), locked: member.isCurrent }"
+              @click="toggleGroupMember(member)"
+            >
+              <span class="member-name-cell" role="cell">
+                <span class="member-avatar">{{ member.avatar }}</span>
+                <span>{{ member.name }}</span>
+              </span>
+              <span role="cell">{{ member.phone }}</span>
+              <span class="member-check-cell" role="cell">
+                <span class="member-check" aria-hidden="true">
+                  <Check v-if="selectedMemberIds.has(member.id)" :size="13" />
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <footer class="group-create-footer">
+          <span>已选 {{ selectedMemberCount }} 人</span>
+          <div>
+            <button class="group-cancel-button" type="button" @click="closeCreateGroupModal">取消</button>
+            <button class="group-create-button" type="button" :disabled="!canCreateGroup" @click="createGroup">
+              <Plus :size="16" />
+              立即创建
+            </button>
+          </div>
+        </footer>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -630,6 +824,27 @@ const referenceSources = [
 
 .group-tab.active {
   background: var(--primary-soft-strong);
+}
+
+.group-create-tab {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 5px;
+  padding: 0 11px;
+  border: 1px dashed color-mix(in srgb, var(--primary-color) 42%, var(--border-color));
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.66);
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.group-create-tab:hover {
+  border-style: solid;
+  background: var(--card-bg);
 }
 
 .search-row {
@@ -1394,6 +1609,364 @@ const referenceSources = [
   color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.75;
+}
+
+.group-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.group-create-modal {
+  width: min(896px, calc(100vw - 56px));
+  max-height: min(760px, calc(100vh - 56px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--primary-soft);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.group-create-header {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.75);
+  background: var(--card-bg);
+}
+
+.group-create-header div {
+  display: grid;
+  gap: 4px;
+}
+
+.group-create-header strong {
+  color: var(--text-strong);
+  font-size: 17px;
+  font-weight: 850;
+}
+
+.group-create-header span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.group-create-header button {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.group-create-header button:hover {
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+}
+
+.group-modal-section {
+  margin: 16px 20px 0;
+  padding: 18px 24px 20px;
+  border-radius: 12px;
+  background: var(--card-bg);
+  box-shadow: 0 2px 10px rgba(45, 70, 110, 0.06);
+}
+
+.group-modal-section h3 {
+  position: relative;
+  margin: 0 0 14px;
+  padding-left: 10px;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.group-modal-section h3::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+.group-form-field {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.field-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+}
+
+.field-title strong {
+  color: var(--diff-removed);
+  line-height: 1;
+}
+
+.field-label-row small {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.group-form-field input,
+.group-form-field textarea {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-size: 14px;
+}
+
+.group-form-field input {
+  height: 38px;
+  padding: 0 12px;
+}
+
+.group-form-field textarea {
+  resize: none;
+  min-height: 92px;
+  padding: 10px 12px;
+  line-height: 1.55;
+}
+
+.group-form-field input:focus,
+.group-form-field textarea:focus {
+  border-color: var(--primary-border);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+.member-section {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.member-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+
+.member-section-header > div {
+  min-width: 0;
+}
+
+.member-section-header h3 {
+  margin-bottom: 4px;
+}
+
+.member-section-header p {
+  margin: 0;
+  padding-left: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.member-search {
+  width: 314px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  color: var(--text-muted);
+  background: var(--card-bg);
+}
+
+.member-search input {
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+.member-search button {
+  width: 52px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--primary-color);
+  color: var(--on-primary);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.member-table {
+  min-height: 0;
+  max-height: 304px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.member-table-row {
+  width: 100%;
+  min-height: 41px;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(150px, 0.8fr) 86px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.82);
+  color: var(--text-main);
+  font-size: 14px;
+  text-align: left;
+}
+
+.member-table-row:last-child {
+  border-bottom: 0;
+}
+
+.member-table-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  min-height: 37px;
+  background: color-mix(in srgb, var(--surface-soft) 72%, var(--card-bg));
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
+button.member-table-row:hover {
+  background: var(--primary-soft);
+}
+
+.member-table-row.locked {
+  cursor: default;
+}
+
+.member-table-row.selected {
+  background: color-mix(in srgb, var(--primary-soft) 66%, var(--card-bg));
+}
+
+.member-name-cell {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.member-avatar {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--primary-soft-strong);
+  color: var(--primary-color);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.member-check-cell {
+  display: flex;
+  justify-content: center;
+}
+
+.member-check {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  color: var(--primary-color);
+  background: var(--card-bg);
+}
+
+.member-table-row.selected .member-check {
+  border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
+  background: var(--primary-soft-strong);
+}
+
+.group-create-footer {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.group-create-footer > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.group-cancel-button,
+.group-create-button {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.group-cancel-button {
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+}
+
+.group-create-button {
+  min-width: 116px;
+  background: var(--primary-color);
+  color: var(--on-primary);
+}
+
+.group-create-button:disabled {
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  cursor: not-allowed;
 }
 
 @media (max-width: 1180px) {

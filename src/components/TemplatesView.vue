@@ -87,33 +87,33 @@ const sourceTabsKeys: SourceFilter[] = [
   'personal',
   'group-shared',
   'team-shared',
-  'public-hub',
   'recommended',
+  'public-hub',
 ];
 
 const templateModeCopy: Record<SourceFilter, { name: string; emptyTitle: string; emptyDescription: string }> = {
   personal: {
-    name: '我的模板',
-    emptyTitle: '暂无我的模板',
+    name: '个人',
+    emptyTitle: '暂无个人模板',
     emptyDescription: '上传或创建一个模板后，会出现在这里。',
   },
   'group-shared': {
-    name: '小组共享',
+    name: '小组',
     emptyTitle: '暂无小组共享模板',
     emptyDescription: '小组内共享的模板会集中展示在这里。',
   },
   'team-shared': {
-    name: '团队共享',
+    name: '团队',
     emptyTitle: '暂无团队共享模板',
     emptyDescription: '团队发布的通用模板会集中展示在这里。',
   },
   'public-hub': {
-    name: '公共库',
-    emptyTitle: '暂无公共库模板',
-    emptyDescription: '公共库模板同步后会展示在这里。',
+    name: '市场（hub）',
+    emptyTitle: '暂无市场模板',
+    emptyDescription: '市场（hub）模板同步后会展示在这里。',
   },
   recommended: {
-    name: '官方推荐',
+    name: '官方',
     emptyTitle: '暂无官方推荐模板',
     emptyDescription: '官方维护的模板会集中展示在这里。',
   },
@@ -159,8 +159,8 @@ const sourceTabs = computed(() => {
     { key: 'personal' as const, name: templateModeCopy.personal.name, count: counts.personal },
     { key: 'group-shared' as const, name: templateModeCopy['group-shared'].name, count: counts['group-shared'] },
     { key: 'team-shared' as const, name: templateModeCopy['team-shared'].name, count: counts['team-shared'] },
-    { key: 'public-hub' as const, name: templateModeCopy['public-hub'].name, count: counts['public-hub'] },
     { key: 'recommended' as const, name: templateModeCopy.recommended.name, count: counts.recommended },
+    { key: 'public-hub' as const, name: templateModeCopy['public-hub'].name, count: counts['public-hub'] },
   ];
 });
 

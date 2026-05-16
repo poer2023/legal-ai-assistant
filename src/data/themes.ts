@@ -24,7 +24,7 @@ export interface ThemeDefinition {
   };
 }
 
-export const DEFAULT_THEME_ID: ThemeId = 'classic';
+export const DEFAULT_THEME_ID: ThemeId = 'codex-theme-v1';
 
 export const themeOptions: ThemeDefinition[] = [
   {

@@ -1,32 +1,11 @@
 import { computed, ref } from 'vue';
-import { DEFAULT_THEME_ID, isThemeId, themeOptions, type ThemeId } from '../data/themes';
+import { DEFAULT_THEME_ID, themeOptions, type ThemeId } from '../data/themes';
 
-const STORAGE_KEY = 'legal-ui-theme-id';
-
-const getSafeStorage = () => {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage;
-};
-
-const readThemeId = (): ThemeId => {
-  const storage = getSafeStorage();
-  if (!storage) return DEFAULT_THEME_ID;
-
-  const savedThemeId = storage.getItem(STORAGE_KEY);
-  return isThemeId(savedThemeId) ? savedThemeId : DEFAULT_THEME_ID;
-};
-
-const currentThemeId = ref<ThemeId>(readThemeId());
+const currentThemeId = ref<ThemeId>(DEFAULT_THEME_ID);
 
 const applyThemeToDocument = (themeId: ThemeId) => {
   if (typeof document === 'undefined') return;
   document.documentElement.dataset.theme = themeId;
-};
-
-const persistThemeId = (themeId: ThemeId) => {
-  const storage = getSafeStorage();
-  if (!storage) return;
-  storage.setItem(STORAGE_KEY, themeId);
 };
 
 export const useTheme = () => {
@@ -40,7 +19,6 @@ export const useTheme = () => {
 
   const setTheme = (themeId: ThemeId) => {
     currentThemeId.value = themeId;
-    persistThemeId(themeId);
     applyThemeToDocument(themeId);
   };
 

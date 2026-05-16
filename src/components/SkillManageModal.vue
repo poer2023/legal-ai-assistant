@@ -10,7 +10,6 @@ import {
   FileText,
   MoreHorizontal,
   Pencil,
-  Play,
   Plus,
   Power,
   PowerOff,
@@ -102,11 +101,11 @@ type TreeGroup = {
 };
 
 const skillListPageCopy: Record<SkillListPage, { name: string; empty: string }> = {
-  personal: { name: '我的技能', empty: '暂无匹配技能' },
-  'group-shared': { name: '小组共享', empty: '暂无小组共享技能' },
-  'team-shared': { name: '团队共享', empty: '暂无团队共享技能' },
-  'public-hub': { name: '公共库', empty: '暂无公开共享技能' },
-  recommended: { name: '官方推荐', empty: '暂无官方推荐技能' },
+  personal: { name: '个人', empty: '暂无个人技能' },
+  'group-shared': { name: '小组', empty: '暂无小组共享技能' },
+  'team-shared': { name: '团队', empty: '暂无团队共享技能' },
+  'public-hub': { name: '市场（hub）', empty: '暂无市场技能' },
+  recommended: { name: '官方', empty: '暂无官方推荐技能' },
 };
 
 const shouldShowCategoryFilter = computed(() => activeListPage.value === 'recommended');
@@ -124,8 +123,8 @@ const sourceTabs = computed(() => [
   { key: 'personal' as const, name: skillListPageCopy.personal.name, count: personalSkills.value.length },
   { key: 'group-shared' as const, name: skillListPageCopy['group-shared'].name, count: catalogGroupSharedSkills.value.length },
   { key: 'team-shared' as const, name: skillListPageCopy['team-shared'].name, count: teamSharedSkills.value.length },
-  { key: 'public-hub' as const, name: skillListPageCopy['public-hub'].name, count: catalogPublicHubSkills.value.length },
   { key: 'recommended' as const, name: skillListPageCopy.recommended.name, count: officialRecommendedSkills.length },
+  { key: 'public-hub' as const, name: skillListPageCopy['public-hub'].name, count: catalogPublicHubSkills.value.length },
 ]);
 
 const activeListCategoryOptions = computed(() => {
@@ -366,6 +365,15 @@ const useSkill = (skillName?: string, skillId?: string) => {
   emit('use', skillName ?? selectedSkill.value?.name);
 };
 
+const handleListCardClick = (skill: SkillCatalogItem) => {
+  if (activeListPage.value === 'personal') {
+    useSkill(skill.name, skill.id);
+    return;
+  }
+
+  openSkill(skill);
+};
+
 const openSkill = (skill: SkillCatalogItem) => {
   selectedSkill.value = skill;
   resetDetailState(skill);
@@ -480,9 +488,9 @@ const setSkillOpen = (skill: SkillCatalogItem, enabled: boolean) => {
 };
 
 const publishDestinationLabels: Record<SkillPublishDestination, string> = {
-  group: '小组共享',
-  team: '团队共享',
-  public: '公共库',
+  group: '小组',
+  team: '团队',
+  public: '市场',
 };
 
 const publishSkill = (skill: SkillCatalogItem, destination: SkillPublishDestination) => {
@@ -755,8 +763,8 @@ onBeforeUnmount(() => {
               :class="{ 'menu-open': openCardMenuId === `modal-frequent-${skill.id}` }"
               role="button"
               tabindex="0"
-              @click="openSkill(skill)"
-              @keydown.enter.prevent="openSkill(skill)"
+              @click="useSkill(skill.name, skill.id)"
+              @keydown.enter.prevent="useSkill(skill.name, skill.id)"
             >
               <span class="modal-frequent-avatar" :style="getSkillAvatarStyle(skill)" aria-hidden="true"></span>
               <span class="modal-frequent-copy">
@@ -770,15 +778,6 @@ onBeforeUnmount(() => {
                 </span>
               </span>
               <div class="modal-card-actions">
-                <button
-                  class="modal-card-use-btn"
-                  type="button"
-                  :aria-label="`使用${skill.name}`"
-                  @click.stop="useSkill(skill.name, skill.id)"
-                >
-                  <Play :size="13" />
-                  <span>使用</span>
-                </button>
                 <button
                   class="card-more-btn"
                   type="button"
@@ -809,9 +808,9 @@ onBeforeUnmount(() => {
                     <ChevronRight :size="14" class="submenu-chevron" />
                   </button>
                   <div class="publish-submenu" role="menu" aria-label="发布范围">
-                    <button type="button" @click="publishSkill(skill, 'group')">发布到小组共享</button>
-                    <button type="button" @click="publishSkill(skill, 'team')">发布到团队共享</button>
-                    <button type="button" @click="publishSkill(skill, 'public')">发布到公共库</button>
+                    <button type="button" @click="publishSkill(skill, 'group')">发布到小组</button>
+                    <button type="button" @click="publishSkill(skill, 'team')">发布到团队</button>
+                    <button type="button" @click="publishSkill(skill, 'public')">发布到市场</button>
                   </div>
                 </div>
                 <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
@@ -839,22 +838,12 @@ onBeforeUnmount(() => {
             'menu-open': openCardMenuId === skill.id
           }"
           tabindex="0"
-          @click="openSkill(skill)"
-          @keydown.enter.prevent="openSkill(skill)"
+          @click="handleListCardClick(skill)"
+          @keydown.enter.prevent="handleListCardClick(skill)"
         >
           <div v-if="activeListPage === 'personal'" class="modal-card-actions">
             <button
-              v-if="isSkillEnabled(skill)"
-              class="modal-card-use-btn"
-              type="button"
-              :aria-label="`使用${skill.name}`"
-              @click.stop="useSkill(skill.name, skill.id)"
-            >
-              <Play :size="13" />
-              <span>使用</span>
-            </button>
-            <button
-              v-else
+              v-if="!isSkillEnabled(skill)"
               class="modal-card-open-btn"
               type="button"
               :aria-label="`启用${skill.name}`"
@@ -906,9 +895,9 @@ onBeforeUnmount(() => {
                 <ChevronRight :size="14" class="submenu-chevron" />
               </button>
               <div class="publish-submenu" role="menu" aria-label="发布范围">
-                <button type="button" @click="publishSkill(skill, 'group')">发布到小组共享</button>
-                <button type="button" @click="publishSkill(skill, 'team')">发布到团队共享</button>
-                <button type="button" @click="publishSkill(skill, 'public')">发布到公共库</button>
+                <button type="button" @click="publishSkill(skill, 'group')">发布到小组</button>
+                <button type="button" @click="publishSkill(skill, 'team')">发布到团队</button>
+                <button type="button" @click="publishSkill(skill, 'public')">发布到市场</button>
               </div>
             </div>
             <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
@@ -1523,7 +1512,6 @@ onBeforeUnmount(() => {
   color: var(--primary-color);
 }
 
-.modal-card-use-btn,
 .modal-card-open-btn {
   min-width: 58px;
   height: 30px;
@@ -1541,16 +1529,6 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   box-shadow: 0 8px 18px color-mix(in srgb, var(--primary-color) 14%, transparent);
   transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
-}
-
-.modal-card-use-btn:hover {
-  color: var(--on-primary);
-  background: var(--primary-hover);
-  box-shadow: 0 10px 22px color-mix(in srgb, var(--primary-color) 18%, transparent);
-}
-
-.modal-card-use-btn svg {
-  color: currentColor;
 }
 
 .modal-card-open-btn {
@@ -1710,7 +1688,6 @@ onBeforeUnmount(() => {
   transform: translateY(-50%);
 }
 
-.modal-card-use-btn,
 .modal-card-open-btn {
   height: 30px;
   padding: 0 10px;
@@ -1924,7 +1901,6 @@ onBeforeUnmount(() => {
 .modal-tab:focus-visible,
 .modal-create-btn:focus-visible,
 .modal-frequent-item:focus-visible,
-.modal-card-use-btn:focus-visible,
 .modal-card-open-btn:focus-visible,
 .list-back-btn:focus-visible,
 .card-more-btn:focus-visible,

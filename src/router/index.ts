@@ -69,7 +69,7 @@ const routes = [
     path: '/',
     name: 'home',
     component: HomeView,
-    meta: { title: '首页' }
+    meta: { title: '助手' }
   },
   {
     path: '/chat',

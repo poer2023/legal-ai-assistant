@@ -65,27 +65,27 @@ const sourceModeCopy: Record<SkillMode, {
   emptyDescription: string;
 }> = {
   personal: {
-    name: '我的技能',
-    emptyTitle: '还没有自己的技能',
-    emptyDescription: '可以从官方推荐、共享资源中安装，也可以直接创建一个新技能。',
+    name: '个人',
+    emptyTitle: '暂无个人技能',
+    emptyDescription: '可以从官方、共享资源或市场（hub）中安装，也可以直接创建一个新技能。',
   },
   'group-shared': {
-    name: '小组共享',
+    name: '小组',
     emptyTitle: '暂无小组共享技能',
     emptyDescription: '小组成员发布后，会出现在这里供组内安装使用。',
   },
   'team-shared': {
-    name: '团队共享',
+    name: '团队',
     emptyTitle: '暂无团队共享技能',
     emptyDescription: '发布到团队的技能会在这里展示，团队成员可以安装到自己的技能库。',
   },
   'public-hub': {
-    name: '公共库',
-    emptyTitle: '暂无公开共享技能',
-    emptyDescription: '公开发布后的技能会进入公共库，所有使用者都可以发现和安装。',
+    name: '市场（hub）',
+    emptyTitle: '暂无市场技能',
+    emptyDescription: '公开发布后的技能会进入市场（hub），所有使用者都可以发现和安装。',
   },
   recommended: {
-    name: '官方推荐',
+    name: '官方',
     emptyTitle: '暂无官方推荐技能',
     emptyDescription: '官方推荐内容上线后会按类型展示在这里。',
   },
@@ -115,8 +115,8 @@ const sourceTabs = computed(() => [
   { key: 'personal' as const, name: sourceModeCopy.personal.name, count: personalSkills.value.length },
   { key: 'group-shared' as const, name: sourceModeCopy['group-shared'].name, count: catalogGroupSharedSkills.value.length },
   { key: 'team-shared' as const, name: sourceModeCopy['team-shared'].name, count: teamSharedSkills.value.length },
-  { key: 'public-hub' as const, name: sourceModeCopy['public-hub'].name, count: catalogPublicHubSkills.value.length },
   { key: 'recommended' as const, name: sourceModeCopy.recommended.name, count: officialRecommendedSkills.length },
+  { key: 'public-hub' as const, name: sourceModeCopy['public-hub'].name, count: catalogPublicHubSkills.value.length },
 ]);
 
 const activeModeCopy = computed(() => sourceModeCopy[skillMode.value]);
@@ -218,8 +218,10 @@ const selectSkill = (skill: SkillCatalogItem) => {
   });
 };
 
+const shouldBlockSkillDetail = () => skillMode.value === 'recommended' || skillMode.value === 'public-hub';
+
 const openSkill = (skill: SkillCatalogItem) => {
-  if (skillMode.value !== 'personal') return;
+  if (shouldBlockSkillDetail()) return;
   selectedSkill.value = skill;
   openCardMenuId.value = null;
 };
@@ -283,9 +285,9 @@ const setSkillOpen = (skill: SkillCatalogItem, enabled: boolean) => {
 };
 
 const publishDestinationLabels: Record<SkillPublishDestination, string> = {
-  group: '小组共享',
-  team: '团队共享',
-  public: '公共库',
+  group: '小组',
+  team: '团队',
+  public: '市场',
 };
 
 const publishSkill = (skill: SkillCatalogItem, destination: SkillPublishDestination) => {
@@ -400,7 +402,7 @@ const openRouteSkill = () => {
   const skillId = typeof route.query.skillId === 'string' ? route.query.skillId : '';
   if (!skillId) return;
 
-  if (routeSkillMode === 'recommended') {
+  if (routeSkillMode === 'recommended' || routeSkillMode === 'public-hub') {
     clearDetail();
     openCardMenuId.value = null;
     return;
@@ -583,9 +585,9 @@ onBeforeUnmount(() => {
                       <ChevronRight :size="14" class="submenu-chevron" />
                     </button>
                     <div class="publish-submenu" role="menu" aria-label="发布范围">
-                      <button type="button" @click="publishSkill(skill, 'group')">发布到小组共享</button>
-                      <button type="button" @click="publishSkill(skill, 'team')">发布到团队共享</button>
-                      <button type="button" @click="publishSkill(skill, 'public')">发布到公共库</button>
+                      <button type="button" @click="publishSkill(skill, 'group')">发布到小组</button>
+                      <button type="button" @click="publishSkill(skill, 'team')">发布到团队</button>
+                      <button type="button" @click="publishSkill(skill, 'public')">发布到市场</button>
                     </div>
                   </div>
                   <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
@@ -609,11 +611,11 @@ onBeforeUnmount(() => {
               class="managed-card"
               :class="{
                 'recommend-card': skillMode !== 'personal',
-                'preview-disabled': skillMode !== 'personal',
+                'preview-disabled': shouldBlockSkillDetail(),
                 'is-closed': skillMode === 'personal' && !isSkillEnabled(skill),
                 'menu-open': openCardMenuId === `skill-${skill.id}`
               }"
-              :tabindex="skillMode === 'personal' ? 0 : undefined"
+              :tabindex="shouldBlockSkillDetail() ? undefined : 0"
               @click="openSkill(skill)"
               @keydown.enter.prevent="openSkill(skill)"
             >
@@ -684,9 +686,9 @@ onBeforeUnmount(() => {
                     <ChevronRight :size="14" class="submenu-chevron" />
                   </button>
                   <div class="publish-submenu" role="menu" aria-label="发布范围">
-                    <button type="button" @click="publishSkill(skill, 'group')">发布到小组共享</button>
-                    <button type="button" @click="publishSkill(skill, 'team')">发布到团队共享</button>
-                    <button type="button" @click="publishSkill(skill, 'public')">发布到公共库</button>
+                    <button type="button" @click="publishSkill(skill, 'group')">发布到小组</button>
+                    <button type="button" @click="publishSkill(skill, 'team')">发布到团队</button>
+                    <button type="button" @click="publishSkill(skill, 'public')">发布到市场</button>
                   </div>
                 </div>
                 <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
@@ -699,15 +701,17 @@ onBeforeUnmount(() => {
               <div class="card-copy">
                 <div class="card-title-row">
                   <h3>{{ skill.name }}</h3>
+                </div>
+                <div class="card-meta-row">
                   <span v-if="skillMode === 'personal'" class="skill-state-badge" :class="{ closed: !isSkillEnabled(skill) }">
                     {{ isSkillEnabled(skill) ? '已启用' : '已停用' }}
                   </span>
-                </div>
-                <div v-if="shouldShowSkillAuthor(skill)" class="skill-author-meta">
-                  <span class="skill-author-avatar" :style="getSkillAuthorAvatarStyle(skill)">
-                    <span v-if="!hasSkillAuthorAvatarImage(skill, currentUser)">{{ getSkillAuthorAvatarText(skill) }}</span>
+                  <span v-if="shouldShowSkillAuthor(skill)" class="skill-author-meta">
+                    <span class="skill-author-avatar" :style="getSkillAuthorAvatarStyle(skill)">
+                      <span v-if="!hasSkillAuthorAvatarImage(skill, currentUser)">{{ getSkillAuthorAvatarText(skill) }}</span>
+                    </span>
+                    <span>{{ getSkillAuthorName(skill) }}</span>
                   </span>
-                  <span>{{ getSkillAuthorName(skill) }}</span>
                 </div>
                 <p>{{ skill.description }}</p>
               </div>
@@ -1056,10 +1060,10 @@ onBeforeUnmount(() => {
   min-width: 0;
   min-height: 92px;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
   gap: 13px;
-  padding: 16px 124px 16px 16px;
+  padding: 16px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -1140,7 +1144,8 @@ onBeforeUnmount(() => {
 .frequent-copy {
   min-width: 0;
   display: grid;
-  gap: 5px;
+  grid-template-rows: 18px 16px 18px;
+  gap: 3px;
 }
 
 .frequent-copy strong {
@@ -1169,6 +1174,13 @@ onBeforeUnmount(() => {
   font-size: 11.5px;
   font-weight: 650;
   line-height: 1.2;
+}
+
+.skill-author-meta > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .skill-author-avatar {
@@ -1239,12 +1251,12 @@ onBeforeUnmount(() => {
 
 .managed-card {
   position: relative;
-  min-height: 104px;
+  min-height: 118px;
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: start;
-  gap: 14px;
-  padding: 16px 124px 16px 16px;
+  gap: 16px;
+  padding: 16px;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -1282,17 +1294,18 @@ onBeforeUnmount(() => {
 }
 
 .managed-card.recommend-card {
-  padding-right: 98px;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
 }
 
 .card-actions {
-  position: absolute;
-  top: 50%;
-  right: 14px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  transform: translateY(-50%);
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  justify-self: end;
+  padding-left: 4px;
 }
 
 .card-use-btn {
@@ -1302,6 +1315,8 @@ onBeforeUnmount(() => {
 }
 
 .card-avatar {
+  grid-column: 1;
+  grid-row: 1;
   width: 40px;
   height: 40px;
   overflow: hidden;
@@ -1312,29 +1327,37 @@ onBeforeUnmount(() => {
 }
 
 .card-copy {
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
-  padding-top: 1px;
+  display: grid;
+  grid-template-rows: 20px 17px minmax(38px, auto);
+  gap: 4px;
+  padding-top: 0;
 }
 
 .card-title-row {
   min-width: 0;
+  display: block;
+  align-items: center;
+  margin: 0;
+}
+
+.card-meta-row {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 9px;
-}
-
-.card-title-row + .skill-author-meta {
-  margin-bottom: 7px;
+  overflow: hidden;
 }
 
 .managed-card h3 {
   min-width: 0;
-  margin: 0 0 9px;
+  margin: 0;
   color: var(--text-strong);
   font-size: 15px;
   font-weight: 720;
-  line-height: 1.18;
+  line-height: 20px;
   letter-spacing: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1347,13 +1370,14 @@ onBeforeUnmount(() => {
 
 .skill-state-badge {
   flex-shrink: 0;
-  padding: 3px 7px;
+  align-self: center;
+  padding: 2px 6px;
   border-radius: 999px;
   color: var(--primary-color);
   background: var(--primary-soft);
   font-size: 11px;
   font-weight: 700;
-  line-height: 1;
+  line-height: 13px;
 }
 
 .skill-state-badge.closed {
@@ -1374,9 +1398,6 @@ onBeforeUnmount(() => {
 }
 
 .card-more-btn {
-  position: absolute;
-  top: 50%;
-  right: 14px;
   width: 30px;
   height: 30px;
   display: inline-flex;
@@ -1386,12 +1407,6 @@ onBeforeUnmount(() => {
   border: 1px solid color-mix(in srgb, var(--primary-color) 18%, var(--border-color));
   color: var(--primary-color);
   background: color-mix(in srgb, var(--primary-color) 7%, var(--card-bg));
-  transform: translateY(-50%);
-}
-
-.card-actions .card-more-btn {
-  position: static;
-  transform: none;
 }
 
 .card-more-btn:hover {
@@ -1400,9 +1415,8 @@ onBeforeUnmount(() => {
 }
 
 .add-btn {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  grid-column: 3;
+  grid-row: 1;
   min-width: 58px;
   height: 28px;
   display: inline-flex;
@@ -1416,6 +1430,8 @@ onBeforeUnmount(() => {
   font-size: 13px;
   font-weight: 650;
   line-height: 1;
+  align-self: center;
+  justify-self: end;
 }
 
 .add-btn:hover {
@@ -1430,7 +1446,7 @@ onBeforeUnmount(() => {
 
 .card-action-menu {
   position: absolute;
-  top: calc(50% + 22px);
+  top: 58px;
   right: 14px;
   z-index: 40;
   min-width: 176px;
@@ -1641,8 +1657,7 @@ onBeforeUnmount(() => {
   }
 
   .managed-card {
-    grid-template-columns: 40px minmax(0, 1fr);
-    padding-right: 116px;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
   }
 }
 </style>

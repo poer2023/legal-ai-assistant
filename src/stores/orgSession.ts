@@ -22,6 +22,8 @@ export type MockUser = {
   displayName: string;
   avatarText: string;
   avatarDataUrl?: string;
+  firmShortName?: string;
+  bio?: string;
 };
 
 type OrgSessionState = {
@@ -138,6 +140,8 @@ const readSession = (): OrgSessionState => {
         displayName: user.displayName,
         avatarText: typeof user.avatarText === 'string' ? user.avatarText : avatarTextForPhone(user.phone),
         avatarDataUrl: typeof user.avatarDataUrl === 'string' ? user.avatarDataUrl : undefined,
+        firmShortName: typeof user.firmShortName === 'string' ? user.firmShortName : undefined,
+        bio: typeof user.bio === 'string' ? user.bio : undefined,
       },
       organizations,
       currentOrganizationId: organizations.some((org) => org.id === currentOrganizationId)
@@ -232,11 +236,18 @@ export const useOrgSession = () => {
     return true;
   };
 
-  const updateUserProfile = (profile: { displayName: string; avatarDataUrl?: string }) => {
+  const updateUserProfile = (profile: {
+    displayName: string;
+    avatarDataUrl?: string;
+    firmShortName?: string;
+    bio?: string;
+  }) => {
     if (!state.value.user) return false;
 
     const displayName = profile.displayName.trim() || state.value.user.displayName;
     const avatarDataUrl = profile.avatarDataUrl?.trim();
+    const firmShortName = profile.firmShortName?.trim();
+    const bio = profile.bio?.trim();
     state.value = {
       ...state.value,
       user: {
@@ -244,6 +255,8 @@ export const useOrgSession = () => {
         displayName,
         avatarText: avatarTextForName(displayName, state.value.user.phone),
         avatarDataUrl: avatarDataUrl || undefined,
+        firmShortName: firmShortName || undefined,
+        bio: bio || undefined,
       },
     };
     persistSession();

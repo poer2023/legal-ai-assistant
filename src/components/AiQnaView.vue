@@ -1,25 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   AlertCircle,
   Brain,
-  BookOpen,
   ChevronDown,
   Check,
   Copy,
   FileText,
-  Globe,
-  GraduationCap,
   Image as ImageIcon,
-  MessageCircle,
   MessageSquareText,
   Mic,
   Pencil,
   Plus,
   Puzzle,
-  Scale,
   Send,
   Share2,
   Trash2,
@@ -27,7 +21,6 @@ import {
   X,
   Zap,
 } from 'lucide-vue-next';
-import KnowledgeSearchIcon from './icons/KnowledgeSearchIcon.vue';
 import ChatInput from './ChatInput.vue';
 import SkillDropdownContent from './SkillDropdownContent.vue';
 import SkillManageModal from './SkillManageModal.vue';
@@ -39,12 +32,6 @@ import { docxLegalResearchMock } from '../data/docxLegalResearchMock';
 import { streamSkillWithSkillCreator, type SkillCreatorAnswers } from '../services/skillCreator';
 import { generateDeepSeekConversationTitle, streamDeepSeekMessage } from '../services/deepseekChat';
 import { useChatHistory } from '../stores/chatHistory';
-
-type SearchMode = {
-  id: string;
-  label: string;
-  icon: Component;
-};
 
 type PromptPart = {
   type: 'text' | 'skill' | 'template' | 'asset';
@@ -185,18 +172,6 @@ const createSkillPrompt = (skillName: string) =>
   `请使用 /${skillName} 帮我完成以下任务，我的需求如下：`;
 const createTemplatePrompt = (template: TemplateAsset) =>
   `请使用 模板：${template.name} 帮我按照这个模板完成写作，我的需求/源文件如下：`;
-
-const dialogModes = [
-  { id: 'consult', label: '咨询模式', icon: MessageCircle },
-  { id: 'research', label: '研究模式', icon: BookOpen },
-];
-
-const searchModes: SearchMode[] = [
-  { id: 'legal', label: '法律搜索', icon: Scale },
-  { id: 'web', label: '联网搜索', icon: Globe },
-  { id: 'academic', label: '学术搜索', icon: GraduationCap },
-  { id: 'knowledge', label: '知识库搜索', icon: KnowledgeSearchIcon },
-];
 
 const uploadActions = [
   { id: 'image', label: '上传图片', icon: ImageIcon },
@@ -1260,7 +1235,6 @@ const syncAnswerContent = (content: string) => {
   generatedAnswer.value = content;
 };
 
-const isResearchMode = computed(() => selectedDialogMode.value === 'research');
 const hasComposerContent = computed(() => inputValue.value.length > 0 || Boolean(selectedTemplate.value));
 const reportMock = docxLegalResearchMock;
 const isLiveConversation = computed(() =>
@@ -1440,12 +1414,6 @@ const answerStatusLabel = computed(() => {
   return '已完成回答';
 });
 
-const placeholderText = computed(() => {
-  return isResearchMode.value
-    ? '想了解什么知识，快来问问我！Shift+Enter/Ctrl+Enter换行'
-    : '我是你的AI律师，想咨询什么法律问题，快来问问我！Shift+Enter/Ctrl+Enter换行';
-});
-
 const currentTime = computed(() => {
   return new Intl.DateTimeFormat('zh-CN', {
     year: 'numeric',
@@ -1457,29 +1425,7 @@ const currentTime = computed(() => {
   }).format(new Date()).replace(/\//g, '-');
 });
 
-const toggleSearchMode = (modeId: string) => {
-  if (enabledSearchModes.value.has(modeId)) {
-    enabledSearchModes.value.delete(modeId);
-  } else {
-    enabledSearchModes.value.add(modeId);
-  }
-};
-
-const isEnabled = (modeId: string) => enabledSearchModes.value.has(modeId);
-
-const selectDialogMode = (modeId: string) => {
-  selectedDialogMode.value = modeId;
-};
-
 const selectedThinkingMode = ref('thinking');
-const thinkingModes = [
-  { id: 'fast', label: '快速', icon: Zap },
-  { id: 'thinking', label: '思考', icon: Brain },
-];
-
-const selectThinkingMode = (modeId: string) => {
-  selectedThinkingMode.value = modeId;
-};
 
 const toggleActionMenu = () => {
   showActionMenu.value = !showActionMenu.value;

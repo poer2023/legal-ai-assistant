@@ -103,7 +103,7 @@ const publishVisibilityOptions: Array<{
   { id: 'personal', label: '仅自己', description: '只保存在个人技能区，可随时继续调整。' },
   { id: 'group', label: '小组', description: '小组成员可以在技能库中查看和调用。', permissionSubject: '小组成员' },
   { id: 'team', label: '本团队', description: '本团队成员可以在技能库中查看和调用。', permissionSubject: '本团队成员' },
-  { id: 'public', label: '公共库', description: '公开后可进入公共库，更多用户可以发现和安装。', permissionSubject: '公共库用户' },
+  { id: 'public', label: '市场（hub）', description: '公开后可进入市场（hub），更多用户可以发现和安装。', permissionSubject: '市场（hub）用户' },
 ];
 
 const activeFileId = ref('');

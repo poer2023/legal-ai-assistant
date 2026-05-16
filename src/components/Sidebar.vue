@@ -2,43 +2,27 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
-  Building2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
-  CheckCircle2,
   FileText,
   History,
-  Home,
-  LogOut,
   MoreHorizontal,
   Pencil,
   Puzzle,
   Scale,
   Trash2,
-  Users,
   User,
+  Workflow,
 } from 'lucide-vue-next';
 import legalLogo from '../assets/legal-logo.png';
 import KnowledgeSearchIcon from './icons/KnowledgeSearchIcon.vue';
 import { useChatHistory, type ChatHistoryItem } from '../stores/chatHistory';
-import { useOrgSession } from '../stores/orgSession';
 
 const router = useRouter();
 const route = useRoute();
 const { recentHistory, renameConversation, deleteConversation } = useChatHistory();
-const {
-  currentOrganization,
-  currentOrganizationId,
-  currentUser,
-  logout,
-  organizations,
-  selectOrganization,
-} = useOrgSession();
 
 const isCollapsed = ref(false);
-const isOrgSwitcherOpen = ref(false);
 const openHistoryMenuId = ref('');
 const historyMenuPosition = ref({ top: 0, left: 0 });
 const renamingHistoryId = ref('');
@@ -53,17 +37,12 @@ const closeHistoryMenu = () => {
   openHistoryMenuId.value = '';
 };
 
-const closeOrgSwitcher = () => {
-  isOrgSwitcherOpen.value = false;
-};
-
 const closeDeleteConfirm = () => {
   pendingDeleteHistoryItem.value = null;
 };
 
 const handleItemClick = (routeName: string) => {
   if (routeName) {
-    closeOrgSwitcher();
     closeHistoryMenu();
     router.push({ name: routeName });
   }
@@ -85,51 +64,17 @@ const isHistoryActive = (item: ChatHistoryItem) => {
 const isKnowledgeActive = computed(() => {
   return ['knowledge'].includes(String(route.name ?? ''));
 });
-const isTeamActive = computed(() => route.path.startsWith('/team'));
+const isProfileActive = computed(() => route.path.startsWith('/profile'));
 
 const toggleSidebarCollapsed = () => {
   isCollapsed.value = !isCollapsed.value;
   if (isCollapsed.value) {
-    closeOrgSwitcher();
     closeHistoryMenu();
   }
 };
 
 const handleKnowledgeClick = () => {
   handleItemClick('knowledge');
-};
-
-const toggleOrgSwitcher = () => {
-  closeHistoryMenu();
-
-  if (isCollapsed.value || window.innerWidth <= 768) {
-    void router.push({
-      name: 'org-select',
-      query: { switch: '1' },
-    });
-    return;
-  }
-
-  isOrgSwitcherOpen.value = !isOrgSwitcherOpen.value;
-};
-
-const handleOrganizationSwitch = (organizationId: string) => {
-  if (organizationId === currentOrganizationId.value) {
-    closeOrgSwitcher();
-    return;
-  }
-
-  if (!selectOrganization(organizationId)) return;
-  closeOrgSwitcher();
-  closeHistoryMenu();
-  void router.push({ name: 'home' });
-};
-
-const handleLogout = () => {
-  logout();
-  closeOrgSwitcher();
-  closeHistoryMenu();
-  void router.replace({ name: 'login' });
 };
 
 const handleHistoryClick = (item: ChatHistoryItem) => {
@@ -228,12 +173,10 @@ const handleDocumentClick = (event: MouseEvent) => {
     target.closest('.history-menu-popover')
     || target.closest('.history-more')
     || target.closest('.history-rename-input')
-    || target.closest('.organization-switcher')
   ) {
     return;
   }
 
-  closeOrgSwitcher();
   closeHistoryMenu();
 };
 
@@ -244,9 +187,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick);
 });
-
-const canManageTeam = computed(() => currentOrganization.value?.role === '管理员');
-const userDisplayName = computed(() => currentUser.value?.displayName ?? '个人中心');
 </script>
 
 <template>
@@ -274,172 +214,124 @@ const userDisplayName = computed(() => currentUser.value?.displayName ?? '个人
     </div>
 
     <nav class="sidebar-nav">
-      <button
-        class="nav-item"
-        :class="{ active: isActive('home') }"
-        aria-label="首页"
-        :title="isCollapsed ? '首页' : undefined"
-        @click="handleItemClick('home')"
-      >
-        <Home :size="18" class="nav-icon" />
-        <span class="nav-label">首页</span>
-      </button>
-
-      <button
-        class="nav-item"
-        :class="{ active: isActive('legal-search') }"
-        aria-label="法律搜索"
-        :title="isCollapsed ? '法律搜索' : undefined"
-        @click="handleItemClick('legal-search')"
-      >
-        <Scale :size="18" class="nav-icon" />
-        <span class="nav-label">法律搜索</span>
-      </button>
-
-      <button
-        class="nav-item"
-        :class="{ active: isActive('skills') }"
-        aria-label="技能"
-        :title="isCollapsed ? '技能' : undefined"
-        @click="handleItemClick('skills')"
-      >
-        <Puzzle :size="18" class="nav-icon" />
-        <span class="nav-label">技能</span>
-      </button>
-
-      <button
-        class="nav-item"
-        :class="{ active: isActive('templates') }"
-        aria-label="模板"
-        :title="isCollapsed ? '模板' : undefined"
-        @click="handleItemClick('templates')"
-      >
-        <FileText :size="18" class="nav-icon" />
-        <span class="nav-label">模板</span>
-      </button>
-
-      <button
-        class="nav-item"
-        type="button"
-        :class="{ active: isKnowledgeActive }"
-        :title="isCollapsed ? '知识库' : undefined"
-        aria-label="知识库"
-        @click="handleKnowledgeClick"
-      >
-        <KnowledgeSearchIcon :size="18" class="nav-icon" />
-        <span class="nav-label">知识库</span>
-      </button>
-
-      <section class="history-section" aria-label="历史会话">
-        <div
-          class="nav-item history-group-label"
-          :title="isCollapsed ? '历史会话' : undefined"
-        >
-          <History :size="18" class="nav-icon" />
-          <span class="nav-label">历史会话</span>
-        </div>
-        <div
-          v-for="item in recentHistory"
-          :key="item.id"
-          class="history-row"
-          :class="{ active: isHistoryActive(item), 'menu-open': openHistoryMenuId === item.id }"
-        >
-          <input
-            v-if="renamingHistoryId === item.id"
-            v-model="historyRenameValue"
-            class="history-rename-input"
-            data-history-rename-input="true"
-            maxlength="18"
-            aria-label="重命名历史会话"
-            @click.stop
-            @keydown.enter.prevent="submitHistoryRename(item)"
-            @keydown.esc.prevent="cancelHistoryRename"
-            @blur="submitHistoryRename(item)"
-          />
-          <button
-            v-else
-            class="history-item"
-            :title="isCollapsed ? item.title : undefined"
-            @click="handleHistoryClick(item)"
-          >
-            <span class="history-title">{{ item.title }}</span>
-          </button>
-          <button
-            v-if="renamingHistoryId !== item.id"
-            class="history-more"
-            type="button"
-            :aria-label="`打开 ${item.title} 的更多操作`"
-            :aria-expanded="openHistoryMenuId === item.id"
-            @click="openHistoryMenu(item, $event)"
-          >
-            <MoreHorizontal :size="16" />
-          </button>
-        </div>
-      </section>
-    </nav>
-
-    <div class="sidebar-footer">
-      <button
-        v-if="canManageTeam"
-        class="nav-item footer-item"
-        :class="{ active: isTeamActive }"
-        aria-label="团队管理"
-        :title="isCollapsed ? '团队管理' : undefined"
-        @click="handleItemClick('team')"
-      >
-        <Users :size="18" class="nav-icon" />
-        <span class="nav-label">团队管理</span>
-      </button>
-
-      <div class="organization-switcher footer-organization">
+      <div class="sidebar-nav-main">
         <button
-          class="footer-profile-trigger"
-          type="button"
-          :class="{ active: isActive('profile-basic') || isOrgSwitcherOpen }"
-          :aria-expanded="isOrgSwitcherOpen"
-          aria-label="个人中心"
-          :title="isCollapsed ? '个人中心' : undefined"
-          @click.stop="toggleOrgSwitcher"
+          class="nav-item"
+          :class="{ active: isActive('home') }"
+          aria-label="助手"
+          :title="isCollapsed ? '助手' : undefined"
+          @click="handleItemClick('home')"
         >
-          <User :size="18" class="nav-icon" />
-          <span class="footer-copy nav-label">
-            <span class="footer-label">个人中心</span>
-            <span class="footer-meta">{{ currentOrganization?.shortName ?? userDisplayName }}</span>
-          </span>
-          <ChevronUp v-if="isOrgSwitcherOpen" :size="15" class="profile-trigger-chevron" />
-          <ChevronDown v-else :size="15" class="profile-trigger-chevron" />
+          <Workflow :size="18" class="nav-icon" />
+          <span class="nav-label">助手</span>
         </button>
 
-        <div v-if="isOrgSwitcherOpen && !isCollapsed" class="organization-popover">
-          <div class="organization-popover-title">我的组织</div>
+        <button
+          class="nav-item"
+          :class="{ active: isActive('skills') }"
+          aria-label="技能"
+          :title="isCollapsed ? '技能' : undefined"
+          @click="handleItemClick('skills')"
+        >
+          <Puzzle :size="18" class="nav-icon" />
+          <span class="nav-label">技能</span>
+        </button>
 
-          <button
-            v-for="organization in organizations"
-            :key="organization.id"
-            class="organization-option"
-            :class="{ active: organization.id === currentOrganizationId }"
-            type="button"
-            @click="handleOrganizationSwitch(organization.id)"
+        <button
+          class="nav-item"
+          :class="{ active: isActive('templates') }"
+          aria-label="模板"
+          :title="isCollapsed ? '模板' : undefined"
+          @click="handleItemClick('templates')"
+        >
+          <FileText :size="18" class="nav-icon" />
+          <span class="nav-label">模板</span>
+        </button>
+
+        <button
+          class="nav-item"
+          type="button"
+          :class="{ active: isKnowledgeActive }"
+          :title="isCollapsed ? '知识库' : undefined"
+          aria-label="知识库"
+          @click="handleKnowledgeClick"
+        >
+          <KnowledgeSearchIcon :size="18" class="nav-icon" />
+          <span class="nav-label">知识库</span>
+        </button>
+
+        <button
+          class="nav-item"
+          :class="{ active: isActive('legal-search') }"
+          aria-label="法律搜索"
+          :title="isCollapsed ? '法律搜索' : undefined"
+          @click="handleItemClick('legal-search')"
+        >
+          <Scale :size="18" class="nav-icon" />
+          <span class="nav-label">法律搜索</span>
+        </button>
+
+        <section class="history-section" aria-label="历史会话">
+          <div
+            class="nav-item history-group-label"
+            :title="isCollapsed ? '历史会话' : undefined"
           >
-            <span class="option-avatar">{{ organization.avatarText }}</span>
-            <span class="option-copy">
-              <span class="option-name">{{ organization.name }}</span>
-              <span class="option-meta">{{ organization.role }} · {{ organization.memberCount }} 人</span>
-            </span>
-            <CheckCircle2 v-if="organization.id === currentOrganizationId" :size="16" class="option-check" />
-          </button>
-
-          <button class="organization-option compact" type="button" @click="handleItemClick('org-select')">
-            <Building2 :size="16" />
-            <span>管理我的组织</span>
-          </button>
-          <button class="organization-option compact danger" type="button" @click="handleLogout">
-            <LogOut :size="16" />
-            <span>退出登录</span>
-          </button>
-        </div>
+            <History :size="18" class="nav-icon" />
+            <span class="nav-label">历史会话</span>
+          </div>
+          <div
+            v-for="item in recentHistory"
+            :key="item.id"
+            class="history-row"
+            :class="{ active: isHistoryActive(item), 'menu-open': openHistoryMenuId === item.id }"
+          >
+            <input
+              v-if="renamingHistoryId === item.id"
+              v-model="historyRenameValue"
+              class="history-rename-input"
+              data-history-rename-input="true"
+              maxlength="18"
+              aria-label="重命名历史会话"
+              @click.stop
+              @keydown.enter.prevent="submitHistoryRename(item)"
+              @keydown.esc.prevent="cancelHistoryRename"
+              @blur="submitHistoryRename(item)"
+            />
+            <button
+              v-else
+              class="history-item"
+              :title="isCollapsed ? item.title : undefined"
+              @click="handleHistoryClick(item)"
+            >
+              <span class="history-title">{{ item.title }}</span>
+            </button>
+            <button
+              v-if="renamingHistoryId !== item.id"
+              class="history-more"
+              type="button"
+              :aria-label="`打开 ${item.title} 的更多操作`"
+              :aria-expanded="openHistoryMenuId === item.id"
+              @click="openHistoryMenu(item, $event)"
+            >
+              <MoreHorizontal :size="16" />
+            </button>
+          </div>
+        </section>
       </div>
-    </div>
+
+      <div class="sidebar-nav-bottom">
+        <button
+          class="nav-item profile-nav-item"
+          :class="{ active: isProfileActive }"
+          aria-label="个人中心"
+          :title="isCollapsed ? '个人中心' : undefined"
+          @click="handleItemClick('profile')"
+        >
+          <User :size="18" class="nav-icon" />
+          <span class="nav-label">个人中心</span>
+        </button>
+      </div>
+    </nav>
 
   </aside>
 
@@ -871,7 +763,27 @@ const userDisplayName = computed(() => currentUser.value?.displayName ?? '个人
 
 .sidebar-nav {
   flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-nav-main {
+  min-height: 0;
+  flex: 1;
   overflow-y: auto;
+  padding-bottom: 12px;
+}
+
+.sidebar-nav-bottom {
+  flex: 0 0 auto;
+  padding-top: 8px;
+  margin-top: auto;
+}
+
+.profile-nav-item {
+  margin-bottom: 0;
 }
 
 .sidebar-footer {
@@ -1189,16 +1101,16 @@ const userDisplayName = computed(() => currentUser.value?.displayName ?? '个人
   margin-bottom: 8px;
 }
 
-.sidebar-nav::-webkit-scrollbar {
+.sidebar-nav-main::-webkit-scrollbar {
   width: 4px;
 }
 
-.sidebar-nav::-webkit-scrollbar-thumb {
+.sidebar-nav-main::-webkit-scrollbar-thumb {
   background: transparent;
   border-radius: 4px;
 }
 
-.sidebar-nav:hover::-webkit-scrollbar-thumb {
+.sidebar-nav-main:hover::-webkit-scrollbar-thumb {
   background: var(--border-color);
 }
 

@@ -4,6 +4,8 @@ type ProfileIdentity = {
   displayName?: string;
   avatarText?: string;
   avatarDataUrl?: string;
+  firmShortName?: string;
+  bio?: string;
 } | null | undefined;
 
 type SkillAuthorIdentity = Pick<

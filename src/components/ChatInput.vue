@@ -6,11 +6,9 @@ import {
   FileText,
   FolderOpen,
   Globe,
-  GraduationCap,
   Scale,
   Image,
   Info,
-  MessageCircle,
   Mic,
   ArrowUp,
   ArrowLeft,
@@ -18,7 +16,9 @@ import {
   Check,
   BookOpen,
   Paperclip,
+  Plus,
   Puzzle,
+  Search,
   SlidersHorizontal,
   X,
   Zap,
@@ -382,37 +382,14 @@ watch(
   { immediate: true }
 );
 
-// Dialog role selector
-const selectedRole = ref('research');
-const dialogRoles = [
-  { id: 'consult', label: '咨询模式', icon: MessageCircle },
-  { id: 'research', label: '研究模式', icon: BookOpen },
-];
-
-const selectRole = (roleId: string) => {
-  selectedRole.value = roleId;
-  if (roleId !== 'research') {
-    showSkillMenu.value = false;
-    showSkillCreatorGuide.value = false;
-    showSkillCreatorForm.value = false;
-    showTemplateMenu.value = false;
-    showInlineSkillMenu.value = false;
-    showInlineTemplateMenu.value = false;
-  }
-};
-
-const isResearchMode = computed(() => selectedRole.value === 'research');
-
 const placeholderText = () => {
-  return isResearchMode.value
-    ? '想了解什么知识，快来问问我！Shift+Enter/Ctrl+Enter换行'
-    : '我是你的AI律师，想咨询什么法律问题，快来问问我！Shift+Enter/Ctrl+Enter换行';
+  return '想咨询或研究什么法律问题，快来问问我！Shift+Enter/Ctrl+Enter换行';
 };
 
 const selectedThinkingMode = ref('thinking');
 const thinkingModes = [
-  { id: 'fast', label: '快速', description: '适合简单问题，优先更快响应', icon: Zap },
-  { id: 'thinking', label: '思考', description: '适合复杂问题，进行深度推理', icon: Brain },
+  { id: 'fast', label: '快速', description: '更快响应', icon: Zap },
+  { id: 'thinking', label: '思考', description: '深度推理', icon: Brain },
 ];
 
 const selectThinkingMode = (modeId: string) => {
@@ -425,7 +402,6 @@ const enabledSearchModes = ref<Set<string>>(new Set(['legal']));
 const searchModes = [
   { id: 'legal', label: '法律搜索', icon: Scale },
   { id: 'web', label: '联网搜索', icon: Globe },
-  { id: 'academic', label: '学术搜索', icon: GraduationCap },
   { id: 'knowledge', label: '知识库搜索', icon: KnowledgeSearchIcon },
 ];
 
@@ -474,6 +450,10 @@ const showSkillFollowupHint = computed(() =>
 const skillFollowupHintText = computed(() => {
   const skillName = firstComposerSkillName.value ? getSkillDisplayName(firstComposerSkillName.value) : '';
   const prefix = skillName ? `已调用「${skillName}」，` : '';
+  const normalizedSkillName = firstComposerSkillName.value?.trim().replace(/^\/+/, '').toLowerCase() ?? '';
+  if (normalizedSkillName === 'skill-creator') {
+    return `${prefix}请继续说明你想创建的技能类型/适用场景，并补充技能执行流程、预期输出文件结构、需上传或引用的材料、输入要求和验收标准。`;
+  }
   return `${prefix}请继续输入本次任务材料，例如案件背景、争议焦点、法规条文、审查对象、输出要求等。`;
 });
 
@@ -610,33 +590,176 @@ const uploadActions: Array<{ id: UploadActionId; label: string; icon: typeof Ima
   { id: 'knowledge', label: '从知识库选择', icon: BookOpen },
 ];
 
+type KnowledgeDraftCollection = 'personal' | 'team' | 'group';
+
+type KnowledgeDraftAsset = {
+  id: string;
+  name: string;
+  meta: string;
+  collection: KnowledgeDraftCollection;
+  fileCount: number;
+  updatedAt: string;
+  kind: 'folder' | 'file';
+};
+
 const knowledgeDraftAssets = [
   {
     id: 'team-compliance-checklist',
-    name: '团队合规审查底稿清单.docx',
-    meta: '团队知识库 / 最近更新',
+    name: '类案库',
+    meta: '1247 份文件 · 更新于 今天',
+    collection: 'team',
+    fileCount: 1247,
+    updatedAt: '今天',
+    kind: 'folder',
   },
   {
     id: 'contract-risk-matrix',
-    name: '合同风险矩阵样表.xlsx',
-    meta: '团队知识库 / 常用底稿',
-  },
-  {
-    id: 'litigation-evidence-index',
-    name: '诉讼证据目录模板.docx',
-    meta: '个人知识库 / 文书材料',
+    name: '法律法规库',
+    meta: '586 份文件 · 更新于 每日同步',
+    collection: 'team',
+    fileCount: 586,
+    updatedAt: '每日同步',
+    kind: 'folder',
   },
   {
     id: 'regulatory-response-pack',
-    name: '监管问询回复底稿包',
-    meta: '小组知识库 / 合规项目',
+    name: '监管问答库',
+    meta: '412 份文件 · 更新于 本周',
+    collection: 'team',
+    fileCount: 412,
+    updatedAt: '本周',
+    kind: 'folder',
   },
-];
+  {
+    id: 'law-firm-rules',
+    name: '律所内部规范',
+    meta: '32 份文件 · 更新于 本月',
+    collection: 'team',
+    fileCount: 32,
+    updatedAt: '本月',
+    kind: 'folder',
+  },
+  {
+    id: 'contract-template-base',
+    name: '合同范本库',
+    meta: '284 份文件 · 更新于 本周',
+    collection: 'team',
+    fileCount: 284,
+    updatedAt: '本周',
+    kind: 'folder',
+  },
+  {
+    id: 'due-diligence-report-base',
+    name: '尽调报告库',
+    meta: '96 份文件 · 更新于 本周',
+    collection: 'team',
+    fileCount: 96,
+    updatedAt: '本周',
+    kind: 'folder',
+  },
+  {
+    id: 'training-materials',
+    name: '专业培训资料',
+    meta: '168 份文件 · 更新于 本月',
+    collection: 'team',
+    fileCount: 168,
+    updatedAt: '本月',
+    kind: 'folder',
+  },
+  {
+    id: 'meeting-minutes-base',
+    name: '会议纪要与项目资料',
+    meta: '74 份文件 · 更新于 昨天',
+    collection: 'team',
+    fileCount: 74,
+    updatedAt: '昨天',
+    kind: 'folder',
+  },
+  {
+    id: 'personal-litigation-evidence-index',
+    name: '诉讼证据目录模板.docx',
+    meta: '个人知识库 / 文书材料',
+    collection: 'personal',
+    fileCount: 1,
+    updatedAt: '本周',
+    kind: 'file',
+  },
+  {
+    id: 'personal-consultation-note',
+    name: '常用咨询纪要模板.docx',
+    meta: '个人知识库 / 咨询记录',
+    collection: 'personal',
+    fileCount: 1,
+    updatedAt: '昨天',
+    kind: 'file',
+  },
+  {
+    id: 'personal-risk-summary',
+    name: '个人风险摘录表.xlsx',
+    meta: '个人知识库 / 风险摘要',
+    collection: 'personal',
+    fileCount: 1,
+    updatedAt: '本月',
+    kind: 'file',
+  },
+  {
+    id: 'group-regulatory-pack',
+    name: '小组监管问询底稿包',
+    meta: '小组知识库 / 合规项目',
+    collection: 'group',
+    fileCount: 48,
+    updatedAt: '今天',
+    kind: 'folder',
+  },
+  {
+    id: 'group-project-documents',
+    name: '小组项目底稿',
+    meta: '小组知识库 / 项目材料',
+    collection: 'group',
+    fileCount: 76,
+    updatedAt: '本周',
+    kind: 'folder',
+  },
+  {
+    id: 'group-transaction-playbook',
+    name: '交易条线 Playbook',
+    meta: '小组知识库 / 交易文件',
+    collection: 'group',
+    fileCount: 124,
+    updatedAt: '本月',
+    kind: 'folder',
+  },
+  {
+    id: 'group-dispute-playbook',
+    name: '争议解决底稿库',
+    meta: '小组知识库 / 诉讼仲裁',
+    collection: 'group',
+    fileCount: 92,
+    updatedAt: '本周',
+    kind: 'folder',
+  },
+] satisfies KnowledgeDraftAsset[];
 
 const selectedKnowledgeDraftIds = ref<string[]>([]);
+const activeKnowledgeDraftCollection = ref<KnowledgeDraftCollection>('team');
+const knowledgeDraftSearchKeyword = ref('');
+const maxKnowledgeDraftSelection = 50;
 const selectedKnowledgeDraftAssets = computed(() =>
   knowledgeDraftAssets.filter((asset) => selectedKnowledgeDraftIds.value.includes(asset.id))
 );
+const knowledgeDraftCollectionTabs = computed(() => [
+  { id: 'personal' as const, label: '个人知识库', count: 3 },
+  { id: 'team' as const, label: '团队知识库（XX律所）', count: 8 },
+  { id: 'group' as const, label: '小组知识库', count: 12 },
+]);
+const filteredKnowledgeDraftAssets = computed(() => {
+  const keyword = knowledgeDraftSearchKeyword.value.trim().toLowerCase();
+  return knowledgeDraftAssets.filter((asset) => {
+    const matchesCollection = asset.collection === activeKnowledgeDraftCollection.value;
+    const matchesKeyword = !keyword || `${asset.name} ${asset.meta}`.toLowerCase().includes(keyword);
+    return matchesCollection && matchesKeyword;
+  });
+});
 const skillCreatorReferenceAssets = ref<SkillCreatorReferenceAsset[]>([]);
 const activeSkillCreatorAssetTarget = ref<SkillCreatorAssetTarget>(null);
 const fixedSkillCreatorName = ref('');
@@ -651,13 +774,10 @@ const isFixedSkillCreatorFormReady = computed(() =>
   fixedSkillCreatorName.value.trim().length > 0
 );
 const knowledgeDraftPickerTitle = computed(() =>
-  isFixedSkillCreatorFilePicker.value ? '选择关联知识库' : '从知识库选择底稿'
-);
-const knowledgeDraftPickerKicker = computed(() =>
-  isFixedSkillCreatorFilePicker.value ? '关联知识库' : '底稿来源'
+  isFixedSkillCreatorFilePicker.value ? '选择关联知识库文件' : '从知识库选择文件'
 );
 const knowledgeDraftPickerConfirmText = computed(() =>
-  isFixedSkillCreatorFilePicker.value ? '添加到关联知识库' : '添加到底稿'
+  isFixedSkillCreatorFilePicker.value ? '添加到关联知识库' : '添加为本次底稿'
 );
 
 const makeAssetId = (prefix: string, value: string) =>
@@ -827,14 +947,30 @@ const triggerUploadAction = (actionId: UploadActionId) => {
 const closeKnowledgeDraftPicker = () => {
   showKnowledgeDraftPicker.value = false;
   selectedKnowledgeDraftIds.value = [];
+  activeKnowledgeDraftCollection.value = 'team';
+  knowledgeDraftSearchKeyword.value = '';
   activeSkillCreatorAssetTarget.value = null;
   isFixedSkillCreatorFilePicker.value = false;
 };
 
 const toggleKnowledgeDraftAsset = (assetId: string) => {
+  if (
+    !selectedKnowledgeDraftIds.value.includes(assetId)
+    && selectedKnowledgeDraftIds.value.length >= maxKnowledgeDraftSelection
+  ) {
+    return;
+  }
   selectedKnowledgeDraftIds.value = selectedKnowledgeDraftIds.value.includes(assetId)
     ? selectedKnowledgeDraftIds.value.filter((id) => id !== assetId)
     : [...selectedKnowledgeDraftIds.value, assetId];
+};
+
+const selectKnowledgeDraftCollection = (collection: KnowledgeDraftCollection) => {
+  activeKnowledgeDraftCollection.value = collection;
+};
+
+const openKnowledgeDraftFileUpload = () => {
+  fileInputRef.value?.click();
 };
 
 const confirmKnowledgeDraftSelection = () => {
@@ -845,6 +981,8 @@ const confirmKnowledgeDraftSelection = () => {
   );
   showKnowledgeDraftPicker.value = false;
   selectedKnowledgeDraftIds.value = [];
+  activeKnowledgeDraftCollection.value = 'team';
+  knowledgeDraftSearchKeyword.value = '';
 
   if (isFixedSkillCreatorFilePicker.value) {
     addFixedSkillCreatorFiles(selectedAssets.map((asset) => ({
@@ -2689,23 +2827,7 @@ onBeforeUnmount(() => {
           </button>
 
           <div v-if="showActionMenu" class="action-dropdown" role="menu">
-            <section class="action-group" aria-label="对话设置">
-              <p class="action-group-title">对话模式</p>
-              <button
-                v-for="role in dialogRoles"
-                :key="role.id"
-                class="action-menu-item"
-                :class="{ selected: selectedRole === role.id }"
-                type="button"
-                @click.stop="selectRole(role.id)"
-              >
-                <component :is="role.icon" :size="16" class="action-icon" />
-                <span>{{ role.label }}</span>
-                <Check v-if="selectedRole === role.id" :size="15" class="check-icon" />
-              </button>
-            </section>
-
-            <section v-if="isResearchMode" class="action-group" aria-label="推理方式">
+            <section class="action-group" aria-label="推理方式">
               <p class="action-group-title">推理方式</p>
               <button
                 v-for="mode in thinkingModes"
@@ -2724,7 +2846,7 @@ onBeforeUnmount(() => {
               </button>
             </section>
 
-            <section v-if="isResearchMode" class="action-group" aria-label="检索来源">
+            <section class="action-group" aria-label="检索来源">
               <p class="action-group-title">检索来源</p>
               <button
                 v-for="mode in searchModes"
@@ -2833,9 +2955,9 @@ onBeforeUnmount(() => {
           @keydown.escape.stop.prevent="closeKnowledgeDraftPicker"
         >
           <header class="knowledge-draft-header">
-            <div>
-              <p class="knowledge-draft-kicker">{{ knowledgeDraftPickerKicker }}</p>
+            <div class="knowledge-draft-title-row">
               <h2 id="knowledge-draft-title">{{ knowledgeDraftPickerTitle }}</h2>
+              <p>选择已沉淀的资料作为本次会话底稿，支持文件夹整夹检索或精确选文件</p>
             </div>
             <button
               class="knowledge-draft-close"
@@ -2847,47 +2969,117 @@ onBeforeUnmount(() => {
             </button>
           </header>
 
-          <div class="knowledge-draft-list" role="listbox" aria-label="知识库底稿列表">
-            <button
-              v-for="asset in knowledgeDraftAssets"
-              :key="asset.id"
-              class="knowledge-draft-item"
-              :class="{ selected: selectedKnowledgeDraftIds.includes(asset.id) }"
-              type="button"
-              role="option"
-              :aria-selected="selectedKnowledgeDraftIds.includes(asset.id)"
-              @click="toggleKnowledgeDraftAsset(asset.id)"
-            >
-              <FileText :size="17" class="knowledge-draft-file-icon" />
-              <span class="knowledge-draft-copy">
-                <strong>{{ asset.name }}</strong>
-                <small>{{ asset.meta }}</small>
+          <section class="knowledge-draft-toolbar" aria-label="浏览知识库">
+            <div class="knowledge-draft-toolbar-title">
+              <span class="knowledge-draft-toolbar-icon">
+                <Info :size="18" />
               </span>
-              <Check
-                v-if="selectedKnowledgeDraftIds.includes(asset.id)"
-                :size="16"
-                class="knowledge-draft-check"
-              />
+              <strong>浏览知识库</strong>
+            </div>
+            <label class="knowledge-draft-search">
+              <Search :size="17" />
+              <input v-model="knowledgeDraftSearchKeyword" type="text" placeholder="搜索文档标题、内容..." />
+            </label>
+            <button class="knowledge-draft-upload" type="button" @click="openKnowledgeDraftFileUpload">
+              <Plus :size="17" />
+              <span>上传本地文件</span>
             </button>
+          </section>
+
+          <nav class="knowledge-draft-tabs" aria-label="知识库来源">
+            <button
+              v-for="tab in knowledgeDraftCollectionTabs"
+              :key="tab.id"
+              class="knowledge-draft-tab"
+              :class="{ active: activeKnowledgeDraftCollection === tab.id }"
+              type="button"
+              @click="selectKnowledgeDraftCollection(tab.id)"
+            >
+              <span>{{ tab.label }}</span>
+              <strong>{{ tab.count }}</strong>
+            </button>
+          </nav>
+
+          <div class="knowledge-draft-browser">
+            <section class="knowledge-draft-main" aria-label="知识库文件列表">
+              <h3>{{ knowledgeDraftCollectionTabs.find((tab) => tab.id === activeKnowledgeDraftCollection)?.label }}</h3>
+              <div class="knowledge-draft-list" role="listbox" aria-label="知识库底稿列表">
+                <button
+                  v-for="asset in filteredKnowledgeDraftAssets"
+                  :key="asset.id"
+                  class="knowledge-draft-item"
+                  :class="{ selected: selectedKnowledgeDraftIds.includes(asset.id) }"
+                  type="button"
+                  role="option"
+                  :aria-selected="selectedKnowledgeDraftIds.includes(asset.id)"
+                  @click="toggleKnowledgeDraftAsset(asset.id)"
+                >
+                  <span class="knowledge-draft-add">
+                    <Check v-if="selectedKnowledgeDraftIds.includes(asset.id)" :size="16" />
+                    <Plus v-else :size="16" />
+                  </span>
+                  <span class="knowledge-draft-folder-icon">
+                    <FolderOpen v-if="asset.kind === 'folder'" :size="23" />
+                    <FileText v-else :size="21" />
+                  </span>
+                  <span class="knowledge-draft-copy">
+                    <strong>{{ asset.name }}</strong>
+                    <small>{{ asset.meta }}</small>
+                  </span>
+                  <ArrowRight :size="16" class="knowledge-draft-chevron" />
+                </button>
+
+                <p v-if="filteredKnowledgeDraftAssets.length === 0" class="knowledge-draft-empty-list">
+                  未找到匹配文件
+                </p>
+              </div>
+            </section>
+
+            <aside class="knowledge-draft-selected" aria-label="已选择文件">
+              <header>
+                <span>已选择</span>
+                <strong>{{ selectedKnowledgeDraftAssets.length }}</strong>
+                <span>/{{ maxKnowledgeDraftSelection }}</span>
+              </header>
+
+              <div v-if="selectedKnowledgeDraftAssets.length" class="knowledge-draft-selected-list">
+                <button
+                  v-for="asset in selectedKnowledgeDraftAssets"
+                  :key="`selected-${asset.id}`"
+                  class="knowledge-draft-selected-item"
+                  type="button"
+                  @click="toggleKnowledgeDraftAsset(asset.id)"
+                >
+                  <span>{{ asset.name }}</span>
+                  <X :size="14" />
+                </button>
+              </div>
+              <div v-else class="knowledge-draft-empty-state">
+                <span class="knowledge-draft-empty-icon">
+                  <FolderOpen :size="28" />
+                </span>
+                <strong>暂未选择</strong>
+                <p>点击左侧文件 / 文件夹左边的 + 即可添加</p>
+              </div>
+            </aside>
           </div>
 
           <footer class="knowledge-draft-footer">
-            <span>
-              {{ selectedKnowledgeDraftAssets.length }} 个{{ isFixedSkillCreatorFilePicker ? '知识库文件' : '底稿' }}已选
+            <span class="knowledge-draft-tip">
+              <Info :size="15" />
+              点击行最左侧的 + 即可添加 · 文件夹支持“整夹检索”或下钻选具体文件
             </span>
-            <div class="knowledge-draft-actions">
-              <button type="button" class="knowledge-draft-secondary" @click="closeKnowledgeDraftPicker">
-                取消
-              </button>
-              <button
-                type="button"
-                class="knowledge-draft-primary"
-                :disabled="selectedKnowledgeDraftAssets.length === 0"
-                @click="confirmKnowledgeDraftSelection"
-              >
-                {{ knowledgeDraftPickerConfirmText }}
-              </button>
-            </div>
+            <span class="knowledge-draft-selected-count">
+              已选 <strong>{{ selectedKnowledgeDraftAssets.length }}</strong> 项
+            </span>
+            <button
+              type="button"
+              class="knowledge-draft-primary"
+              :disabled="selectedKnowledgeDraftAssets.length === 0"
+              @click="confirmKnowledgeDraftSelection"
+            >
+              {{ knowledgeDraftPickerConfirmText }}
+            </button>
           </footer>
         </section>
       </div>
@@ -3405,8 +3597,11 @@ onBeforeUnmount(() => {
 .send-btn:focus-visible,
 .action-menu-item:focus-visible,
 .knowledge-draft-close:focus-visible,
+.knowledge-draft-tab:focus-visible,
+.knowledge-draft-search input:focus-visible,
+.knowledge-draft-upload:focus-visible,
 .knowledge-draft-item:focus-visible,
-.knowledge-draft-secondary:focus-visible,
+.knowledge-draft-selected-item:focus-visible,
 .knowledge-draft-primary:focus-visible,
 .creator-guide-icon-btn:focus-visible,
 .creator-guide-close:focus-visible,
@@ -3426,22 +3621,21 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 24px;
   background: rgba(15, 23, 42, 0.36);
 }
 
 .knowledge-draft-modal {
-  width: min(520px, calc(100vw - 40px));
-  max-height: calc(100vh - 40px);
+  width: min(960px, calc(100vw - 72px));
+  height: min(640px, calc(100vh - 72px));
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
+  padding: 0;
   border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--card-bg);
   box-shadow: var(--shadow-popover);
-  overflow: auto;
+  overflow: hidden;
 }
 
 .knowledge-draft-header,
@@ -3452,24 +3646,38 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
-.knowledge-draft-kicker {
-  margin: 0 0 4px;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1;
+.knowledge-draft-header {
+  min-height: 52px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.knowledge-draft-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
 }
 
 .knowledge-draft-header h2 {
   margin: 0;
   color: var(--text-strong);
-  font-size: 20px;
-  line-height: 1.25;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.knowledge-draft-title-row p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .knowledge-draft-close {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3484,17 +3692,171 @@ onBeforeUnmount(() => {
   color: var(--text-main);
 }
 
+.knowledge-draft-toolbar {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(260px, 330px) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.knowledge-draft-toolbar-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.knowledge-draft-toolbar-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+}
+
+.knowledge-draft-search {
+  min-width: 0;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 13px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: var(--surface-muted);
+}
+
+.knowledge-draft-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  color: var(--text-main);
+  background: transparent;
+  font-size: 14px;
+}
+
+.knowledge-draft-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.knowledge-draft-upload,
+.knowledge-draft-primary {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 13px;
+  border: 1px solid var(--primary-border);
+  border-radius: 8px;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.knowledge-draft-upload:hover,
+.knowledge-draft-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary-color) 14%, var(--card-bg));
+}
+
+.knowledge-draft-tabs {
+  min-height: 46px;
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.knowledge-draft-tab {
+  position: relative;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.knowledge-draft-tab strong {
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--primary-color);
+  background: var(--primary-soft);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.knowledge-draft-tab.active {
+  color: var(--primary-color);
+}
+
+.knowledge-draft-tab.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--primary-color);
+}
+
+.knowledge-draft-browser {
+  min-height: 0;
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 282px;
+  background: var(--card-bg);
+}
+
+.knowledge-draft-main {
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 10px 14px 12px;
+  overflow-y: auto;
+}
+
+.knowledge-draft-main h3 {
+  margin: 2px 5px 12px;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
 .knowledge-draft-list {
   display: grid;
-  gap: 8px;
+  gap: 7px;
 }
 
 .knowledge-draft-item {
-  min-height: 58px;
-  display: flex;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 28px 34px minmax(0, 1fr) 18px;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 9px;
+  padding: 5px 12px 5px 9px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
   color: var(--text-main);
@@ -3509,16 +3871,39 @@ onBeforeUnmount(() => {
   background: var(--primary-soft);
 }
 
-.knowledge-draft-file-icon,
-.knowledge-draft-check {
+.knowledge-draft-add {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
+  border: 1px solid var(--primary-border);
+  border-radius: 8px;
   color: var(--primary-color);
+  background: var(--card-bg);
+}
+
+.knowledge-draft-item.selected .knowledge-draft-add {
+  color: var(--on-primary);
+  background: var(--primary-color);
+}
+
+.knowledge-draft-folder-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: #475569;
+  background: #fff2bd;
 }
 
 .knowledge-draft-copy {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .knowledge-draft-copy strong,
@@ -3529,57 +3914,169 @@ onBeforeUnmount(() => {
 }
 
 .knowledge-draft-copy strong {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .knowledge-draft-copy small {
   color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.knowledge-draft-chevron {
+  color: var(--text-muted);
+}
+
+.knowledge-draft-empty-list {
+  margin: 32px 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.knowledge-draft-selected {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-soft);
+  background: var(--surface-muted);
+}
+
+.knowledge-draft-selected header {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.knowledge-draft-selected header strong {
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--on-primary);
+  background: var(--primary-color);
   font-size: 12px;
 }
 
-.knowledge-draft-check {
-  margin-left: auto;
+.knowledge-draft-selected-list {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.knowledge-draft-selected-item {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  color: var(--text-main);
+  background: var(--card-bg);
+  text-align: left;
+}
+
+.knowledge-draft-selected-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-draft-selected-item svg {
+  color: var(--text-muted);
+}
+
+.knowledge-draft-empty-state {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.knowledge-draft-empty-icon {
+  width: 50px;
+  height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--text-muted);
+  background: var(--card-bg);
+}
+
+.knowledge-draft-empty-state strong {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.knowledge-draft-empty-state p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .knowledge-draft-footer {
-  padding-top: 2px;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.knowledge-draft-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.knowledge-draft-secondary,
-.knowledge-draft-primary {
-  height: 34px;
+  min-height: 44px;
   padding: 0 14px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 700;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
-.knowledge-draft-secondary {
-  color: var(--text-secondary);
-  background: var(--surface-soft);
+.knowledge-draft-tip,
+.knowledge-draft-selected-count {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.knowledge-draft-secondary:hover {
-  color: var(--text-main);
-  background: var(--border-soft);
+.knowledge-draft-tip {
+  flex: 1;
+}
+
+.knowledge-draft-tip svg {
+  color: #f59e0b;
+}
+
+.knowledge-draft-selected-count strong {
+  color: var(--primary-color);
+  font-weight: 850;
 }
 
 .knowledge-draft-primary {
-  color: var(--on-primary);
-  background: var(--primary-color);
+  min-width: 134px;
+  background: var(--card-bg);
 }
 
 .knowledge-draft-primary:disabled {
   cursor: default;
-  opacity: 0.5;
+  color: var(--text-muted);
+  border-color: var(--border-color);
+  background: var(--card-bg);
+  opacity: 0.68;
 }
 
 .action-dropdown,
@@ -4480,7 +4977,8 @@ onBeforeUnmount(() => {
 
 .action-menu-item {
   width: 100%;
-  min-height: 29px;
+  height: 32px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   gap: 7px;
@@ -4503,24 +5001,19 @@ onBeforeUnmount(() => {
 }
 
 .action-menu-item.has-description {
-  min-height: 48px;
-  align-items: flex-start;
-  padding: 7px 8px;
-}
-
-.action-menu-item.has-description .action-icon,
-.action-menu-item.has-description .check-icon {
-  margin-top: 1px;
+  padding: 0 8px;
 }
 
 .action-item-copy {
   min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
 }
 
 .action-item-label {
+  flex: 0 0 auto;
   color: currentColor;
   font-size: 13px;
   font-weight: 650;
@@ -4528,11 +5021,14 @@ onBeforeUnmount(() => {
 }
 
 .action-item-desc {
-  overflow-wrap: anywhere;
+  overflow: hidden;
+  min-width: 0;
   color: var(--text-muted);
   font-size: 11px;
-  font-weight: 400;
-  line-height: 1.25;
+  font-weight: 500;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .action-icon {
@@ -4791,6 +5287,63 @@ onBeforeUnmount(() => {
 
   .creator-option-label {
     font-size: 14px;
+  }
+
+  .knowledge-draft-backdrop {
+    padding: 0;
+  }
+
+  .knowledge-draft-modal {
+    width: 100vw;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+  }
+
+  .knowledge-draft-header {
+    min-height: auto;
+    align-items: flex-start;
+    padding: 14px;
+  }
+
+  .knowledge-draft-title-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .knowledge-draft-toolbar {
+    grid-template-columns: 1fr;
+    padding: 12px 14px;
+  }
+
+  .knowledge-draft-tabs {
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 14px;
+  }
+
+  .knowledge-draft-tab {
+    flex: 0 0 auto;
+  }
+
+  .knowledge-draft-browser {
+    grid-template-columns: 1fr;
+  }
+
+  .knowledge-draft-selected {
+    display: none;
+  }
+
+  .knowledge-draft-footer {
+    min-height: auto;
+    align-items: stretch;
+    flex-direction: column;
+    padding: 10px 14px;
+  }
+
+  .knowledge-draft-primary {
+    width: 100%;
   }
 
 }
