@@ -99,7 +99,7 @@ const skillCreatorPromptSuffix = ' 帮我创建一个可复用的技能，我的
 const templatePromptSuffix = ' 帮我按照这个格式模板完成写作，我的需求/源文件如下：';
 const templateCreatorPromptSuffix = ' 帮我创建一个可复用的输出格式模板，我的需求/源文件如下：';
 const inlineTokenSelector = '.skill-inline-code, .template-inline-code, .asset-inline-code';
-// Keep the previous multi-step guide in this file, but route new creation to the fixed form.
+// Legacy creation panels remain for compatibility, but new entry points insert the skill-creator prompt inline.
 const useFixedSkillCreatorForm = true;
 const showLegacySkillCreatorGuide = computed(() =>
   showSkillCreatorGuide.value && !useFixedSkillCreatorForm
@@ -1371,6 +1371,16 @@ const insertSkillPrompt = (skillName: string) => {
   insertPlainTextAtCaret(skillName === 'skill-creator' ? skillCreatorPromptSuffix : createSkillUsagePromptSuffix(skillName));
 };
 
+const closeSkillCreatorSurfaces = () => {
+  showSkillCreatorGuide.value = false;
+  showSkillCreatorForm.value = false;
+  showKnowledgeDraftPicker.value = false;
+  isFixedSkillCreatorTemplatePicker.value = false;
+  isFixedSkillCreatorFilePicker.value = false;
+  isFixedSkillCreatorLocalFilePicker.value = false;
+  activeSkillCreatorAssetTarget.value = null;
+};
+
 const insertTemplatePrompt = (template: TemplateAsset) => {
   insertPlainTextAtCaret(selectedAssetPromptPrefix);
   insertTemplateToken(template);
@@ -2205,21 +2215,14 @@ const insertGuidedSkillCreatorPrompt = () => {
 };
 
 const triggerSkillAction = (selection?: SkillDropdownSelection) => {
-  if (selection === 'skill-creator') {
-    if (useFixedSkillCreatorForm) {
-      openFixedSkillCreatorForm();
-    } else {
-      openSkillCreatorGuide();
-    }
-  } else if (selection) {
+  closeSkillCreatorSurfaces();
+  if (selection) {
     insertSkillPrompt(selection);
   }
-  if (selection !== 'skill-creator') {
-    showDraftMenu.value = false;
-    showSkillMenu.value = false;
-    showInlineSkillMenu.value = false;
-    showInlineTemplateMenu.value = false;
-  }
+  showDraftMenu.value = false;
+  showSkillMenu.value = false;
+  showInlineSkillMenu.value = false;
+  showInlineTemplateMenu.value = false;
 };
 
 const triggerInlineSkillAction = (selection?: SkillDropdownSelection) => {
@@ -2319,20 +2322,9 @@ const openSkillManageModal = () => {
 };
 
 const createSkillFromModal = (skillName = 'skill-creator') => {
-  if (skillName === 'skill-creator') {
-    showSkillManageModal.value = false;
-    skillManageStartsInCreate.value = false;
-    nextTick(() => {
-      if (useFixedSkillCreatorForm) {
-        openFixedSkillCreatorForm();
-      } else {
-        openSkillCreatorGuide();
-      }
-    });
-    return;
-  }
-
   showSkillManageModal.value = false;
+  skillManageStartsInCreate.value = false;
+  closeSkillCreatorSurfaces();
   nextTick(() => {
     activeSkillRange.value = null;
     showInlineTemplateMenu.value = false;
