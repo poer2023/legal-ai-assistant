@@ -2,7 +2,9 @@ import { computed, ref } from 'vue';
 
 const SESSION_STORAGE_KEY = 'legal-demo-org-session-v1';
 const MOCK_VERIFY_CODE = '112233';
+const PUBLIC_DEMO_PHONE = '13800000000';
 export const NO_ORGANIZATION_DEMO_PHONE = '19900000000';
+export const AUTH_FLOW_ENABLED = false;
 
 export type MockOrganization = {
   id: string;
@@ -94,6 +96,22 @@ const createOrganizationsForPhone = (phone: string): MockOrganization[] => {
   ];
 };
 
+const createPublicDemoState = (): OrgSessionState => {
+  const organizations = createOrganizationsForPhone(PUBLIC_DEMO_PHONE);
+
+  return {
+    user: {
+      ...createUser(PUBLIC_DEMO_PHONE),
+      id: 'public-demo-user',
+      displayName: '演示用户',
+      avatarText: '演',
+      firmShortName: organizations[0]?.shortName,
+    },
+    organizations,
+    currentOrganizationId: organizations[0]?.id ?? '',
+  };
+};
+
 const isOrganization = (value: unknown): value is MockOrganization => {
   if (!value || typeof value !== 'object') return false;
   const item = value as Partial<MockOrganization>;
@@ -110,7 +128,7 @@ const isOrganization = (value: unknown): value is MockOrganization => {
   );
 };
 
-const readSession = (): OrgSessionState => {
+const readStoredSession = (): OrgSessionState => {
   const storage = getSafeStorage();
   if (!storage) return emptyState();
 
@@ -151,6 +169,20 @@ const readSession = (): OrgSessionState => {
   } catch {
     return emptyState();
   }
+};
+
+const readSession = (): OrgSessionState => {
+  const storedSession = readStoredSession();
+
+  if (AUTH_FLOW_ENABLED) {
+    return storedSession;
+  }
+
+  if (storedSession.user && storedSession.currentOrganizationId) {
+    return storedSession;
+  }
+
+  return createPublicDemoState();
 };
 
 const state = ref<OrgSessionState>(readSession());
@@ -264,7 +296,7 @@ export const useOrgSession = () => {
   };
 
   const logout = () => {
-    state.value = emptyState();
+    state.value = AUTH_FLOW_ENABLED ? emptyState() : createPublicDemoState();
     persistSession();
   };
 

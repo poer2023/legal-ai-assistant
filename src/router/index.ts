@@ -40,7 +40,7 @@ import TeamThemeView from '../components/team/TeamThemeView.vue';
 import ProfileView from '../components/ProfileView.vue';
 import GuideView from '../components/GuideView.vue';
 import InvestigationAgentDemoView from '../components/InvestigationAgentDemoView.vue';
-import { useOrgSession } from '../stores/orgSession';
+import { AUTH_FLOW_ENABLED, useOrgSession } from '../stores/orgSession';
 
 // Placeholder views - can be replaced with actual components later
 const PlaceholderView = {
@@ -419,6 +419,15 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const { currentOrganization, hasActiveOrganization, isAuthenticated } = useOrgSession();
+
+  if (!AUTH_FLOW_ENABLED) {
+    if (to.name === 'login' || to.name === 'org-select') {
+      return { name: 'home' };
+    }
+
+    return true;
+  }
+
   const isPublicRoute = to.meta.public === true;
 
   if (!isAuthenticated.value && !isPublicRoute) {

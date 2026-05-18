@@ -14,7 +14,7 @@ import {
   UserRound,
   X,
 } from 'lucide-vue-next';
-import { useOrgSession } from '../stores/orgSession';
+import { AUTH_FLOW_ENABLED, useOrgSession } from '../stores/orgSession';
 import { useTheme } from '../stores/theme';
 import type { ThemeId } from '../data/themes';
 
@@ -37,6 +37,8 @@ const profileBioDraft = ref('');
 const isEditingProfile = ref(false);
 const avatarInputRef = ref<HTMLInputElement | null>(null);
 const statusMessage = ref('');
+const showAuthControls = AUTH_FLOW_ENABLED;
+const showOrganizationAccessControls = AUTH_FLOW_ENABLED;
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
 const showStatus = (message: string) => {
@@ -155,59 +157,65 @@ onBeforeUnmount(() => {
   if (statusTimer) clearTimeout(statusTimer);
 });
 
-const accountRows = computed(() => [
-  {
-    icon: UserRound,
-    label: '昵称',
-    value: currentUser.value?.displayName ?? '未设置',
-    meta: '协作场景中的展示名称',
-    compact: true,
-  },
-  {
-    icon: Building2,
-    label: '律所简称',
-    value: savedFirmShortName.value || '未设置',
-    meta: '用于作者身份、技能发布与对外展示',
-    compact: true,
-  },
-  {
-    icon: BadgeCheck,
-    label: '用户ID',
-    value: currentUser.value?.id ?? '未生成',
-    meta: '账号唯一标识',
-    compact: true,
-  },
-  {
-    icon: Smartphone,
-    label: '绑定手机号',
-    value: currentUser.value?.phone ?? '未绑定',
-    meta: '登录与安全验证手机号',
-    compact: true,
-  },
-  {
-    icon: Building2,
-    label: '当前组织',
-    value: currentOrganization.value?.name ?? '未选择组织',
-    meta: currentOrganization.value
-      ? `${currentOrganization.value.role} · ${currentOrganization.value.planName}`
-      : '可在个人中心弹窗中管理',
-  },
-  {
-    icon: ShieldCheck,
-    label: '账号安全',
-    value: '密码已启用',
-    meta: '建议定期更新登录密码',
-    actionLabel: '修改密码',
-  },
-  {
-    icon: UserRound,
-    label: '个人简介',
-    value: currentUser.value?.bio?.trim() || '未填写',
-    meta: '用于说明专业方向与服务经验',
-    wide: true,
-    multiline: true,
-  },
-]);
+const accountRows = computed(() => {
+  const rows = [
+    {
+      icon: UserRound,
+      label: '昵称',
+      value: currentUser.value?.displayName ?? '未设置',
+      meta: '协作场景中的展示名称',
+      compact: true,
+    },
+    {
+      icon: Building2,
+      label: '律所简称',
+      value: savedFirmShortName.value || '未设置',
+      meta: '用于作者身份、技能发布与对外展示',
+      compact: true,
+    },
+    {
+      icon: BadgeCheck,
+      label: '用户ID',
+      value: currentUser.value?.id ?? '未生成',
+      meta: '账号唯一标识',
+      compact: true,
+    },
+    {
+      icon: Smartphone,
+      label: '绑定手机号',
+      value: currentUser.value?.phone ?? '未绑定',
+      meta: '登录与安全验证手机号',
+      compact: true,
+      authOnly: true,
+    },
+    {
+      icon: Building2,
+      label: '当前组织',
+      value: currentOrganization.value?.name ?? '未选择组织',
+      meta: currentOrganization.value
+        ? `${currentOrganization.value.role} · ${currentOrganization.value.planName}`
+        : '当前公开演示入口使用默认组织',
+    },
+    {
+      icon: ShieldCheck,
+      label: '账号安全',
+      value: '密码已启用',
+      meta: '建议定期更新登录密码',
+      actionLabel: '修改密码',
+      authOnly: true,
+    },
+    {
+      icon: UserRound,
+      label: '个人简介',
+      value: currentUser.value?.bio?.trim() || '未填写',
+      meta: '用于说明专业方向与服务经验',
+      wide: true,
+      multiline: true,
+    },
+  ];
+
+  return showAuthControls ? rows : rows.filter((row) => !row.authOnly);
+});
 </script>
 
 <template>
@@ -318,7 +326,7 @@ const accountRows = computed(() => [
         <section class="settings-section" aria-label="个人中心设置">
           <header class="settings-header">
             <span>设置</span>
-            <p>组织切换与界面偏好</p>
+            <p>{{ showOrganizationAccessControls ? '组织切换与界面偏好' : '界面偏好' }}</p>
           </header>
 
           <section class="settings-block" aria-label="组织设置">
@@ -346,12 +354,17 @@ const accountRows = computed(() => [
             </div>
             <p v-else class="settings-empty">暂无可切换组织</p>
 
-            <div class="settings-actions">
-              <button type="button" class="settings-action-btn" @click="openOrganizationManager">
+            <div v-if="showOrganizationAccessControls || showAuthControls" class="settings-actions">
+              <button
+                v-if="showOrganizationAccessControls"
+                type="button"
+                class="settings-action-btn"
+                @click="openOrganizationManager"
+              >
                 <Building2 :size="15" />
                 <span>管理我的组织</span>
               </button>
-              <button type="button" class="settings-action-btn danger" @click="handleLogout">
+              <button v-if="showAuthControls" type="button" class="settings-action-btn danger" @click="handleLogout">
                 <LogOut :size="15" />
                 <span>退出登录</span>
               </button>
