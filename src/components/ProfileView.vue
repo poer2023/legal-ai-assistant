@@ -2,21 +2,29 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
-  BadgeCheck,
   Building2,
+  Camera,
   Check,
-  KeyRound,
   LogOut,
   Palette,
-  Pencil,
   ShieldCheck,
-  Smartphone,
+  Star,
+  Store,
   UserRound,
-  X,
 } from 'lucide-vue-next';
 import { AUTH_FLOW_ENABLED, useOrgSession } from '../stores/orgSession';
 import { useTheme } from '../stores/theme';
-import type { ThemeId } from '../data/themes';
+import { themeOptions, type ThemeId } from '../data/themes';
+
+type Language = 'zh' | 'en';
+type ThemeSwatch = {
+  id: ThemeId;
+  labelZh: string;
+  labelEn: string;
+  surface: string;
+  accent: string;
+  ink: string;
+};
 
 const router = useRouter();
 const {
@@ -24,22 +32,214 @@ const {
   currentOrganizationId,
   currentUser,
   logout,
-  organizations,
   selectOrganization,
   updateUserProfile,
 } = useOrgSession();
-const { currentThemeId, setTheme, themeOptions } = useTheme();
+const { currentThemeId, setTheme } = useTheme();
 
+const language = ref<Language>('zh');
 const displayNameDraft = ref('');
 const avatarDraftDataUrl = ref('');
-const firmShortNameDraft = ref('');
+const firmDraft = ref('');
 const profileBioDraft = ref('');
+const yearsDraft = ref('12');
+const qualificationDraft = ref('合伙人');
+const expertiseDraft = ref<string[]>(['跨境投融资', '并购重组', '私募基金']);
 const isEditingProfile = ref(false);
 const avatarInputRef = ref<HTMLInputElement | null>(null);
 const statusMessage = ref('');
-const showAuthControls = AUTH_FLOW_ENABLED;
 const showOrganizationAccessControls = AUTH_FLOW_ENABLED;
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
+
+const zhExpertiseOptions = [
+  '跨境投融资',
+  '并购重组',
+  '资本市场 / IPO',
+  '私募基金',
+  '合规与监管',
+  '数据合规',
+  '劳动用工',
+  '知识产权',
+  '商事争议',
+  '刑事合规',
+  '公司治理',
+  '税务',
+  '破产重整',
+  '房地产与建工',
+];
+
+const enExpertiseOptions = [
+  'Cross-border M&A',
+  'Restructuring',
+  'Capital markets / IPO',
+  'PE / Funds',
+  'Compliance',
+  'Data privacy',
+  'Labour',
+  'IP',
+  'Commercial dispute',
+  'Criminal compliance',
+  'Corporate governance',
+  'Tax',
+  'Bankruptcy',
+  'Real estate',
+];
+
+const themeSwatchLabels: Record<ThemeId, { labelZh: string; labelEn: string }> = {
+  classic: { labelZh: '原版', labelEn: 'Classic' },
+  'codex-theme-v1': { labelZh: '纯白', labelEn: 'Snow' },
+  'absolutely-theme-v1': { labelZh: '象牙', labelEn: 'Ivory' },
+  'happycapy-paper-v1': { labelZh: '纸页', labelEn: 'Paper+' },
+  'lawagents-standalone-v1': { labelZh: '暖白', labelEn: 'Paper' },
+};
+
+const themeSwatches: ThemeSwatch[] = themeOptions.map((theme) => ({
+  id: theme.id,
+  labelZh: themeSwatchLabels[theme.id].labelZh,
+  labelEn: themeSwatchLabels[theme.id].labelEn,
+  surface: theme.theme.surface,
+  accent: theme.theme.accent,
+  ink: theme.theme.ink,
+}));
+
+const copy = computed(() => {
+  if (language.value === 'zh') {
+    return {
+      title: '个人中心',
+      edit: '编辑资料',
+      save: '保存',
+      uploadAvatar: '上传头像',
+      replaceAvatar: '更换头像',
+      firm: '所在律所',
+      phone: '手机号',
+      years: '执业年限',
+      qualification: '资质 / 头衔',
+      bio: '个人简介',
+      bioHint: '用于市场橱窗，向购买者展示你的专业背景与代表项目',
+      expertise: '执业领域',
+      expertiseHint: '至多选择 5 个，用于技能 / 模板的市场分类',
+      profileBar: '律师 IP · 市场橱窗',
+      profileBarSub: '当你将技能或模板发布到市场，以下信息将作为"店铺简介"展示给采购方',
+      beta: '内测',
+      previewCard: '橱窗预览',
+      statsSkills: '已发布技能',
+      statsTemplates: '已发布模板',
+      statsUses: '累计调用',
+      statsRating: '平均评分',
+      storefrontPublished: '已发布',
+      storefrontUses: '调用',
+      storefrontRating: '评分',
+      storefrontBioFallback: '在这里写下专业方向、代表项目、跨境业务能力等，让采购方对你建立信任 …',
+      preferences: '界面偏好',
+      orgSub: '组织切换与界面偏好',
+      language: '界面语言',
+      languageHint: '中文 / English 跨境团队推荐',
+      theme: '主题',
+      themeHint: '当前为暖白 · 默认',
+      security: '账号安全',
+      securitySub: '账号与组织相关设置',
+      signinMethod: '登录方式',
+      signinHint: '手机号密码登录 · 首次密码为手机号后六位',
+      active: '已启用',
+      organization: '当前组织',
+      manageOrganization: '管理组织',
+      teamManagement: '团队管理',
+      signOut: '退出登录',
+      signOutHint: '结束当前会话',
+      confirmLogout: '退出登录',
+      saved: '个人资料已保存',
+      uploadError: '请上传图片文件',
+      notSignedIn: '请先登录账号',
+      organizationChanged: '已切换组织',
+      themeChanged: '主题已切换',
+    };
+  }
+
+  return {
+    title: 'Account',
+    edit: 'Edit',
+    save: 'Save',
+    uploadAvatar: 'Upload photo',
+    replaceAvatar: 'Replace photo',
+    firm: 'Law firm',
+    phone: 'Mobile',
+    years: 'Years in practice',
+    qualification: 'Qualifications',
+    bio: 'Bio',
+    bioHint: 'Shown on your marketplace storefront when others browse your skills / templates.',
+    expertise: 'Practice areas',
+    expertiseHint: 'Pick up to 5. Used to classify your published skills / templates.',
+    profileBar: 'Lawyer IP · Marketplace storefront',
+    profileBarSub: 'When you publish skills or templates, this profile is shown to buyers as your storefront.',
+    beta: 'Beta',
+    previewCard: 'Storefront preview',
+    statsSkills: 'Skills published',
+    statsTemplates: 'Templates published',
+    statsUses: 'Total invocations',
+    statsRating: 'Avg. rating',
+    storefrontPublished: 'Published',
+    storefrontUses: 'Invocations',
+    storefrontRating: 'Rating',
+    storefrontBioFallback: 'Describe your practice, signature deals and cross-border capability so buyers can trust you...',
+    preferences: 'Preferences',
+    orgSub: 'Switch organisation & interface preferences',
+    language: 'Language',
+    languageHint: 'Recommended for cross-border teams',
+    theme: 'Theme',
+    themeHint: 'Current: warm paper · default',
+    security: 'Security',
+    securitySub: 'Account & organisation settings',
+    signinMethod: 'Sign-in method',
+    signinHint: 'Phone password · first password is the last six digits',
+    active: 'Active',
+    organization: 'Current organisation',
+    manageOrganization: 'Manage',
+    teamManagement: 'Team management',
+    signOut: 'Sign out',
+    signOutHint: 'End current session',
+    confirmLogout: 'Sign out',
+    saved: 'Profile saved',
+    uploadError: 'Upload an image file',
+    notSignedIn: 'Sign in first',
+    organizationChanged: 'Organisation switched',
+    themeChanged: 'Theme changed',
+  };
+});
+
+const isChinese = computed(() => language.value === 'zh');
+const expertiseOptions = computed(() => (isChinese.value ? zhExpertiseOptions : enExpertiseOptions));
+const profilePhone = computed(() => currentUser.value?.phone?.trim() || '11111111111');
+const profileUserId = computed(() => {
+  const rawUserId = currentUser.value?.id?.trim();
+  if (!rawUserId || rawUserId === 'public-demo-user') return `user-${profilePhone.value}`;
+  return rawUserId;
+});
+const savedProfileName = computed(() => {
+  const rawName = currentUser.value?.displayName?.trim();
+  if (rawName && rawName !== '演示用户') return rawName;
+  return `${isChinese.value ? '律师' : 'Lawyer'} · ${profilePhone.value.slice(-4) || '1111'}`;
+});
+const savedFirmName = computed(() =>
+  currentUser.value?.firmShortName?.trim()
+  || currentOrganization.value?.shortName
+  || '金杜律师事务所'
+);
+const savedYears = computed(() => currentUser.value?.yearsInPractice?.trim() || '12');
+const savedQualification = computed(() => currentUser.value?.qualification?.trim() || (isChinese.value ? '合伙人' : 'Partner'));
+const savedBio = computed(() => currentUser.value?.bio?.trim() || '');
+const savedExpertise = computed(() =>
+  currentUser.value?.expertise?.length
+    ? currentUser.value.expertise
+    : (isChinese.value ? ['跨境投融资', '并购重组', '私募基金'] : ['Cross-border M&A', 'Restructuring', 'PE / Funds'])
+);
+const profileName = computed(() => displayNameDraft.value.trim() || savedProfileName.value);
+const firmName = computed(() => firmDraft.value.trim() || savedFirmName.value);
+const qualification = computed(() => qualificationDraft.value.trim() || savedQualification.value);
+const yearsInPractice = computed(() => yearsDraft.value.trim() || savedYears.value);
+const bioText = computed(() => profileBioDraft.value.trim());
+const avatarText = computed(() => profileName.value.slice(0, 1).toUpperCase() || '律');
+const selectedExpertise = computed(() => expertiseDraft.value.slice(0, 5));
+const canManageTeam = computed(() => currentOrganization.value?.role === '管理员');
 
 const showStatus = (message: string) => {
   statusMessage.value = message;
@@ -47,32 +247,23 @@ const showStatus = (message: string) => {
   statusTimer = setTimeout(() => {
     statusMessage.value = '';
     statusTimer = null;
-  }, 1600);
+  }, 1800);
 };
 
-const profileAvatarText = computed(() =>
-  displayNameDraft.value.trim().slice(0, 1).toUpperCase()
-  || currentUser.value?.avatarText
-  || '用'
-);
-
-const savedFirmShortName = computed(() =>
-  currentUser.value?.firmShortName?.trim()
-  || currentOrganization.value?.shortName
-  || ''
-);
-
 const syncProfileDraft = () => {
-  const user = currentUser.value;
-  const organization = currentOrganization.value;
-  displayNameDraft.value = user?.displayName ?? '';
-  avatarDraftDataUrl.value = user?.avatarDataUrl ?? '';
-  firmShortNameDraft.value = user?.firmShortName ?? organization?.shortName ?? '';
-  profileBioDraft.value = user?.bio ?? '';
+  displayNameDraft.value = savedProfileName.value;
+  avatarDraftDataUrl.value = currentUser.value?.avatarDataUrl ?? '';
+  firmDraft.value = savedFirmName.value;
+  profileBioDraft.value = savedBio.value;
+  yearsDraft.value = savedYears.value;
+  qualificationDraft.value = savedQualification.value;
+  expertiseDraft.value = [...savedExpertise.value].slice(0, 5);
 };
 
 const chooseAvatar = () => {
-  if (!isEditingProfile.value) return;
+  if (!isEditingProfile.value) {
+    isEditingProfile.value = true;
+  }
   avatarInputRef.value?.click();
 };
 
@@ -83,7 +274,7 @@ const handleAvatarUpload = (event: Event) => {
   if (!file) return;
 
   if (!file.type.startsWith('image/')) {
-    showStatus('请上传图片文件');
+    showStatus(copy.value.uploadError);
     return;
   }
 
@@ -96,33 +287,42 @@ const handleAvatarUpload = (event: Event) => {
   reader.readAsDataURL(file);
 };
 
-const startProfileEdit = () => {
-  syncProfileDraft();
-  isEditingProfile.value = true;
-};
+const toggleEdit = () => {
+  if (!isEditingProfile.value) {
+    syncProfileDraft();
+    isEditingProfile.value = true;
+    return;
+  }
 
-const cancelProfileEdit = () => {
-  syncProfileDraft();
-  isEditingProfile.value = false;
-};
-
-const saveProfile = () => {
   const ok = updateUserProfile({
     displayName: displayNameDraft.value,
     avatarDataUrl: avatarDraftDataUrl.value,
-    firmShortName: firmShortNameDraft.value,
+    firmShortName: firmDraft.value,
     bio: profileBioDraft.value,
+    yearsInPractice: yearsDraft.value,
+    qualification: qualificationDraft.value,
+    expertise: expertiseDraft.value,
   });
   if (ok) {
     isEditingProfile.value = false;
   }
-  showStatus(ok ? '个人资料已保存' : '请先登录账号');
+  showStatus(ok ? copy.value.saved : copy.value.notSignedIn);
+};
+
+const toggleExpertise = (tag: string) => {
+  if (!isEditingProfile.value) return;
+  if (expertiseDraft.value.includes(tag)) {
+    expertiseDraft.value = expertiseDraft.value.filter((item) => item !== tag);
+    return;
+  }
+  if (expertiseDraft.value.length >= 5) return;
+  expertiseDraft.value = [...expertiseDraft.value, tag];
 };
 
 const handleOrganizationSelect = (organizationId: string) => {
   if (organizationId === currentOrganizationId.value) return;
   if (selectOrganization(organizationId)) {
-    showStatus('已切换组织');
+    showStatus(copy.value.organizationChanged);
   }
 };
 
@@ -133,6 +333,10 @@ const openOrganizationManager = () => {
   });
 };
 
+const openTeamManagement = () => {
+  void router.push({ name: 'team' });
+};
+
 const handleLogout = () => {
   logout();
   void router.replace({ name: 'login' });
@@ -140,11 +344,11 @@ const handleLogout = () => {
 
 const handleThemeSelect = (themeId: ThemeId) => {
   setTheme(themeId);
-  showStatus('主题已切换');
+  showStatus(copy.value.themeChanged);
 };
 
 watch(
-  [currentUser, currentOrganization],
+  [currentUser, currentOrganization, language],
   () => {
     if (!isEditingProfile.value) {
       syncProfileDraft();
@@ -156,91 +360,56 @@ watch(
 onBeforeUnmount(() => {
   if (statusTimer) clearTimeout(statusTimer);
 });
-
-const accountRows = computed(() => {
-  const rows = [
-    {
-      icon: UserRound,
-      label: '昵称',
-      value: currentUser.value?.displayName ?? '未设置',
-      meta: '协作场景中的展示名称',
-      compact: true,
-    },
-    {
-      icon: Building2,
-      label: '律所简称',
-      value: savedFirmShortName.value || '未设置',
-      meta: '用于作者身份、技能发布与对外展示',
-      compact: true,
-    },
-    {
-      icon: BadgeCheck,
-      label: '用户ID',
-      value: currentUser.value?.id ?? '未生成',
-      meta: '账号唯一标识',
-      compact: true,
-    },
-    {
-      icon: Smartphone,
-      label: '绑定手机号',
-      value: currentUser.value?.phone ?? '未绑定',
-      meta: '登录与安全验证手机号',
-      compact: true,
-      authOnly: true,
-    },
-    {
-      icon: Building2,
-      label: '当前组织',
-      value: currentOrganization.value?.name ?? '未选择组织',
-      meta: currentOrganization.value
-        ? `${currentOrganization.value.role} · ${currentOrganization.value.planName}`
-        : '当前公开演示入口使用默认组织',
-    },
-    {
-      icon: ShieldCheck,
-      label: '账号安全',
-      value: '密码已启用',
-      meta: '建议定期更新登录密码',
-      actionLabel: '修改密码',
-      authOnly: true,
-    },
-    {
-      icon: UserRound,
-      label: '个人简介',
-      value: currentUser.value?.bio?.trim() || '未填写',
-      meta: '用于说明专业方向与服务经验',
-      wide: true,
-      multiline: true,
-    },
-  ];
-
-  return showAuthControls ? rows : rows.filter((row) => !row.authOnly);
-});
 </script>
 
 <template>
   <div class="profile-page">
-    <main class="profile-main">
-      <section class="profile-card" aria-label="个人信息">
-        <header class="profile-header">
+    <main class="profile-content">
+      <div class="profile-inner">
+        <div class="profile-heading-row">
+          <h1 class="profile-title">{{ copy.title }}</h1>
+          <div class="heading-actions">
+            <span v-if="statusMessage" class="profile-status">{{ statusMessage }}</span>
+            <button
+              v-if="canManageTeam"
+              class="btn btn-ghost btn-sm"
+              type="button"
+              @click="openTeamManagement"
+            >
+              <Building2 :size="14" />
+              <span>{{ copy.teamManagement }}</span>
+            </button>
+            <button class="btn btn-ghost btn-sm" type="button" @click="toggleEdit">
+              <Check v-if="isEditingProfile" :size="14" />
+              <UserRound v-else :size="14" />
+              <span>{{ isEditingProfile ? copy.save : copy.edit }}</span>
+            </button>
+            <button class="btn btn-ghost btn-sm danger-button" type="button" @click="handleLogout">
+              <LogOut :size="14" />
+              <span>{{ copy.signOut }}</span>
+            </button>
+          </div>
+        </div>
+
+        <section class="profile-hero" aria-label="个人资料">
           <button
-            v-if="isEditingProfile"
+            class="profile-avatar-slot"
+            :class="{ 'has-img': avatarDraftDataUrl }"
             type="button"
-            class="profile-avatar"
-            aria-label="更换头像"
-            title="更换头像"
+            :title="avatarDraftDataUrl ? copy.replaceAvatar : copy.uploadAvatar"
             @click="chooseAvatar"
           >
             <img v-if="avatarDraftDataUrl" :src="avatarDraftDataUrl" alt="" />
-            <span v-else class="profile-avatar-letter">{{ profileAvatarText }}</span>
-            <span class="profile-avatar-edit" aria-hidden="true">
-              <Pencil :size="13" />
+            <span v-if="avatarDraftDataUrl" class="avatar-overlay">
+              <Camera :size="20" />
+              <span>{{ copy.replaceAvatar }}</span>
+            </span>
+            <span v-else class="avatar-empty">
+              <Camera :size="26" />
+              <span>{{ copy.uploadAvatar }}</span>
+              <small>JPG · PNG · ≤ 5MB</small>
             </span>
           </button>
-          <span v-else class="profile-avatar">
-            <img v-if="avatarDraftDataUrl" :src="avatarDraftDataUrl" alt="" />
-            <span v-else class="profile-avatar-letter">{{ profileAvatarText }}</span>
-          </span>
           <input
             ref="avatarInputRef"
             class="profile-avatar-input"
@@ -248,747 +417,1046 @@ const accountRows = computed(() => {
             accept="image/*"
             @change="handleAvatarUpload"
           />
-          <span class="profile-title-copy">
-            <h1>个人信息</h1>
-            <p>{{ currentUser?.displayName ?? '未登录账号' }}</p>
-          </span>
-          <span class="profile-header-actions">
-            <span v-if="statusMessage" class="profile-status">{{ statusMessage }}</span>
-            <button
-              v-if="!isEditingProfile"
-              type="button"
-              class="profile-edit-toggle"
-              @click="startProfileEdit"
-            >
-              <Pencil :size="15" />
-              <span>编辑资料</span>
-            </button>
-          </span>
-        </header>
 
-        <section v-if="isEditingProfile" class="profile-edit-panel" aria-label="编辑个人展示资料">
-          <div class="profile-fields-grid">
-            <label class="profile-name-field">
-              <span>显示姓名</span>
-              <input v-model="displayNameDraft" type="text" maxlength="24" />
-            </label>
+          <div class="hero-main">
+            <div class="profile-name-row">
+              <input
+                v-if="isEditingProfile"
+                v-model="displayNameDraft"
+                class="profile-name-input"
+                type="text"
+                maxlength="24"
+              />
+              <h2 v-else>{{ profileName }}</h2>
+              <span class="chip chip-outline">{{ yearsInPractice }}{{ isChinese ? '年执业' : ' yrs in practice' }}</span>
+              <span v-if="qualification" class="chip">{{ qualification }}</span>
+            </div>
 
-            <label class="profile-name-field">
-              <span>律所简称</span>
-              <input v-model="firmShortNameDraft" type="text" maxlength="18" placeholder="如：涌见律所" />
-            </label>
+            <div class="profile-meta-row">
+              <span><Building2 :size="13" />{{ firmName }}</span>
+              <span><UserRound :size="13" />{{ copy.phone }} <span class="tabular">{{ profilePhone }}</span></span>
+              <span><ShieldCheck :size="13" />{{ profileUserId }}</span>
+            </div>
 
-            <label class="profile-name-field profile-bio-field">
-              <span>个人简介</span>
-              <textarea
-                v-model="profileBioDraft"
-                maxlength="160"
-                rows="4"
-                placeholder="填写专业方向、执业经验或常办业务"
-              ></textarea>
-            </label>
-          </div>
-
-          <div class="profile-edit-actions">
-            <button type="button" class="profile-cancel-btn" @click="cancelProfileEdit">
-              <X :size="15" />
-              <span>取消</span>
-            </button>
-            <button type="button" class="profile-save-btn" @click="saveProfile">
-              <Check :size="15" />
-              <span>保存资料</span>
-            </button>
+            <div class="profile-stats">
+              <div>
+                <span>{{ copy.statsSkills }}</span>
+                <strong>6</strong>
+              </div>
+              <div>
+                <span>{{ copy.statsTemplates }}</span>
+                <strong>3</strong>
+              </div>
+              <div>
+                <span>{{ copy.statsUses }}</span>
+                <strong>1,284</strong>
+              </div>
+              <div>
+                <span>{{ copy.statsRating }}</span>
+                <strong>4.8 <Star :size="14" /></strong>
+              </div>
+            </div>
           </div>
         </section>
 
-        <section class="info-grid">
-          <article
-            v-for="row in accountRows"
-            :key="row.label"
-            class="info-item"
-            :class="{ wide: row.wide, multiline: row.multiline, compact: row.compact }"
-          >
-            <span class="info-icon">
-              <component :is="row.icon" :size="18" />
-            </span>
-            <span class="info-copy">
-              <span class="info-label">{{ row.label }}</span>
-              <strong class="info-value">{{ row.value }}</strong>
-              <span class="info-meta">{{ row.meta }}</span>
-            </span>
-            <button v-if="row.actionLabel" class="inline-action" type="button">
-              <KeyRound :size="15" />
-              <span>{{ row.actionLabel }}</span>
-            </button>
-          </article>
-        </section>
-
-        <section class="settings-section" aria-label="个人中心设置">
-          <header class="settings-header">
-            <span>设置</span>
-            <p>{{ showOrganizationAccessControls ? '组织切换与界面偏好' : '界面偏好' }}</p>
+        <section class="card market-panel" aria-label="律师 IP 市场橱窗">
+          <header class="market-header">
+            <div class="market-title">
+              <span class="market-icon">
+                <Store :size="18" />
+              </span>
+              <span>
+                <strong>{{ copy.profileBar }}</strong>
+                <small>{{ copy.profileBarSub }}</small>
+              </span>
+            </div>
+            <span class="chip chip-accent">{{ copy.beta }}</span>
           </header>
 
-          <section class="settings-block" aria-label="组织设置">
-            <div class="settings-block-title">
-              <Building2 :size="18" />
-              <strong>我的组织</strong>
+          <div class="market-grid">
+            <div class="market-form">
+              <label class="field-block">
+                <span>{{ copy.firm }}</span>
+                <input v-model="firmDraft" :disabled="!isEditingProfile" type="text" />
+              </label>
+
+              <div class="field-row">
+                <label class="field-block">
+                  <span>{{ copy.years }}</span>
+                  <input v-model="yearsDraft" :disabled="!isEditingProfile" class="tabular" type="text" />
+                </label>
+                <label class="field-block">
+                  <span>{{ copy.qualification }}</span>
+                  <input
+                    v-model="qualificationDraft"
+                    :disabled="!isEditingProfile"
+                    type="text"
+                    :placeholder="isChinese ? '例：合伙人 / Partner' : 'e.g. Partner'"
+                  />
+                </label>
+              </div>
+
+              <label class="field-block">
+                <span>{{ copy.bio }}</span>
+                <textarea
+                  v-model="profileBioDraft"
+                  :disabled="!isEditingProfile"
+                  rows="5"
+                  maxlength="200"
+                  :placeholder="copy.bioHint"
+                ></textarea>
+              </label>
+              <p class="field-hint">{{ copy.bioHint }}</p>
+
+              <div class="field-block">
+                <span>{{ copy.expertise }}</span>
+                <div class="expertise-list">
+                  <button
+                    v-for="tag in expertiseOptions"
+                    :key="tag"
+                    class="chip expertise-chip"
+                    :class="{ selected: selectedExpertise.includes(tag) }"
+                    type="button"
+                    @click="toggleExpertise(tag)"
+                  >
+                    <Check v-if="selectedExpertise.includes(tag)" :size="11" />
+                    <span>{{ tag }}</span>
+                  </button>
+                </div>
+                <p class="field-hint">{{ copy.expertiseHint }}</p>
+              </div>
             </div>
 
-            <div v-if="organizations.length" class="organization-list">
-              <button
-                v-for="organization in organizations"
-                :key="organization.id"
-                class="organization-row"
-                :class="{ active: organization.id === currentOrganizationId }"
-                type="button"
-                @click="handleOrganizationSelect(organization.id)"
-              >
-                <span class="organization-avatar">{{ organization.avatarText }}</span>
-                <span class="organization-copy">
-                  <span class="organization-name">{{ organization.name }}</span>
-                  <span class="organization-meta">{{ organization.role }} · {{ organization.memberCount }} 人 · {{ organization.planName }}</span>
-                </span>
-                <Check v-if="organization.id === currentOrganizationId" :size="16" class="organization-check" />
-              </button>
-            </div>
-            <p v-else class="settings-empty">暂无可切换组织</p>
+            <aside class="storefront-column" aria-label="橱窗预览">
+              <div class="preview-label">{{ copy.previewCard }}</div>
+              <article class="storefront-preview">
+                <span class="preview-badge">{{ copy.previewCard }}</span>
+                <div class="preview-head">
+                  <span class="preview-avatar">
+                    <img v-if="avatarDraftDataUrl" :src="avatarDraftDataUrl" alt="" />
+                    <span v-else>{{ avatarText }}</span>
+                  </span>
+                  <span class="preview-title-copy">
+                    <strong>{{ profileName }}</strong>
+                    <small>{{ qualification }} · {{ firmName }}</small>
+                  </span>
+                </div>
 
-            <div v-if="showOrganizationAccessControls || showAuthControls" class="settings-actions">
+                <p class="preview-bio" :class="{ empty: !bioText }">
+                  "{{ bioText || copy.storefrontBioFallback }}"
+                </p>
+
+                <div class="preview-tags">
+                  <span v-for="tag in selectedExpertise" :key="tag" class="chip chip-outline">{{ tag }}</span>
+                </div>
+
+                <div class="preview-stats">
+                  <div>
+                    <span>{{ copy.storefrontPublished }}</span>
+                    <strong>9</strong>
+                  </div>
+                  <div>
+                    <span>{{ copy.storefrontUses }}</span>
+                    <strong>1.2K</strong>
+                  </div>
+                  <div>
+                    <span>{{ copy.storefrontRating }}</span>
+                    <strong>4.8 <Star :size="12" /></strong>
+                  </div>
+                </div>
+              </article>
+            </aside>
+          </div>
+        </section>
+
+        <section class="settings-grid" aria-label="设置">
+          <article class="card settings-card">
+            <h2>{{ copy.preferences }}</h2>
+            <p>{{ copy.orgSub }}</p>
+
+            <div class="settings-row">
+              <span>
+                <strong>{{ copy.language }}</strong>
+                <small>{{ copy.languageHint }}</small>
+              </span>
+              <span class="lang-toggle settings-lang">
+                <button type="button" :data-active="language === 'zh'" @click="language = 'zh'">中文</button>
+                <button type="button" :data-active="language === 'en'" @click="language = 'en'">English</button>
+              </span>
+            </div>
+
+            <div class="settings-row">
+              <span>
+                <strong>{{ copy.theme }}</strong>
+                <small>{{ copy.themeHint }}</small>
+              </span>
+              <span class="theme-picks">
+                <button
+                  v-for="theme in themeSwatches"
+                  :key="theme.id"
+                  type="button"
+                  :title="isChinese ? theme.labelZh : theme.labelEn"
+                  :class="{ active: currentThemeId === theme.id }"
+                  :style="{
+                    '--swatch-surface': theme.surface,
+                    '--swatch-accent': theme.accent,
+                    '--swatch-ink': theme.ink,
+                  }"
+                  @click="handleThemeSelect(theme.id)"
+                >
+                  <span class="theme-swatch-accent"></span>
+                  <span class="theme-swatch-ink"></span>
+                  <Check v-if="currentThemeId === theme.id" class="theme-swatch-check" :size="13" />
+                </button>
+              </span>
+            </div>
+          </article>
+
+          <article class="card settings-card">
+            <h2>{{ copy.security }}</h2>
+            <p>{{ copy.securitySub }}</p>
+
+            <div class="settings-row">
+              <span>
+                <strong><UserRound :size="14" />{{ copy.signinMethod }}</strong>
+                <small>{{ copy.signinHint }}</small>
+              </span>
+              <span class="chip">{{ copy.active }}</span>
+            </div>
+
+            <div v-if="currentOrganization || showOrganizationAccessControls" class="settings-row">
+              <span>
+                <strong><Building2 :size="14" />{{ copy.organization }}</strong>
+                <small>{{ currentOrganization?.name ?? '涌见律所演示组织' }} · {{ currentOrganization?.role ?? '管理员' }} · {{ currentOrganization?.planName ?? '专业版' }}</small>
+              </span>
               <button
                 v-if="showOrganizationAccessControls"
+                class="btn btn-ghost btn-sm"
                 type="button"
-                class="settings-action-btn"
                 @click="openOrganizationManager"
               >
-                <Building2 :size="15" />
-                <span>管理我的组织</span>
+                {{ copy.manageOrganization }}
               </button>
-              <button v-if="showAuthControls" type="button" class="settings-action-btn danger" @click="handleLogout">
-                <LogOut :size="15" />
-                <span>退出登录</span>
-              </button>
-            </div>
-          </section>
-
-          <section class="settings-block" aria-label="主题设置">
-            <div class="settings-block-title">
-              <Palette :size="18" />
-              <strong>主题切换</strong>
             </div>
 
-            <div class="theme-option-list">
-              <button
-                v-for="theme in themeOptions"
-                :key="theme.id"
-                class="theme-option"
-                :class="{ active: currentThemeId === theme.id }"
-                type="button"
-                @click="handleThemeSelect(theme.id)"
-              >
-                <span
-                  class="theme-swatch"
-                  :style="{
-                    '--swatch-accent': theme.theme.accent,
-                    '--swatch-ink': theme.theme.ink,
-                    '--swatch-surface': theme.theme.surface,
-                  }"
-                >
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </span>
-                <span class="theme-copy">
-                  <span class="theme-name">{{ theme.name }}</span>
-                  <span class="theme-desc">{{ theme.description }}</span>
-                </span>
-                <Check v-if="currentThemeId === theme.id" :size="16" class="organization-check" />
-              </button>
-            </div>
-          </section>
+          </article>
         </section>
-      </section>
+      </div>
     </main>
   </div>
 </template>
 
 <style scoped>
 .profile-page {
-  min-height: 100%;
-  background: var(--bg-color);
-  color: var(--text-main);
-}
-
-.profile-main {
-  width: min(840px, calc(100% - 56px));
-  margin: 0 auto;
-  padding: 42px 0;
-}
-
-.profile-card {
-  padding: 28px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--card-bg);
-  box-shadow: var(--shadow-soft);
-}
-
-.profile-header {
+  --profile-bg: #faf7f1;
+  --profile-panel: #ffffff;
+  --profile-soft: #f3eee3;
+  --profile-sunk: #efe9dc;
+  --profile-ink: #1a1614;
+  --profile-ink-800: #2b2522;
+  --profile-ink-700: #4a423d;
+  --profile-muted: #837a72;
+  --profile-muted-light: #a29a91;
+  --profile-line: #e8e1d4;
+  --profile-line-strong: #d6cdbe;
+  --profile-accent: #c8552e;
+  --profile-accent-700: #a4441f;
+  --profile-accent-tint: #fbf1e8;
+  --profile-danger: #b23a3a;
+  --profile-serif: var(--font-serif, 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif);
+  --profile-sans: var(--font-sans, 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif);
+  width: 100%;
+  height: 100%;
   display: flex;
-  align-items: center;
-  gap: 14px;
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--border-soft);
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--profile-bg);
+  color: var(--profile-ink);
+  font-family: var(--profile-sans);
 }
 
-.profile-avatar {
-  position: relative;
-  width: 54px;
-  height: 54px;
+.lang-toggle {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  border-radius: 8px;
-  border: 0;
-  background: var(--primary-color);
-  color: var(--on-primary);
-  cursor: default;
-  font-size: 20px;
-  font-weight: 750;
-  overflow: hidden;
+  padding: 2px;
+  border: 1px solid var(--profile-line);
+  border-radius: 999px;
+  background: var(--profile-bg);
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 
-button.profile-avatar {
+.lang-toggle button {
+  min-width: 42px;
+  height: 24px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--profile-muted);
+  font-weight: 500;
   cursor: pointer;
 }
 
-.profile-avatar:hover .profile-avatar-edit,
-.profile-avatar:focus-visible .profile-avatar-edit {
-  opacity: 1;
-  transform: translateY(0);
+.lang-toggle button[data-active='true'] {
+  background: var(--profile-ink);
+  color: #ffffff;
 }
 
-.profile-avatar img {
+.profile-content {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 24px 56px 60px;
+}
+
+.profile-inner {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+.profile-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.profile-title {
+  margin: 0;
+  color: var(--profile-ink);
+  font-family: var(--profile-serif);
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.heading-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-status {
+  color: var(--profile-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.btn {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--profile-ink);
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn-ghost {
+  border: 1px solid var(--profile-line-strong);
+  background: transparent;
+  color: var(--profile-ink);
+}
+
+.btn-ghost:hover {
+  background: var(--profile-soft);
+}
+
+.btn-sm {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+.profile-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+  min-height: 240px;
+  margin-bottom: 18px;
+  padding: 32px;
+  border: 1px solid var(--profile-line);
+  border-radius: 14px;
+  background: var(--profile-panel);
+}
+
+.profile-avatar-slot {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 2px dashed var(--profile-line-strong);
+  border-radius: 999px;
+  background: var(--profile-soft);
+  color: var(--profile-muted);
+  text-align: center;
+  cursor: pointer;
+}
+
+.profile-avatar-slot:hover {
+  border-color: var(--profile-accent);
+  background: var(--profile-accent-tint);
+  color: var(--profile-accent);
+}
+
+.profile-avatar-slot.has-img {
+  border-style: solid;
+  border-color: var(--profile-ink);
+}
+
+.profile-avatar-slot img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.profile-avatar-letter {
-  line-height: 1;
-}
-
-.profile-avatar-edit {
+.avatar-overlay {
   position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 20px;
-  height: 20px;
+  inset: 0;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--on-primary) 58%, transparent);
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--text-strong) 62%, transparent);
-  color: #ffffff;
-  opacity: 0.92;
-  transform: translateY(0);
-  transition:
-    opacity 0.18s ease,
-    transform 0.18s ease;
-}
-
-.profile-title-copy {
-  min-width: 0;
-  flex: 1;
-}
-
-.profile-title-copy h1 {
-  margin: 0 0 5px;
-  color: var(--text-strong);
-  font-size: 24px;
-  font-weight: 650;
-}
-
-.profile-title-copy p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-.profile-status {
-  flex: 0 0 auto;
-  color: var(--primary-color);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.profile-header-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
-}
-
-.profile-edit-toggle,
-.profile-cancel-btn,
-.profile-save-btn {
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.profile-edit-toggle,
-.profile-cancel-btn {
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  background: var(--card-bg);
-}
-
-.profile-edit-toggle:hover,
-.profile-cancel-btn:hover {
-  color: var(--primary-color);
-  border-color: var(--primary-border);
-  background: var(--primary-soft);
-}
-
-.profile-edit-panel {
-  display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 22px 0 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(26, 22, 20, 0.55);
+  color: #ffffff;
+  font-size: 12px;
+  opacity: 0;
+}
+
+.profile-avatar-slot.has-img:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.avatar-empty {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.avatar-empty small {
+  color: var(--profile-muted-light);
+  font-size: 10px;
 }
 
 .profile-avatar-input {
   display: none;
 }
 
-.profile-edit-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.profile-fields-grid {
+.hero-main {
+  flex: 1;
   min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
 }
 
-.profile-name-field {
-  min-width: 0;
+.profile-name-row {
   display: flex;
-  flex-direction: column;
-  gap: 7px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.profile-name-field span {
-  color: var(--text-secondary);
+.profile-name-row h2 {
+  margin: 0;
+  color: var(--profile-ink);
+  font-family: var(--profile-serif);
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.profile-name-input {
+  width: min(280px, 100%);
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--profile-line);
+  border-radius: 10px;
+  background: var(--profile-panel);
+  color: var(--profile-ink);
+  font-family: var(--profile-serif);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.profile-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 10px;
+  color: var(--profile-muted);
   font-size: 13px;
-  font-weight: 650;
 }
 
-.profile-bio-field {
-  grid-column: 1 / -1;
+.profile-meta-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.profile-name-field input,
-.profile-name-field textarea {
-  width: 100%;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  color: var(--text-main);
-  background: var(--card-bg);
-  font-size: 14px;
+.profile-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 20px;
+  overflow: hidden;
+  border: 1px solid var(--profile-line);
+  border-radius: 10px;
+  background: var(--profile-bg);
 }
 
-.profile-name-field input {
-  height: 34px;
-  padding: 0 11px;
+.profile-stats div {
+  min-width: 0;
+  padding: 14px 16px;
+  border-left: 1px solid var(--profile-line);
 }
 
-.profile-name-field textarea {
-  min-height: 86px;
-  resize: vertical;
-  padding: 10px 11px;
+.profile-stats div:first-child {
+  border-left: 0;
+}
+
+.profile-stats span,
+.preview-stats span,
+.field-hint,
+.preview-label,
+.settings-card > p {
+  display: block;
+  color: var(--profile-muted);
+  font-size: 12px;
   line-height: 1.5;
 }
 
-.profile-name-field input:focus,
-.profile-name-field textarea:focus {
-  border-color: var(--primary-border);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
+.profile-stats strong,
+.preview-stats strong {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--profile-ink);
+  font-family: var(--profile-serif);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
 }
 
-.profile-save-btn {
-  border: 0;
-  color: var(--on-primary);
-  background: var(--primary-color);
+.profile-stats svg,
+.preview-stats svg {
+  color: var(--profile-accent);
 }
 
-.info-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 18px 0 0;
+.card {
+  border: 1px solid var(--profile-line);
+  border-radius: 14px;
+  background: var(--profile-panel);
 }
 
-.info-item {
-  min-width: 0;
-  min-height: 62px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+.market-panel {
+  margin-bottom: 18px;
+  padding: 28px;
+}
+
+.market-header {
+  display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-muted) 72%, var(--card-bg));
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
 }
 
-.info-item.wide {
-  grid-column: 1 / -1;
-  min-height: 66px;
+.market-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.info-item.compact {
-  min-height: 58px;
-}
-
-.info-icon {
-  grid-column: 1;
-  grid-row: 1;
-  width: 26px;
-  height: 26px;
+.market-icon {
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: var(--primary-soft);
-  color: var(--primary-color);
+  background: var(--profile-accent-tint);
+  color: var(--profile-accent);
 }
 
-.info-copy {
-  grid-column: 2;
+.market-title strong,
+.settings-card h2 {
+  display: block;
+  margin: 0 0 2px;
+  color: var(--profile-ink);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.market-title small {
+  display: block;
+  color: var(--profile-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.market-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+
+.market-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.field-block {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 6px;
 }
 
-.info-label {
-  min-width: 0;
-  color: var(--text-secondary);
+.field-block > span {
+  color: var(--profile-muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
-.info-value {
-  min-height: 0;
-  display: block;
-  overflow: hidden;
-  color: var(--text-strong);
+.field-block input,
+.field-block textarea {
+  width: 100%;
+  border: 1px solid var(--profile-line);
+  border-radius: 10px;
+  background: var(--profile-panel);
+  color: var(--profile-ink);
+  font: inherit;
   font-size: 14px;
-  font-weight: 650;
+}
+
+.field-block input {
+  height: 42px;
+  padding: 0 14px;
+}
+
+.field-block textarea {
+  min-height: 134px;
+  padding: 12px 14px;
+  resize: vertical;
+  line-height: 1.55;
+}
+
+.field-block input:hover,
+.field-block textarea:hover {
+  border-color: var(--profile-line-strong);
+}
+
+.field-block input:focus,
+.field-block textarea:focus,
+.profile-name-input:focus {
+  outline: 0;
+  border-color: var(--profile-ink);
+  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+}
+
+.field-block input:disabled,
+.field-block textarea:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.field-hint {
+  margin: -10px 0 0;
+}
+
+.expertise-list,
+.preview-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--profile-soft);
+  color: var(--profile-ink-700);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.chip-outline {
+  border-color: var(--profile-line-strong);
+  background: transparent;
+}
+
+.chip-accent,
+.preview-badge {
+  background: var(--profile-accent-tint);
+  color: var(--profile-accent-700);
+}
+
+.expertise-chip {
+  min-height: 28px;
+  padding: 4px 12px;
+  border: 0;
+  cursor: pointer;
+}
+
+.expertise-chip.selected {
+  background: var(--profile-ink);
+  color: #ffffff;
+}
+
+.storefront-column {
+  min-width: 0;
+}
+
+.preview-label {
+  margin-bottom: 10px;
+}
+
+.storefront-preview {
+  position: relative;
+  min-height: 280px;
+  overflow: hidden;
+  padding: 24px;
+  border: 1px solid var(--profile-line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--profile-bg) 0%, var(--profile-panel) 100%);
+}
+
+.preview-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+.preview-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.preview-avatar {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 3px solid var(--profile-bg);
+  border-radius: 999px;
+  background: linear-gradient(150deg, var(--profile-ink-800), var(--profile-ink));
+  box-shadow: 0 0 0 1px var(--profile-line-strong);
+  color: #f6efe0;
+  font-family: var(--profile-serif);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.preview-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.preview-title-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   line-height: 1.3;
+}
+
+.preview-title-copy strong {
+  color: var(--profile-ink);
+  font-family: var(--profile-serif);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.preview-title-copy small {
+  overflow: hidden;
+  color: var(--profile-muted);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.info-item.multiline .info-value {
-  display: -webkit-box;
-  overflow: hidden;
-  line-height: 1.45;
-  white-space: normal;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.info-meta {
-  min-height: 0;
-  display: block;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.info-item.compact .info-meta {
-  display: none;
-}
-
-.inline-action {
-  grid-column: 3;
-  grid-row: 1;
-  width: fit-content;
-  min-height: 26px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 0;
-  padding: 0 8px;
-  border: 1px solid var(--primary-border);
-  border-radius: 8px;
-  color: var(--primary-color);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.inline-action:hover {
-  background: var(--primary-soft);
-}
-
-.settings-section {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding-top: 24px;
-  margin-top: 24px;
-  border-top: 1px solid var(--border-soft);
-}
-
-.settings-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.settings-header span {
-  color: var(--text-strong);
-  font-size: 17px;
-  font-weight: 750;
-}
-
-.settings-header p {
-  margin: 0;
-  color: var(--text-muted);
+.preview-bio {
+  margin: 0 0 14px;
+  color: var(--profile-ink-700);
   font-size: 13px;
+  font-style: normal;
+  line-height: 1.65;
 }
 
-.settings-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.preview-bio.empty {
+  font-style: italic;
+  opacity: 0.55;
 }
 
-.settings-block-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-strong);
+.preview-tags {
+  min-height: 24px;
+  margin-bottom: 14px;
 }
 
-.settings-block-title svg {
-  color: var(--primary-color);
+.preview-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--profile-line);
 }
 
-.settings-block-title strong {
+.preview-stats strong {
+  font-size: 18px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.settings-card {
+  padding: 24px;
+}
+
+.settings-card h2 {
   font-size: 15px;
-  font-weight: 720;
 }
 
-.organization-list,
-.theme-option-list {
-  display: grid;
-  gap: 10px;
+.settings-card > p {
+  margin: 0 0 16px;
 }
 
-.organization-row,
-.theme-option {
-  width: 100%;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+.settings-row {
+  display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: var(--surface-muted);
-  color: var(--text-main);
-  text-align: left;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--profile-line);
 }
 
-.organization-row:hover,
-.organization-row.active,
-.theme-option:hover,
-.theme-option.active {
-  border-color: var(--primary-border);
-  background: var(--primary-soft);
-}
-
-.organization-avatar {
-  width: 34px;
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: var(--primary-color);
-  color: var(--on-primary);
-  font-weight: 750;
-}
-
-.organization-copy,
-.theme-copy {
+.settings-row > span:first-child {
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.organization-name,
-.organization-meta,
-.theme-name,
-.theme-desc {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.organization-name,
-.theme-name {
-  color: var(--text-strong);
-  font-size: 14px;
-  font-weight: 680;
-}
-
-.organization-meta,
-.theme-desc {
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.organization-check {
-  color: var(--primary-color);
-}
-
-.settings-empty {
-  margin: 0;
-  color: var(--text-muted);
+.settings-row strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--profile-ink);
   font-size: 13px;
+  font-weight: 500;
 }
 
-.settings-actions {
-  display: flex;
-  gap: 10px;
+.settings-row small {
+  color: var(--profile-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.settings-lang button {
+  min-width: 54px;
+}
+
+.theme-picks {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
-.settings-action-btn {
-  min-height: 34px;
+.theme-picks button {
+  position: relative;
+  width: 44px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 0 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.settings-action-btn:hover {
-  color: var(--primary-color);
-  border-color: var(--primary-border);
-  background: var(--primary-soft);
-}
-
-.settings-action-btn.danger {
-  color: var(--diff-removed);
-}
-
-.theme-swatch {
-  width: 54px;
-  height: 36px;
-  display: grid;
-  grid-template-columns: 16px 1fr;
-  gap: 5px;
-  padding: 5px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--profile-line);
+  border-radius: 6px;
   background: var(--swatch-surface);
+  color: var(--profile-muted);
+  cursor: pointer;
 }
 
-.theme-swatch span:first-child {
-  grid-row: 1 / 4;
-  border-radius: 5px;
-  background: color-mix(in srgb, var(--swatch-accent) 24%, var(--swatch-surface));
+.theme-picks button.active {
+  border-color: var(--profile-ink);
+  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
 }
 
-.theme-swatch span:nth-child(2),
-.theme-swatch span:nth-child(3) {
-  height: 6px;
+.theme-swatch-accent,
+.theme-swatch-ink {
+  position: absolute;
+  pointer-events: none;
+}
+
+.theme-swatch-accent {
+  right: 5px;
+  bottom: 5px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--swatch-ink) 34%, var(--swatch-surface));
+  background: var(--swatch-accent);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.72);
 }
 
-.theme-swatch span:nth-child(3) {
-  width: 68%;
+.theme-swatch-ink {
+  left: 6px;
+  top: 7px;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--swatch-ink);
+  box-shadow: 0 6px 0 color-mix(in srgb, var(--swatch-ink), transparent 55%);
 }
 
-@media (max-width: 760px) {
-  .profile-main {
-    width: calc(100% - 28px);
-    padding: 24px 0;
+.theme-swatch-check {
+  position: relative;
+  z-index: 1;
+  color: var(--swatch-ink);
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.8));
+  pointer-events: none;
+}
+
+.danger,
+.danger-button {
+  color: var(--profile-danger) !important;
+}
+
+.danger-button {
+  border-color: rgba(178, 58, 58, 0.3);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--profile-ink);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1180px) {
+  .profile-content {
+    padding: 24px 32px 52px;
+  }
+}
+
+@media (max-width: 940px) {
+  .profile-hero,
+  .market-grid,
+  .settings-grid {
+    grid-template-columns: 1fr;
   }
 
-  .profile-card {
+  .market-grid,
+  .settings-grid {
+    display: grid;
+  }
+
+  .profile-hero {
+    flex-direction: column;
+  }
+
+  .profile-avatar-slot {
+    width: 112px;
+    height: 112px;
+  }
+}
+
+@media (max-width: 640px) {
+  .profile-content {
+    padding: 22px 16px 40px;
+  }
+
+  .profile-heading-row,
+  .settings-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .profile-title {
+    font-size: 26px;
+  }
+
+  .profile-hero,
+  .market-panel,
+  .settings-card {
     padding: 20px;
   }
 
-  .info-grid {
+  .profile-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-stats div:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .profile-stats div:nth-child(n + 3) {
+    border-top: 1px solid var(--profile-line);
+  }
+
+  .field-row {
     grid-template-columns: 1fr;
   }
 
-  .profile-edit-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-header {
-    align-items: flex-start;
-  }
-
-  .profile-header-actions {
-    align-items: flex-end;
-    flex-direction: column;
-  }
-
-  .profile-fields-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .profile-edit-actions {
-    flex-direction: column-reverse;
-  }
-
-  .profile-edit-toggle,
-  .profile-cancel-btn,
-  .profile-save-btn {
-    width: 100%;
-  }
-
-  .settings-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .organization-row,
-  .theme-option {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .organization-check {
-    display: none;
+  .storefront-preview {
+    padding: 20px;
   }
 }
 </style>

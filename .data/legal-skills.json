@@ -1,5 +1,197 @@
 [
   {
+    "id": "org-yongjian-law:custom-spa-mpb45rgs",
+    "slug": "org-yongjian-law:custom-spa-mpb45rgs",
+    "name": "spa",
+    "description": "spa",
+    "category": "自定义技能",
+    "route_name": "skills",
+    "tags": [
+      "自定义技能",
+      "创建技能"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "active",
+    "files": [
+      {
+        "id": "custom-spa-mpb45rgs-skill",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: custom-spa-mpb45rgs\ndescription: \"spa\"\n---\n\n# spa\n\n## 技能简介\nspa\n\n## 创建要求\n按用户输入的业务目标、材料和输出要求，生成可复用的法律工作流。\n\n## 输入材料\n- 用户在对话中提供的事实、目标、限制条件和交付要求。\n\n## 工作流\n1. 先确认用户目标、适用场景、材料范围和输出格式。\n2. 读取用户提供的事实、上传文件摘要和交付模板说明。\n3. 结合种子文件反推用户的工作方式、文风、术语和引用习惯。\n4. 按创建要求拆解任务步骤，识别关键法律问题、风险点和缺失信息。\n5. 按输出要求生成结果，并把待确认事项、依据位置和风险等级单独列明。\n6. 在结尾提示人工复核重点，避免把未提供材料当作已审阅事实。\n\n## 输出要求\n按背景、问题、分析、风险、建议、待确认事项输出；如已上传交付模板，优先遵循模板的骨架和占位符。\n\n## 参考文件分类\n### 种子文件\n- 暂未提供。\n\n### 交付模板\n- 暂未提供。\n\n### 检索文件\n- 暂未提供。\n\n## 边界规则\n- 不编造未提供的事实、文件内容、法规条文或案例。\n- 种子文件只用于学习工作方式和表达习惯，不代表运行时已审阅原文。\n- 交付模板只约束输出结构，不代表必须调用模板库。\n- 检索文件仅作为创建参考，运行时仍需用户明确提供或授权引用具体材料。\n- 高风险结论、最终法律意见和对外文件必须提示律师复核。\n\n## 需要时读取\n- references/checklist.md：执行前后核对清单。\n- references/output-patterns.md：稳定输出结构和写法。\n"
+      },
+      {
+        "id": "custom-spa-mpb45rgs-checklist",
+        "name": "checklist.md",
+        "path": "references/checklist.md",
+        "type": "markdown",
+        "content": "# spa检查清单\n\n## 启动前\n- 用户目标、适用场景和交付物是否明确。\n- 输入材料是否足以支撑输出；不足时先列待补充信息。\n- 是否存在需要专项律师复核的高风险事项。\n\n## 执行中\n- 每个结论是否能对应事实、材料位置或用户描述。\n- 风险描述是否写明影响、建议动作和待确认事项。\n- 输出是否遵循交付模板或用户指定格式。\n\n## 输出前\n- 删除空泛建议，保留可执行动作。\n- 标注假设、限制和需要人工复核的部分。\n- 不把关联文件或模板描述成已经被完整审阅的事实。"
+      },
+      {
+        "id": "custom-spa-mpb45rgs-output-patterns",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# spa输出模式\n\n## 推荐结构\n按背景、问题、分析、风险、建议、待确认事项输出；如用户指定格式或上传交付模板，以用户格式为准。\n\n## 表格字段\n| 事项 | 依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n\n## 写法要求\n- 结论句说明“基于目前材料”。\n- 风险必须具体，不写只有原则的提示。\n- 建议动作要能落到条款、流程、材料、证据或沟通口径。"
+      }
+    ],
+    "usage_count": 0,
+    "last_used_at": null,
+    "created_at": "2026-05-18T11:21:23.788+00:00",
+    "updated_at": "2026-05-18T11:21:23.79+00:00",
+    "icon_data_url": null,
+    "publisher_name": null,
+    "publisher_avatar_url": null,
+    "use_profile_identity": true
+  },
+  {
+    "id": "org-yongjian-law:class-case-retrieval-analysis-report",
+    "slug": "org-yongjian-law:class-case-retrieval-analysis-report",
+    "name": "类案检索分析报告",
+    "description": "Generate a comparative analysis report of similar cases for legal consultation, leveraging the team knowledge base.",
+    "category": "Legal Research & Analysis",
+    "route_name": "chat",
+    "tags": [
+      "class case",
+      "legal research",
+      "comparative analysis",
+      "consultation"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "active",
+    "files": [
+      {
+        "id": "class-case-retrieval-analysis-report-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: class-case-retrieval-analysis-report\ndescription: \"Generate a comparative analysis report of similar cases for legal consultation, leveraging the team knowledge base.\"\n---\n\n# 类案检索分析报告\n\n## 使用场景\n- user requests similar case analysis for consultation\n\n## 输入要求\n- 团队知识库\n\n## 工作流\n1. 接收并解析用户提供的案件信息（case_type, fact_summary, dispute_focus, legal_field, keywords）\n2. 基于解析出的关键词和法律领域，在团队知识库中检索类似案例（限定内部来源）\n3. 对检索结果按相关性排序，选取前5-10个案例\n4. 对每个案例提取案号、审理法院、案件事实、裁判理由、裁判结果、引用法条\n5. 生成案例对比矩阵（表格），标注异同\n6. 编写裁判要旨列表、条款参考（基于引用的法条和裁判逻辑）\n7. 整理咨询建议要点\n8. 返回完整Markdown报告，若无案例则提示无匹配\n\n## 输出要求\n- 模板 / 条款库\n\n## 质量检查\n- 检索结果是否至少覆盖争议焦点？若否，提示扩大关键词\n- 每个案例的判决日期、法院名称、案号是否与知识库中原始数据一致（需人工复核）\n- 案例是否在设定的时效范围内（如近10年）？超期应注明\n- 每个案例是否提供案号、法院、结果？缺失时在报告中标注“信息不全”\n- 案例引用是否链接到知识库原文（路径或标识）\n\n## 边界规则\n- 仅检索团队知识库内的案例，禁止调用外部数据库\n- 禁止编造案例信息；若无匹配案例必须明确告知用户\n- 不提供最终法律意见结论，仅提供分析数据和参考观点\n- 不得输出敏感案件细节（如未公开案件、客户隐私）\n- 报告仅供个人内部参考，不得直接分发给客户或外部方\n- 若用户信息不足以进行有效检索，要求用户补全（尤其是争议焦点）\n\n## 需要时读取\n\n- references/intake.md：启动前问题、材料清单、缺失信息处理和澄清规则。\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。\n- examples/example-input.md：示例输入结构。\n- examples/example-output.md：示例输出骨架。"
+      },
+      {
+        "id": "class-case-retrieval-analysis-report-references-intake-md",
+        "name": "intake.md",
+        "path": "references/intake.md",
+        "type": "markdown",
+        "content": "# 类案检索分析报告启动与信息收集\n\n## 适用边界\n- 技能类别：Legal Research & Analysis\n- 关键词：class case、legal research、comparative analysis、consultation\n- user requests similar case analysis for consultation\n\n## 启动前必问\n- 这次输出要给谁看：内部法务、业务负责人、外部律师、对方、法院/仲裁机构、监管机构还是客户？\n- 适用法域、业务场景、交易/案件阶段、用户立场和需要解决的具体问题是什么？\n- 是否有硬期限、上线/签署/提交节点、必须保留的商业条件或不可触碰红线？\n- 已提供哪些材料，哪些材料尚未提供，哪些事实只能作为假设？\n- 期望输出是 Word 文书、审查意见、风险矩阵、谈判清单、整改路线图、邮件草稿还是汇报摘要？\n\n## 输入材料清单\n- 团队知识库\n\n## 缺失信息处理\n- 如果缺失信息会影响结论、风险等级或建议动作，先列为“待确认事项”。\n- 如果用户要求继续生成，必须在输出开头说明“基于目前材料”。\n- 不得为了让输出完整而补造合同条款、案件事实、法规依据、审批记录、时间节点或当事人立场。\n- 对期限、金额、主体、材料版本、适用法域、授权范围等关键字段，必须保留不确定性标记。"
+      },
+      {
+        "id": "class-case-retrieval-analysis-report-references-checklist-md",
+        "name": "checklist.md",
+        "path": "references/checklist.md",
+        "type": "markdown",
+        "content": "# 类案检索分析报告检查清单\n\n## 输入核验\n- 团队知识库\n\n## 执行步骤\n1. 接收并解析用户提供的案件信息（case_type, fact_summary, dispute_focus, legal_field, keywords）\n2. 基于解析出的关键词和法律领域，在团队知识库中检索类似案例（限定内部来源）\n3. 对检索结果按相关性排序，选取前5-10个案例\n4. 对每个案例提取案号、审理法院、案件事实、裁判理由、裁判结果、引用法条\n5. 生成案例对比矩阵（表格），标注异同\n6. 编写裁判要旨列表、条款参考（基于引用的法条和裁判逻辑）\n7. 整理咨询建议要点\n8. 返回完整Markdown报告，若无案例则提示无匹配\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 检索结果是否至少覆盖争议焦点？若否，提示扩大关键词\n- 每个案例的判决日期、法院名称、案号是否与知识库中原始数据一致（需人工复核）\n- 案例是否在设定的时效范围内（如近10年）？超期应注明\n- 每个案例是否提供案号、法院、结果？缺失时在报告中标注“信息不全”\n- 案例引用是否链接到知识库原文（路径或标识）\n\n## 边界\n- 仅检索团队知识库内的案例，禁止调用外部数据库\n- 禁止编造案例信息；若无匹配案例必须明确告知用户\n- 不提供最终法律意见结论，仅提供分析数据和参考观点\n- 不得输出敏感案件细节（如未公开案件、客户隐私）\n- 报告仅供个人内部参考，不得直接分发给客户或外部方\n- 若用户信息不足以进行有效检索，要求用户补全（尤其是争议焦点）"
+      },
+      {
+        "id": "class-case-retrieval-analysis-report-references-output-patterns-md",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# 类案检索分析报告输出模式\n\n## 推荐输出结构\n- 模板 / 条款库\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
+      },
+      {
+        "id": "class-case-retrieval-analysis-report-examples-example-input-md",
+        "name": "example-input.md",
+        "path": "examples/example-input.md",
+        "type": "markdown",
+        "content": "# 类案检索分析报告示例输入\n\n以下仅作为输入结构示例，真实使用时必须替换为用户自己的材料。\n\n```text\n任务目标：请基于以下材料生成结构化法律工作流输出。\n适用法域：待确认。\n用户立场：待确认。\n输出用途：内部审查 / 对外沟通 / Word 文书 / 风险矩阵。\n已提供材料：\n1. 材料 A：……\n2. 材料 B：……\n关键限制：不得编造未提供事实；缺失信息列为待确认。\n```"
+      },
+      {
+        "id": "class-case-retrieval-analysis-report-examples-example-output-md",
+        "name": "example-output.md",
+        "path": "examples/example-output.md",
+        "type": "markdown",
+        "content": "# 类案检索分析报告示例输出骨架\n\n## 基于目前材料的初步结论\n- 结论：……\n- 关键假设：……\n- 需要复核：……\n\n## 风险 / 问题矩阵\n| 项目 | 材料依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n| 示例事项 | 材料位置或事实来源 | P0/P1/P2/P3 | 具体后果 | 可执行动作 | 责任人或缺口 |\n\n## 下一步\n- 补充材料：……\n- 律师复核：……\n- 对外沟通：……"
+      }
+    ],
+    "usage_count": 16,
+    "last_used_at": "2026-05-18T11:11:07.609+00:00",
+    "created_at": "2026-05-14T08:09:09.681+00:00",
+    "updated_at": "2026-05-18T11:11:07.612+00:00",
+    "icon_data_url": null,
+    "publisher_name": null,
+    "publisher_avatar_url": null,
+    "use_profile_identity": true
+  },
+  {
+    "id": "org-yongjian-law:spa-drafting",
+    "slug": "org-yongjian-law:spa-drafting",
+    "name": "SPA起草",
+    "description": "通过在投融资或并购交易中，根据用户提供的交易背景信息，起草一份结构化的股权购买协议（Share Purchase Agreement）核心条款草案。该技能用于初步阶段，生成协议骨架和关键条款建议，输出不可作为最终法律意见，必须经专业律师审查。",
+    "category": "投融资并购",
+    "route_name": "chat",
+    "tags": [
+      "并购",
+      "股权购买协议",
+      "草案",
+      "投融资",
+      "投并"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "draft",
+    "files": [
+      {
+        "id": "spa-drafting-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: spa-drafting\ndescription: \"通过在投融资或并购交易中，根据用户提供的交易背景信息，起草一份结构化的股权购买协议（Share Purchase Agreement）核心条款草案。该技能用于初步阶段，生成协议骨架和关键条款建议，输出不可作为最终法律意见，必须经专业律师审查。\"\n---\n\n# SPA起草\n\n## 使用场景\n- 用户输入交易背景信息，要求起草一份SPA初稿\n- 用户提供目标公司信息和交易结构，请求生成核心条款\n\n## 输入要求\n- 团队知识库\n\n## 工作流\n1. 解析用户提供的交易信息\n2. 读取 references/output-patterns.md 获取输出结构\n3. 基于交易信息和法律知识，起草协议各章节草案\n4. 融合质量检查规则，标记【待确认】与【风险提示】\n5. 按 output-patterns.md 的格式输出结构化的草案文本\n\n## 输出要求\n- 模板 / 条款库\n\n## 质量检查\n- 买方、卖方和目标公司名称定义是否正确\n- 交易对价、支付方式和时间线是否与输入匹配\n- 交割前提条件是否完整列出\n- 陈述与保证是否覆盖常见风险领域\n- 赔偿条款的商业参数是否准确反映用户意图\n- 所有【待确认】和【风险提示】是否被汇总\n\n## 边界规则\n- 不生成不切实际的交易结构\n- 不主动添加与输入信息不符的特殊条款，除非用于填充标准模板并给出提醒\n- 不提供具体法规引用，仅使用概括性表述\n- 不出具最终法律意见\n- 对于特殊行业交易，必须输出【特殊行业风险提示】\n\n## 需要时读取\n\n- references/intake.md：启动前问题、材料清单、缺失信息处理和澄清规则。\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。\n- references/quality-gates.md：质量门槛、升级规则、幻觉防护和人工复核边界。\n- examples/example-input.md：示例输入结构。\n- examples/example-output.md：示例输出骨架。"
+      },
+      {
+        "id": "spa-drafting-references-intake-md",
+        "name": "intake.md",
+        "path": "references/intake.md",
+        "type": "markdown",
+        "content": "# SPA起草启动与信息收集\n\n## 适用边界\n- 技能类别：投融资并购\n- 关键词：并购、股权购买协议、草案、投融资、投并\n- 用户输入交易背景信息，要求起草一份SPA初稿\n- 用户提供目标公司信息和交易结构，请求生成核心条款\n\n## 启动前必问\n- 这次输出要给谁看：内部法务、业务负责人、外部律师、对方、法院/仲裁机构、监管机构还是客户？\n- 适用法域、业务场景、交易/案件阶段、用户立场和需要解决的具体问题是什么？\n- 是否有硬期限、上线/签署/提交节点、必须保留的商业条件或不可触碰红线？\n- 已提供哪些材料，哪些材料尚未提供，哪些事实只能作为假设？\n- 期望输出是 Word 文书、审查意见、风险矩阵、谈判清单、整改路线图、邮件草稿还是汇报摘要？\n\n## 输入材料清单\n- 团队知识库\n\n## 缺失信息处理\n- 如果缺失信息会影响结论、风险等级或建议动作，先列为“待确认事项”。\n- 如果用户要求继续生成，必须在输出开头说明“基于目前材料”。\n- 不得为了让输出完整而补造合同条款、案件事实、法规依据、审批记录、时间节点或当事人立场。\n- 对期限、金额、主体、材料版本、适用法域、授权范围等关键字段，必须保留不确定性标记。"
+      },
+      {
+        "id": "spa-drafting-references-checklist-md",
+        "name": "checklist.md",
+        "path": "references/checklist.md",
+        "type": "markdown",
+        "content": "# SPA起草检查清单\n\n## 输入核验\n- 团队知识库\n\n## 执行步骤\n1. 解析用户提供的交易信息\n2. 读取 references/output-patterns.md 获取输出结构\n3. 基于交易信息和法律知识，起草协议各章节草案\n4. 融合质量检查规则，标记【待确认】与【风险提示】\n5. 按 output-patterns.md 的格式输出结构化的草案文本\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 买方、卖方和目标公司名称定义是否正确\n- 交易对价、支付方式和时间线是否与输入匹配\n- 交割前提条件是否完整列出\n- 陈述与保证是否覆盖常见风险领域\n- 赔偿条款的商业参数是否准确反映用户意图\n- 所有【待确认】和【风险提示】是否被汇总\n\n## 边界\n- 不生成不切实际的交易结构\n- 不主动添加与输入信息不符的特殊条款，除非用于填充标准模板并给出提醒\n- 不提供具体法规引用，仅使用概括性表述\n- 不出具最终法律意见\n- 对于特殊行业交易，必须输出【特殊行业风险提示】"
+      },
+      {
+        "id": "spa-drafting-references-output-patterns-md",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# SPA起草输出模式\n\n## 推荐输出结构\n- 模板 / 条款库\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
+      },
+      {
+        "id": "spa-drafting-references-quality-gates-md",
+        "name": "quality-gates.md",
+        "path": "references/quality-gates.md",
+        "type": "markdown",
+        "content": "# SPA起草质量门槛\n\n## 保存前质量门槛\n- SKILL.md 必须能让模型知道什么时候触发、要问什么、按什么步骤处理、输出什么、哪些不能做。\n- references/checklist.md 必须足够具体，不能只写“识别风险、给出建议”。\n- references/output-patterns.md 必须包含稳定表格字段、可复制文本模式和禁止输出。\n- 所有重大建议必须有依据、影响、动作、责任人或待确认事项中的至少三项。\n- 输出必须区分事实、假设、判断、建议和待复核事项。\n\n## 复核清单\n- 买方、卖方和目标公司名称定义是否正确\n- 交易对价、支付方式和时间线是否与输入匹配\n- 交割前提条件是否完整列出\n- 陈述与保证是否覆盖常见风险领域\n- 赔偿条款的商业参数是否准确反映用户意图\n- 所有【待确认】和【风险提示】是否被汇总\n\n## 升级规则\n- 涉及诉讼期限、监管处罚、数据出境、金融医疗、未成年人、劳动解除、重大交易交割或公开披露时，提示专项律师复核。\n- 材料冲突、事实缺失、用户要求确定结论但依据不足时，先列风险和待确认事项。\n- 用户要求规避监管、伪造材料、删除证据、误导对方或法院/监管机构时，拒绝协助并转为合规建议。\n\n## 禁止事项\n- 不生成不切实际的交易结构\n- 不主动添加与输入信息不符的特殊条款，除非用于填充标准模板并给出提醒\n- 不提供具体法规引用，仅使用概括性表述\n- 不出具最终法律意见\n- 对于特殊行业交易，必须输出【特殊行业风险提示】"
+      },
+      {
+        "id": "spa-drafting-examples-example-input-md",
+        "name": "example-input.md",
+        "path": "examples/example-input.md",
+        "type": "markdown",
+        "content": "# SPA起草示例输入\n\n以下仅作为输入结构示例，真实使用时必须替换为用户自己的材料。\n\n```text\n任务目标：请基于以下材料生成结构化法律工作流输出。\n适用法域：待确认。\n用户立场：待确认。\n输出用途：内部审查 / 对外沟通 / Word 文书 / 风险矩阵。\n已提供材料：\n1. 材料 A：……\n2. 材料 B：……\n关键限制：不得编造未提供事实；缺失信息列为待确认。\n```"
+      },
+      {
+        "id": "spa-drafting-examples-example-output-md",
+        "name": "example-output.md",
+        "path": "examples/example-output.md",
+        "type": "markdown",
+        "content": "# SPA起草示例输出骨架\n\n## 基于目前材料的初步结论\n- 结论：……\n- 关键假设：……\n- 需要复核：……\n\n## 风险 / 问题矩阵\n| 项目 | 材料依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n| 示例事项 | 材料位置或事实来源 | P0/P1/P2/P3 | 具体后果 | 可执行动作 | 责任人或缺口 |\n\n## 下一步\n- 补充材料：……\n- 律师复核：……\n- 对外沟通：……"
+      }
+    ],
+    "usage_count": 0,
+    "last_used_at": null,
+    "created_at": "2026-05-18T09:06:54.271+00:00",
+    "updated_at": "2026-05-18T09:06:58.208+00:00",
+    "icon_data_url": null,
+    "publisher_name": null,
+    "publisher_avatar_url": null,
+    "use_profile_identity": true
+  },
+  {
     "id": "org-yongjian-law:legal-consultation-writing",
     "slug": "org-yongjian-law:legal-consultation-writing",
     "name": "咨询意见起草",
@@ -85,75 +277,6 @@
     "icon_data_url": null,
     "publisher_name": "陆明薇",
     "publisher_avatar_url": "/mock-skill-authors/author-12.webp",
-    "use_profile_identity": false
-  },
-  {
-    "id": "org-yongjian-law:class-case-retrieval-analysis-report",
-    "slug": "org-yongjian-law:class-case-retrieval-analysis-report",
-    "name": "类案检索分析报告",
-    "description": "Generate a comparative analysis report of similar cases for legal consultation, leveraging the team knowledge base.",
-    "category": "Legal Research & Analysis",
-    "route_name": "chat",
-    "tags": [
-      "class case",
-      "legal research",
-      "comparative analysis",
-      "consultation"
-    ],
-    "scope": "personal",
-    "source": "custom",
-    "status": "active",
-    "files": [
-      {
-        "id": "class-case-retrieval-analysis-report-SKILL-md",
-        "name": "SKILL.md",
-        "path": "SKILL.md",
-        "type": "markdown",
-        "content": "---\nname: class-case-retrieval-analysis-report\ndescription: \"Generate a comparative analysis report of similar cases for legal consultation, leveraging the team knowledge base.\"\n---\n\n# 类案检索分析报告\n\n## 使用场景\n- user requests similar case analysis for consultation\n\n## 输入要求\n- 团队知识库\n\n## 工作流\n1. 接收并解析用户提供的案件信息（case_type, fact_summary, dispute_focus, legal_field, keywords）\n2. 基于解析出的关键词和法律领域，在团队知识库中检索类似案例（限定内部来源）\n3. 对检索结果按相关性排序，选取前5-10个案例\n4. 对每个案例提取案号、审理法院、案件事实、裁判理由、裁判结果、引用法条\n5. 生成案例对比矩阵（表格），标注异同\n6. 编写裁判要旨列表、条款参考（基于引用的法条和裁判逻辑）\n7. 整理咨询建议要点\n8. 返回完整Markdown报告，若无案例则提示无匹配\n\n## 输出要求\n- 模板 / 条款库\n\n## 质量检查\n- 检索结果是否至少覆盖争议焦点？若否，提示扩大关键词\n- 每个案例的判决日期、法院名称、案号是否与知识库中原始数据一致（需人工复核）\n- 案例是否在设定的时效范围内（如近10年）？超期应注明\n- 每个案例是否提供案号、法院、结果？缺失时在报告中标注“信息不全”\n- 案例引用是否链接到知识库原文（路径或标识）\n\n## 边界规则\n- 仅检索团队知识库内的案例，禁止调用外部数据库\n- 禁止编造案例信息；若无匹配案例必须明确告知用户\n- 不提供最终法律意见结论，仅提供分析数据和参考观点\n- 不得输出敏感案件细节（如未公开案件、客户隐私）\n- 报告仅供个人内部参考，不得直接分发给客户或外部方\n- 若用户信息不足以进行有效检索，要求用户补全（尤其是争议焦点）\n\n## 需要时读取\n\n- references/intake.md：启动前问题、材料清单、缺失信息处理和澄清规则。\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。\n- examples/example-input.md：示例输入结构。\n- examples/example-output.md：示例输出骨架。"
-      },
-      {
-        "id": "class-case-retrieval-analysis-report-references-intake-md",
-        "name": "intake.md",
-        "path": "references/intake.md",
-        "type": "markdown",
-        "content": "# 类案检索分析报告启动与信息收集\n\n## 适用边界\n- 技能类别：Legal Research & Analysis\n- 关键词：class case、legal research、comparative analysis、consultation\n- user requests similar case analysis for consultation\n\n## 启动前必问\n- 这次输出要给谁看：内部法务、业务负责人、外部律师、对方、法院/仲裁机构、监管机构还是客户？\n- 适用法域、业务场景、交易/案件阶段、用户立场和需要解决的具体问题是什么？\n- 是否有硬期限、上线/签署/提交节点、必须保留的商业条件或不可触碰红线？\n- 已提供哪些材料，哪些材料尚未提供，哪些事实只能作为假设？\n- 期望输出是 Word 文书、审查意见、风险矩阵、谈判清单、整改路线图、邮件草稿还是汇报摘要？\n\n## 输入材料清单\n- 团队知识库\n\n## 缺失信息处理\n- 如果缺失信息会影响结论、风险等级或建议动作，先列为“待确认事项”。\n- 如果用户要求继续生成，必须在输出开头说明“基于目前材料”。\n- 不得为了让输出完整而补造合同条款、案件事实、法规依据、审批记录、时间节点或当事人立场。\n- 对期限、金额、主体、材料版本、适用法域、授权范围等关键字段，必须保留不确定性标记。"
-      },
-      {
-        "id": "class-case-retrieval-analysis-report-references-checklist-md",
-        "name": "checklist.md",
-        "path": "references/checklist.md",
-        "type": "markdown",
-        "content": "# 类案检索分析报告检查清单\n\n## 输入核验\n- 团队知识库\n\n## 执行步骤\n1. 接收并解析用户提供的案件信息（case_type, fact_summary, dispute_focus, legal_field, keywords）\n2. 基于解析出的关键词和法律领域，在团队知识库中检索类似案例（限定内部来源）\n3. 对检索结果按相关性排序，选取前5-10个案例\n4. 对每个案例提取案号、审理法院、案件事实、裁判理由、裁判结果、引用法条\n5. 生成案例对比矩阵（表格），标注异同\n6. 编写裁判要旨列表、条款参考（基于引用的法条和裁判逻辑）\n7. 整理咨询建议要点\n8. 返回完整Markdown报告，若无案例则提示无匹配\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 检索结果是否至少覆盖争议焦点？若否，提示扩大关键词\n- 每个案例的判决日期、法院名称、案号是否与知识库中原始数据一致（需人工复核）\n- 案例是否在设定的时效范围内（如近10年）？超期应注明\n- 每个案例是否提供案号、法院、结果？缺失时在报告中标注“信息不全”\n- 案例引用是否链接到知识库原文（路径或标识）\n\n## 边界\n- 仅检索团队知识库内的案例，禁止调用外部数据库\n- 禁止编造案例信息；若无匹配案例必须明确告知用户\n- 不提供最终法律意见结论，仅提供分析数据和参考观点\n- 不得输出敏感案件细节（如未公开案件、客户隐私）\n- 报告仅供个人内部参考，不得直接分发给客户或外部方\n- 若用户信息不足以进行有效检索，要求用户补全（尤其是争议焦点）"
-      },
-      {
-        "id": "class-case-retrieval-analysis-report-references-output-patterns-md",
-        "name": "output-patterns.md",
-        "path": "references/output-patterns.md",
-        "type": "markdown",
-        "content": "# 类案检索分析报告输出模式\n\n## 推荐输出结构\n- 模板 / 条款库\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
-      },
-      {
-        "id": "class-case-retrieval-analysis-report-examples-example-input-md",
-        "name": "example-input.md",
-        "path": "examples/example-input.md",
-        "type": "markdown",
-        "content": "# 类案检索分析报告示例输入\n\n以下仅作为输入结构示例，真实使用时必须替换为用户自己的材料。\n\n```text\n任务目标：请基于以下材料生成结构化法律工作流输出。\n适用法域：待确认。\n用户立场：待确认。\n输出用途：内部审查 / 对外沟通 / Word 文书 / 风险矩阵。\n已提供材料：\n1. 材料 A：……\n2. 材料 B：……\n关键限制：不得编造未提供事实；缺失信息列为待确认。\n```"
-      },
-      {
-        "id": "class-case-retrieval-analysis-report-examples-example-output-md",
-        "name": "example-output.md",
-        "path": "examples/example-output.md",
-        "type": "markdown",
-        "content": "# 类案检索分析报告示例输出骨架\n\n## 基于目前材料的初步结论\n- 结论：……\n- 关键假设：……\n- 需要复核：……\n\n## 风险 / 问题矩阵\n| 项目 | 材料依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n| 示例事项 | 材料位置或事实来源 | P0/P1/P2/P3 | 具体后果 | 可执行动作 | 责任人或缺口 |\n\n## 下一步\n- 补充材料：……\n- 律师复核：……\n- 对外沟通：……"
-      }
-    ],
-    "usage_count": 6,
-    "last_used_at": "2026-05-16T04:51:52.312Z",
-    "created_at": "2026-05-14T08:09:09.681Z",
-    "updated_at": "2026-05-16T04:51:52.315Z",
-    "icon_data_url": null,
-    "publisher_name": "顾明远",
-    "publisher_avatar_url": "/mock-skill-authors/author-01.webp",
     "use_profile_identity": false
   },
   {

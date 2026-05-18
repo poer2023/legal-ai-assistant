@@ -1,4 +1,9 @@
-export type ThemeId = 'classic' | 'codex-theme-v1' | 'absolutely-theme-v1' | 'happycapy-paper-v1';
+export type ThemeId =
+  | 'classic'
+  | 'codex-theme-v1'
+  | 'absolutely-theme-v1'
+  | 'happycapy-paper-v1'
+  | 'lawagents-standalone-v1';
 
 export interface ThemeDefinition {
   id: ThemeId;
@@ -24,7 +29,7 @@ export interface ThemeDefinition {
   };
 }
 
-export const DEFAULT_THEME_ID: ThemeId = 'codex-theme-v1';
+export const DEFAULT_THEME_ID: ThemeId = 'lawagents-standalone-v1';
 
 export const themeOptions: ThemeDefinition[] = [
   {
@@ -119,10 +124,34 @@ export const themeOptions: ThemeDefinition[] = [
       surface: '#f9f6f1',
     },
   },
+  {
+    id: 'lawagents-standalone-v1',
+    name: 'LawAgents Standalone',
+    description: '暖纸底、墨色文字、陶土强调色与法律工作台式紧凑组件节奏。',
+    codeThemeId: 'lawagents-standalone',
+    variant: 'light',
+    theme: {
+      accent: '#c8552e',
+      contrast: 45,
+      fonts: {
+        code: "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace",
+        ui: "'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif",
+      },
+      ink: '#1a1614',
+      opaqueWindows: true,
+      semanticColors: {
+        diffAdded: '#4a423d',
+        diffRemoved: '#b23a3a',
+        skill: '#c8552e',
+      },
+      surface: '#faf7f1',
+    },
+  },
 ];
 
 export const isThemeId = (value: string | null | undefined): value is ThemeId =>
   value === 'classic' ||
   value === 'codex-theme-v1' ||
   value === 'absolutely-theme-v1' ||
-  value === 'happycapy-paper-v1';
+  value === 'happycapy-paper-v1' ||
+  value === 'lawagents-standalone-v1';

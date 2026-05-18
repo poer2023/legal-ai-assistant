@@ -3,19 +3,20 @@ import { computed, ref } from 'vue';
 import {
   Check,
   ChevronDown,
-  Copy,
+  LayoutTemplate,
   Mic,
   MoreHorizontal,
+  Paperclip,
   Plus,
+  Puzzle,
   Search,
   Send,
-  Share2,
-  Trash2,
+  Settings2,
   X,
 } from 'lucide-vue-next';
 
 type FileKind = 'pdf' | 'word' | 'markdown' | 'sheet' | 'slide';
-type LibraryScope = 'team' | 'personal' | 'hidden' | 'group';
+type LibraryScope = 'personal' | 'group' | 'team' | 'hidden';
 type GroupLibrary = {
   id: string;
   name: string;
@@ -32,13 +33,13 @@ type GroupMember = {
   isCurrent?: boolean;
 };
 
-const folders = ['企业并购', '知识产权', '未成年儿童保护', '民政部', '法律类案', '123', '测试'];
+const teamFolders = ['企业并购', '知识产权', '未成年儿童保护', '民政部', '法律类案', '123', '测试'];
 
 const initialGroupLibraries: GroupLibrary[] = [
   { id: 'corporate', name: '公司业务组', count: 6, folders: ['并购项目', '股权激励', '投融资', '治理合规'] },
-  { id: 'dispute', name: '争议解决组', count: 5, folders: ['类案检索', '证据材料', '诉讼策略', '执行线索'] },
-  { id: 'compliance', name: '合规风控组', count: 4, folders: ['数据合规', '广告合规', '内控制度', '监管问询'] },
-  { id: 'labor', name: '劳动用工组', count: 3, folders: ['员工手册', '竞业限制', '用工争议', '社保福利'] },
+  { id: 'dispute', name: '争议解决组', count: 5, folders: ['商事诉讼', '仲裁案件', '执行线索'] },
+  { id: 'compliance', name: '合规风控组', count: 4, folders: ['数据合规', '反垄断', '监管问询'] },
+  { id: 'labor', name: '劳动用工组', count: 3, folders: ['劳动争议', '员工手册', '竞业限制'] },
 ];
 const groupLibraries = ref<GroupLibrary[]>(initialGroupLibraries);
 const defaultGroupLibrary = initialGroupLibraries[0]!;
@@ -52,24 +53,24 @@ const files: Array<{
   kind: FileKind;
   compactActions?: boolean;
 }> = [
-  { id: 1, title: '【企业AI培训销售（ToB）_上海 20-35K】宗旭浩 10年以上.pdf', size: '188.93KB', owner: '创建者', kind: 'pdf', compactActions: true },
-  { id: 2, title: '解读报告.pdf', size: '254.48KB', owner: '创建者', kind: 'pdf', compactActions: true },
-  { id: 3, title: '朱双林简历.pdf', size: '4.48MB', owner: '创建者', kind: 'pdf', compactActions: true },
-  { id: 4, title: '文件-400MB.docx', size: '400.00MB', owner: '朱双林2', kind: 'word', compactActions: true },
-  { id: 5, title: 'test_large_501mb.docx', size: '57.61MB', words: '752.40万字', owner: '朱双林2', kind: 'word', compactActions: true },
-  { id: 6, title: '信息系统安全等级保护测评（等保2.0）项目_(1).docx', size: '60.85KB', words: '2.81万字', owner: '创建者', kind: 'word', compactActions: true },
-  { id: 7, title: '安全生产许可证示例.pdf', size: '2.93KB', words: '0.01万字', owner: '创建者', kind: 'pdf', compactActions: true },
-  { id: 8, title: '安全生产许可证示例.pdf', size: '2.93KB', words: '0.01万字', owner: '创建者', kind: 'pdf', compactActions: true },
-  { id: 9, title: '嗯，.md', size: '354B', words: '0.01万字', owner: '创建者', kind: 'markdown', compactActions: true },
+  { id: 1, title: '【企业AI培训销售（ToB）_上海20-35K】上汽项目资料.pdf', size: '188.93KB', owner: '孙启明', kind: 'pdf', compactActions: true },
+  { id: 2, title: '解读报告.pdf', size: '254.48KB', owner: '方谨行', kind: 'pdf' },
+  { id: 3, title: '朱双林简历.pdf', size: '4.48MB', owner: '朱双林', kind: 'pdf' },
+  { id: 4, title: '文件-400MB.docx', size: '400.00MB', owner: '朱双林2', kind: 'word' },
+  { id: 5, title: 'test_large_501mb.docx', size: '57.61MB', words: '752.40万字', owner: '朱双林2', kind: 'word' },
+  { id: 6, title: '信息系统安全等级保护测评（等保）.docx', size: '60.85KB', words: '2.81万字', owner: '老李', kind: 'word', compactActions: true },
+  { id: 7, title: '安全生产许可证示例.pdf', size: '2.93KB', words: '0.01万字', owner: '孙启明', kind: 'pdf', compactActions: true },
+  { id: 8, title: '法学院英文宣传手册 20240415', size: '2.4MB', owner: '孙启明', kind: 'pdf', compactActions: true },
+  { id: 9, title: '嗯，.md', size: '354B', words: '0.01万字', owner: '孙启明', kind: 'markdown', compactActions: true },
   { id: 10, title: '现在语音输入的话.md', size: '276B', words: '0.01万字', owner: '老李', kind: 'markdown', compactActions: true },
-  { id: 11, title: '示例表格_扩展内容.xlsx', size: '5.31KB', words: '0.02万字', owner: '创建者', kind: 'sheet', compactActions: true },
-  { id: 12, title: '示例演示_约200字.pptx', size: '28.94KB', words: '0.01万字', owner: '创建者', kind: 'slide', compactActions: true },
-  { id: 13, title: '1111222.docx', size: '36.25KB', words: '0.01万字', owner: '创建者', kind: 'word', compactActions: true },
-  { id: 14, title: '示例演示_200字.pptx', size: '28.96KB', words: '0.01万字', owner: '创建者', kind: 'slide', compactActions: true },
-  { id: 15, title: 'die religionsgesprache der reformationszeit -- herausgegeben von gerhard muller.pdf', size: '9.36MB', words: '15.50万字', owner: '1111', kind: 'pdf', compactActions: true },
+  { id: 11, title: '示例表格_扩展内容.xlsx', size: '5.31KB', words: '0.02万字', owner: '方谨行', kind: 'sheet' },
+  { id: 12, title: '示例演示_约200字.pptx', size: '28.94KB', words: '0.01万字', owner: '方谨行', kind: 'slide' },
+  { id: 13, title: '1111222.docx', size: '36.25KB', words: '0.01万字', owner: '老李', kind: 'word', compactActions: true },
+  { id: 14, title: '示例演示_200字.pptx', size: '28.96KB', words: '0.01万字', owner: '孙启明', kind: 'slide', compactActions: true },
+  { id: 15, title: 'die religionsgesprache der reformationszeit.pdf', size: '9.36MB', words: '15.50万字', owner: '1111', kind: 'pdf' },
 ];
 
-const selectedLibraryScope = ref<LibraryScope>('team');
+const selectedLibraryScope = ref<LibraryScope>('personal');
 const selectedGroupId = ref(defaultGroupLibrary.id);
 const isCreateGroupModalOpen = ref(false);
 const newGroupName = ref('');
@@ -92,40 +93,36 @@ const groupMembers: GroupMember[] = [
 
 const libraryModeCopy: Record<LibraryScope, {
   name: string;
+  shortName: string;
   searchPlaceholder: string;
-  composerPlaceholder: string;
 }> = {
-  team: {
-    name: '团队知识库',
-    searchPlaceholder: '搜索团队文件名、文件夹名称',
-    composerPlaceholder: '对团队知识库进行提问',
-  },
   personal: {
     name: '个人知识库',
+    shortName: '个人',
     searchPlaceholder: '搜索个人文件名、文件夹名称',
-    composerPlaceholder: '对个人知识库进行提问',
-  },
-  hidden: {
-    name: '隐藏知识库',
-    searchPlaceholder: '搜索隐藏文件名、文件夹名称',
-    composerPlaceholder: '对隐藏知识库进行提问',
   },
   group: {
     name: '小组知识库',
+    shortName: '小组',
     searchPlaceholder: '搜索小组文件名、文件夹名称',
-    composerPlaceholder: '对小组知识库进行提问',
+  },
+  team: {
+    name: '团队知识库',
+    shortName: '团队',
+    searchPlaceholder: '搜索团队文件名、文件夹名称',
+  },
+  hidden: {
+    name: '隐藏知识库',
+    shortName: '隐藏',
+    searchPlaceholder: '搜索隐藏文件名、文件夹名称',
   },
 };
 
 const libraryScopeTabs = computed(() => [
-  { key: 'team' as const, name: libraryModeCopy.team.name, count: files.length },
-  { key: 'personal' as const, name: libraryModeCopy.personal.name, count: 8 },
-  { key: 'hidden' as const, name: libraryModeCopy.hidden.name, count: 3 },
-  {
-    key: 'group' as const,
-    name: libraryModeCopy.group.name,
-    count: groupLibraries.value.reduce((total, group) => total + group.count, 0),
-  },
+  { key: 'personal' as const, name: libraryModeCopy.personal.name },
+  { key: 'group' as const, name: libraryModeCopy.group.name },
+  { key: 'team' as const, name: libraryModeCopy.team.name },
+  { key: 'hidden' as const, name: libraryModeCopy.hidden.name },
 ]);
 
 const activeGroup = computed(() =>
@@ -137,7 +134,7 @@ const visibleFolders = computed(() => {
   if (selectedLibraryScope.value === 'group') return activeGroup.value.folders;
   if (selectedLibraryScope.value === 'personal') return ['我的合同库', '个人类案', '常用法规', '写作素材', '收藏文件'];
   if (selectedLibraryScope.value === 'hidden') return ['保密项目', '敏感底稿', '内部审批'];
-  return folders;
+  return teamFolders;
 });
 const visibleFiles = computed(() => {
   if (selectedLibraryScope.value === 'personal') return files.slice(0, 8);
@@ -154,11 +151,22 @@ const searchPlaceholder = computed(() =>
     ? `搜索${activeGroup.value.name}文件名、文件夹名称`
     : activeLibraryCopy.value.searchPlaceholder
 );
-const composerPlaceholder = computed(() =>
-  selectedLibraryScope.value === 'group'
-    ? `对${activeGroup.value.name}知识库进行提问`
-    : activeLibraryCopy.value.composerPlaceholder
+const activeScopeName = computed(() =>
+  selectedLibraryScope.value === 'group' ? activeGroup.value.name : activeLibraryCopy.value.shortName
 );
+const composerPlaceholder = computed(() => `向${activeScopeName.value}知识库提问`);
+const guidedQuestions = computed(() => [
+  `这个知识库里有哪些与${selectedLibraryScope.value === 'personal' ? '并购' : '当前业务'}相关的文件？`,
+  '请帮我汇总最近 3 个月新增的法规材料',
+  '股权激励常见的合规风险有哪些？',
+]);
+
+const composerTools = [
+  { label: '提问设置', icon: Settings2, iconOnly: true },
+  { label: '底稿', icon: Paperclip },
+  { label: '技能', icon: Puzzle },
+  { label: '模板', icon: LayoutTemplate },
+];
 
 const setLibraryScope = (scope: LibraryScope) => {
   selectedLibraryScope.value = scope;
@@ -222,30 +230,15 @@ const createGroup = () => {
 const kindLabel: Record<FileKind, string> = {
   pdf: 'PDF',
   word: 'W',
-  markdown: '',
+  markdown: 'M',
   sheet: 'X',
   slide: 'P',
 };
-
-const isReferenceDrawerOpen = ref(false);
-
-const referenceSources = [
-  {
-    id: 1,
-    title: '安全生产许可证示例.pdf',
-    excerpt: '该文件为中建华南工程有限公司的安全生产许可证信息，许可范围为建筑施工，由广东省住房和城乡建设厅于2022年8月15日核发。',
-  },
-  {
-    id: 2,
-    title: '安全生产许可证示例.pdf',
-    excerpt: '该文件为中建华南工程有限公司的安全生产许可证信息，许可范围为建筑施工，有效期至2025年8月14日，当前状态显示已过期。',
-  },
-];
 </script>
 
 <template>
-  <div class="knowledge-page" :class="{ 'with-source-drawer': isReferenceDrawerOpen }">
-    <section class="library-section">
+  <div class="knowledge-page">
+    <section class="library-pane" aria-label="知识库文件管理">
       <div class="library-body">
         <div class="library-switcher">
           <nav class="library-tabs" aria-label="知识库类型">
@@ -257,8 +250,7 @@ const referenceSources = [
               type="button"
               @click="setLibraryScope(tab.key)"
             >
-              <span>{{ tab.name }}</span>
-              <strong>{{ tab.count }}</strong>
+              {{ tab.name }}
             </button>
           </nav>
 
@@ -271,11 +263,10 @@ const referenceSources = [
               type="button"
               @click="selectedGroupId = group.id"
             >
-              <span>{{ group.name }}</span>
-              <strong>{{ group.count }}</strong>
+              {{ group.name }}
             </button>
             <button class="group-create-tab" type="button" @click="openCreateGroupModal">
-              <Plus :size="14" />
+              <Plus :size="12" />
               <span>新建小组</span>
             </button>
           </nav>
@@ -283,41 +274,36 @@ const referenceSources = [
 
         <div class="search-row">
           <label class="library-search">
-            <span class="search-icon-shell">
-              <Search :size="19" />
-            </span>
+            <Search :size="15" />
             <input type="text" :placeholder="searchPlaceholder" />
-            <button class="search-button">搜索</button>
+            <button class="search-button" type="button">搜索</button>
           </label>
-          <button class="add-button">
-            <Plus :size="18" />
+          <button class="add-button" type="button">
+            <Plus :size="14" />
             <span>添加文件</span>
-            <ChevronDown :size="16" />
+            <ChevronDown :size="12" />
           </button>
         </div>
 
-        <div class="folder-row">
-          <button v-for="folder in visibleFolders" :key="folder" class="folder-card">
+        <div class="folder-row" aria-label="知识库文件夹">
+          <button v-for="folder in visibleFolders" :key="folder" class="folder-card" type="button">
             <span class="folder-icon" aria-hidden="true"></span>
             <span>{{ folder }}</span>
           </button>
         </div>
 
-        <div class="file-list">
+        <div class="file-list" aria-label="知识库文件列表">
           <article v-for="file in visibleFiles" :key="file.id" class="file-row">
             <span class="file-type" :class="`file-type-${file.kind}`">{{ kindLabel[file.kind] }}</span>
             <h3>{{ file.title }}</h3>
             <div class="file-meta">
               <span>{{ file.size }}</span>
               <span v-if="file.words">{{ file.words }}</span>
-              <span>{{ file.owner }}</span>
+              <span>创建者 {{ file.owner }}</span>
             </div>
             <div class="file-actions">
-              <button v-if="file.compactActions" aria-label="查看文件">
-                <Search :size="19" />
-              </button>
-              <button aria-label="更多操作">
-                <MoreHorizontal :size="20" />
+              <button v-if="file.compactActions" type="button" aria-label="更多操作">
+                <MoreHorizontal :size="18" />
               </button>
             </div>
           </article>
@@ -325,209 +311,44 @@ const referenceSources = [
       </div>
     </section>
 
-    <div class="column-divider" aria-hidden="true"></div>
-
-    <section class="answer-panel">
-      <div class="answer-scroll">
-        <div class="user-message">
-          <div class="question-bubble">
-            <p>安全生产许可证示例内容是什么</p>
-            <div class="question-actions">
-              <button><Copy :size="13" />复制</button>
-              <button><Trash2 :size="13" />删除</button>
-            </div>
-          </div>
-        </div>
-
-        <article class="answer-card mock-answer-card">
-          <header class="answer-card-header">
-            <button class="answer-status-button">
-              已完成回答
-              <ChevronDown :size="14" />
-            </button>
-            <button
-              class="reference-button"
-              :class="{ active: isReferenceDrawerOpen }"
-              type="button"
-              @click="isReferenceDrawerOpen = !isReferenceDrawerOpen"
-            >
-              <Share2 :size="14" />
-              参考来源
-              <span>›</span>
-            </button>
-          </header>
-
-          <div class="answer-content mock-answer-content">
-            <div class="reasoning-timeline">
-              <div class="timeline-node">
-                <p>
-                  用户想了解安全生产许可证的具体内容示例，需要查找相关文件中记载的标准内容或模板信息。我将从知识库中检索与安全生产许可证相关的文档元信息，并提取其中可能包含的正文片段，以获取实际内容示例。
-                </p>
-                <div class="tool-step">
-                  <strong>查询文件信息</strong>
-                  <span>安全生产许可证 示例内容</span>
-                  <small>已搜索到 2 篇知识库文档</small>
-                </div>
-                <div class="tool-step">
-                  <strong>知识库搜索</strong>
-                  <span>安全生产许可证 包含哪些内容</span>
-                  <small>已读取到 0 个知识点</small>
-                </div>
-                <div class="tool-step">
-                  <strong>知识库搜索</strong>
-                  <span>安全生产许可证 样本信息</span>
-                  <small>已读取到 0 个知识点</small>
-                </div>
-              </div>
-
-              <div class="timeline-node">
-                <p>已获取安全生产许可证的示例文件信息，包含签发单位、许可范围、有效期及状态等具体内容，但用户需求为“示例内容”，当前结果即为实际样本，无需进一步检索。</p>
-              </div>
-
-              <div class="timeline-node">
-                <p>正在整理搜索到的参考资料。在对上述资料进行分析筛选后，我挑选出了与问题最相关的 2 条重要参考来源。下面我就结合这些内容，来正式回答用户的问题。</p>
-              </div>
-
-              <div class="timeline-node last">
-                <p>
-                  深度思考<br />
-                  好的，用户问的是“安全生产许可证示例内容是什么”。看起来用户可能是在办理相关业务，或者在学习相关法规，需要了解一个具体的许可证长什么样，里面都会包含哪些关键信息。用户可能不只是想要一个简单的项目列表，而是希望理解每个项目的含义和重要性，这样他才能在实际中应用这些知识。
-                </p>
-              </div>
-            </div>
-
-            <p>
-              嗯，用户提供的资料里有两份文件，内容基本一致，都是关于中建华南工程有限公司的安全生产许可证。从这些资料来看，许可证的核心信息包括企业名称、许可范围、发证机关、许可证编号、有效期和当前状态。不过，当前日期是2026年4月27日，而许可证的有效期到2025年8月14日，所以状态显示“已过期”，这个信息很重要，因为它揭示了许可证的动态性和时效性。
-            </p>
-            <p>
-              用户可能没有明确说出来的深层需求是：他不仅想知道许可证上有什么，还想知道这些内容为什么重要，以及在实际中如何判断和使用这些信息。比如，他看到“已过期”可能会疑惑这意味着什么，或者想知道编号的规则有什么讲究。
-            </p>
-            <p>
-              所以，我的回答不能只是机械地罗列文件中的条目。我要把这些信息组织成一个有逻辑、有深度的解释。我可以从回答这个问题开始：一份安全生产许可证的示例内容到底是什么？然后，我要解释这些内容背后的逻辑和实际意义，比如每个字段的作用，以及像“已过期”这样的状态对企业的实际影响。
-            </p>
-
-            <p>
-              一份《安全生产许可证》的核心内容，是证明企业具备法定安全生产条件、允许其在特定范围内开展生产经营活动的法定合规凭证。它并非一份简单的证书，而是一个包含多重关键信息、具有明确法律效力和时效性的文件系统 <span class="bubble">1</span> <span class="bubble">2</span>。
-            </p>
-            <p>
-              以下，我将以您提供的“中建华南工程有限公司”的许可证信息为例，深入拆解其典型内容构成、各要素的实际意义，并解释如何解读其状态。
-            </p>
-
-            <h3>一、许可证的核心信息构成与解读</h3>
-            <p>基于示例文件，一份标准的安全生产许可证通常包含以下六个关键维度，每个维度都承载着特定的法律和管理意义：</p>
-
-            <p class="numbered-title">1. 持证主体（企业名称）</p>
-            <ul>
-              <li><strong>内容示例：</strong>中建华南工程有限公司 <span class="bubble">1</span> <span class="bubble">2</span>。</li>
-              <li><strong>深层意义：</strong>这是法律责任的直接承担者。许可证与工商营业执照上的名称必须完全一致，确保监管的精准指向。任何以该企业名义从事的生产活动，其安全责任均由此主体承担。</li>
-            </ul>
-
-            <p class="numbered-title">2. 许可范围</p>
-            <ul>
-              <li><strong>内容示例：</strong>建筑施工 <span class="bubble">1</span> <span class="bubble">2</span>。</li>
-              <li><strong>深层意义：</strong>这是对企业安全生产资质的精准限定，它表明该企业仅被确认为“建筑施工”领域满足了安全条件。如果该企业跨界从事矿山、危险化学品生产等其他高危行业，即使持有此证也属无证非法经营。这体现了安全生产管理的专业性和细分性。</li>
-            </ul>
-
-            <p class="numbered-title">3. 发证机关</p>
-            <ul>
-              <li><strong>内容示例：</strong>广东省住房和城乡建设厅 <span class="bubble">1</span> <span class="bubble">2</span>。</li>
-              <li><strong>深层意义：</strong>体现了行业归口管理和属地监管原则。在中国，不同行业的安全生产许可证由相应的行业主管部门颁发，如建筑施工由住建部门负责，危险化学品由应急管理部门负责。这明确了日常监管和行政处罚的权责主体。</li>
-            </ul>
-
-            <p class="numbered-title">4. 许可证编号</p>
-            <ul>
-              <li><strong>内容示例：</strong>（粤）JZ安许证字[2022]009876 <span class="bubble">1</span> <span class="bubble">2</span>。</li>
-              <li>
-                <strong>深层意义：</strong>这是许可证的“身份证号”，具有唯一性和可追溯性。其编码通常包含：
-                <ul>
-                  <li>（粤）：代表省份（广东省）。</li>
-                  <li>JZ：常代表行业类别（如“JZ”可能指“建筑”）。</li>
-                  <li>安许证字：即“安全生产许可证字”。</li>
-                  <li>[2022]：代表批准发证的年份。</li>
-                  <li>009876：是该年度内的序列号。</li>
-                </ul>
-              </li>
-              <li>通过编号，监管部门和合作方可以快速识别其合法性和基本信息。</li>
-            </ul>
-
-            <p class="numbered-title">5. 有效期</p>
-            <ul>
-              <li><strong>内容示例：</strong>2022年8月15日至2025年8月14日 <span class="bubble">1</span> <span class="bubble">2</span>。</li>
-              <li><strong>深层意义：</strong>这是证书的“生命周期”，强制企业进行周期性安全管理复盘。安全生产条件不是一劳永逸的，企业的人员、设备、管理体系会发生变化。设置有效期（通常为3年），是为了驱动企业在到期前重新接受审查，确保其持续符合安全标准。</li>
-            </ul>
-
-            <p class="numbered-title">6. 当前状态（基于示例的延伸分析）</p>
-            <ul>
-              <li><strong>内容示例：</strong>文件明确指出“当前状态显示已过期” <span class="bubble">1</span> <span class="bubble">2</span>。</li>
-              <li><strong>深层意义：</strong>这是最具动态和风险警示意义的信息。结合当前日期（2026年4月27日），该证书有效期（2025年8月14日）已过。这意味着：</li>
-              <li>法律上，该企业自2025年8月15日起，已丧失从事建筑施工活动的安全生产合法资质。</li>
-              <li>实践中，企业必须立即停止相关生产经营活动，否则将面临严厉处罚（如高额罚款、责令停产停业）。</li>
-              <li>企业需立即启动续期申请程序，重新接受主管部门的全面安全生产条件审查，合格后方能获得新证。</li>
-            </ul>
-
-            <h3>二、从示例中获得的实践启示</h3>
-            <p>这个具体的示例（一个已过期的许可证）比一个“有效”的示例更具教育意义，它揭示了几个常被忽视的关键点：</p>
-            <ul>
-              <li><strong>许可证是动态的，而非静态的：</strong>企业不能将许可证视为永久性“奖状”，而必须将其作为需要主动维护和更新的合规文件。设立到期前提醒是基本管理动作。</li>
-              <li><strong>“状态”高于“持有”：</strong>在业务合作、供应链审核、政府核查中，查验方不仅要看企业“有没有”证，更要核验证书的有效期和状态。一个过期的证书在法律上等同于无证。</li>
-              <li><strong>续期的严肃性：</strong>续期并非简单走形式，而是一次新的、完整的资格审查。如果企业在有效期内发生重大安全事故或安全管理严重滑坡，很可能无法通过续期审查。</li>
-            </ul>
-
-            <hr />
-            <p class="closing-copy">
-              如果您需要，我可以根据这个示例，为您进一步解释企业申请安全生产许可证通常需要满足哪些具体条件（如安全投入、规章制度、人员配备等），或者梳理一下证书过期后企业重新申请合规的具体流程和风险。
-              <span class="ai-tag">AI</span>
-            </p>
-          </div>
-
-          <div class="answer-actions">
-            <button><Copy :size="14" />复制</button>
-            <button><Trash2 :size="14" />删除</button>
-            <button><Share2 :size="14" />分享</button>
-            <button><Plus :size="14" />加入知识库</button>
-          </div>
-        </article>
-      </div>
-
-    </section>
-
-    <div class="qa-dock">
-      <div class="qa-toolbar">
-        <button><Plus :size="14" />新提问</button>
-        <button>↻ 提问记录</button>
-      </div>
-      <div class="qa-composer">
-        <textarea :placeholder="composerPlaceholder"></textarea>
-        <div class="composer-actions">
-          <button aria-label="语音输入"><Mic :size="21" /></button>
-          <button class="send-button" aria-label="发送">
-            <Send :size="23" />
+    <aside class="qa-panel" aria-label="知识库提问">
+      <div class="qa-suggestions">
+        <p class="qa-kicker">你可以这样提问</p>
+        <div class="question-list">
+          <button v-for="question in guidedQuestions" :key="question" class="question-card" type="button">
+            <span>{{ question }}</span>
+            <span class="question-gesture" aria-hidden="true">☝</span>
           </button>
         </div>
       </div>
-      <p>回复的内容由AI生成，非人工编辑；其内容准确性和完整性无法保证，不代表我们的态度和观点。</p>
-    </div>
 
-    <aside v-if="isReferenceDrawerOpen" class="source-drawer" aria-label="参考来源">
-      <header class="source-drawer-header">
-        <div>
-          <strong>参考来源</strong>
-          <span>{{ referenceSources.length }}篇</span>
-        </div>
-        <button type="button" aria-label="关闭参考来源" @click="isReferenceDrawerOpen = false">
-          <X :size="18" />
-        </button>
-      </header>
-
-      <div class="source-list">
-        <article v-for="source in referenceSources" :key="source.id" class="source-card">
-          <div class="source-card-title">
-            <Share2 :size="16" />
-            <strong>知识库文档</strong>
+      <div class="qa-composer-shell">
+        <div class="qa-composer">
+          <textarea :placeholder="composerPlaceholder" rows="3"></textarea>
+          <div class="composer-toolbar">
+            <button
+              v-for="tool in composerTools"
+              :key="tool.label"
+              class="composer-tool"
+              type="button"
+              :title="tool.label"
+              :aria-label="tool.label"
+            >
+              <component :is="tool.icon" :size="16" />
+              <span v-if="!tool.iconOnly">{{ tool.label }}</span>
+            </button>
+            <div class="composer-spacer"></div>
+            <button class="composer-tool icon-only" type="button" aria-label="语音输入">
+              <Mic :size="16" />
+            </button>
+            <button class="send-button" type="button" aria-label="发送">
+              <Send :size="14" />
+            </button>
           </div>
-          <h4>{{ source.id }}.{{ source.title }}</h4>
-          <p>{{ source.excerpt }}</p>
-        </article>
+        </div>
+        <p class="qa-disclaimer">
+          回复内容由 AI 生成，非人工编辑；其内容准确性和完整性无法保证，不代表我们的态度和观点。
+        </p>
       </div>
     </aside>
 
@@ -636,429 +457,291 @@ const referenceSources = [
 <style scoped>
 .knowledge-page {
   display: grid;
-  grid-template-columns: minmax(600px, 1fr) 8px minmax(420px, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) minmax(380px, 480px);
   height: 100%;
   min-height: 0;
-  min-width: 1028px;
-  padding: 0;
   overflow: hidden;
-  background: var(--primary-soft);
+  background: var(--bg, var(--bg-color));
+  color: var(--ink-900, var(--text-strong));
 }
 
-.knowledge-page.with-source-drawer {
-  grid-template-columns: minmax(600px, 1fr) 8px minmax(420px, 1fr) 340px;
-  min-width: 1368px;
-}
-
-.library-section {
-  grid-column: 1;
-  grid-row: 1 / 3;
+.library-pane {
   min-width: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--primary-soft);
-}
-
-.add-button {
-  height: var(--knowledge-control-height, 36px);
-  min-width: 116px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 12px;
-  border-radius: 9px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--primary-color) 96%, white) 0%, var(--primary-color) 100%);
-  color: var(--on-primary);
-  font-size: 14px;
-  font-weight: 700;
-  box-shadow:
-    0 5px 12px color-mix(in srgb, var(--primary-color) 14%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg, var(--bg-color));
 }
 
 .library-body {
-  min-height: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 16px 10px 0 17px;
-  background: var(--primary-soft);
+  min-width: 0;
+  padding: 22px 32px 40px;
 }
 
 .library-switcher {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 14px;
-  padding-right: 16px;
+  display: grid;
+  gap: 18px;
+  margin-bottom: 18px;
 }
 
 .library-tabs,
 .group-tabs {
-  min-width: 0;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-
-.library-tabs::-webkit-scrollbar,
-.group-tabs::-webkit-scrollbar {
-  display: none;
+  flex-wrap: wrap;
 }
 
 .library-tabs {
-  gap: 10px;
+  gap: 18px;
 }
 
 .group-tabs {
   gap: 8px;
-  min-height: 32px;
-}
-
-.library-tab,
-.group-tab {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  line-height: 1;
-  transition:
-    border-color 0.16s ease,
-    background-color 0.16s ease,
-    color 0.16s ease,
-    box-shadow 0.16s ease;
 }
 
 .library-tab {
-  position: relative;
-  height: 36px;
-  gap: 6px;
-  padding: 0 6px;
-  border-radius: 8px;
-  color: var(--text-secondary);
+  min-height: 40px;
+  padding: 9px 4px;
+  border: 0;
+  border-radius: 10px;
   background: transparent;
-  font-size: 14px;
-  font-weight: 650;
-  border: 1px solid transparent;
-}
-
-.library-tab span,
-.group-tab span {
+  color: var(--ink-700, var(--text-secondary));
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
   white-space: nowrap;
-}
-
-.library-tab strong {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .library-tab:hover {
-  color: var(--primary-hover);
+  color: var(--ink-900, var(--text-strong));
 }
 
 .library-tab.active {
-  border-color: color-mix(in srgb, var(--primary-color) 36%, var(--border-color));
-  gap: 8px;
-  padding: 0 12px 0 18px;
-  color: var(--primary-hover);
-  background: var(--primary-soft-strong);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 18%, transparent),
-    0 4px 10px color-mix(in srgb, var(--primary-color) 10%, transparent);
+  padding: 9px 18px;
+  background: var(--ink-900, var(--primary-color));
+  color: #fff;
 }
 
-.library-tab.active::before {
-  content: '';
-  position: absolute;
-  left: 8px;
-  top: 9px;
-  bottom: 9px;
-  width: 3px;
-  border-radius: 999px;
-  background: var(--primary-color);
-}
-
-.library-tab.active strong {
-  min-width: 22px;
-  height: 20px;
+.group-tab,
+.group-create-tab {
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
-  border-radius: 999px;
-  color: var(--primary-hover);
-  background: var(--card-bg);
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .group-tab {
-  height: 30px;
-  gap: 6px;
-  padding: 0 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.group-tab strong {
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.group-tab:hover,
-.group-tab.active {
-  border-color: var(--primary-border);
-  color: var(--primary-hover);
-  background: var(--card-bg);
+  border: 1px solid var(--line, var(--border-color));
+  background: var(--bg-panel, var(--card-bg));
+  color: var(--ink-700, var(--text-secondary));
 }
 
 .group-tab.active {
-  background: var(--primary-soft-strong);
+  border-color: color-mix(in srgb, var(--accent, var(--primary-color)) 22%, var(--line, var(--border-color)));
+  background: var(--accent-tint, var(--primary-soft));
+  color: var(--accent-700, var(--primary-hover));
 }
 
 .group-create-tab {
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  gap: 5px;
-  padding: 0 11px;
-  border: 1px dashed color-mix(in srgb, var(--primary-color) 42%, var(--border-color));
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.66);
-  color: var(--primary-color);
-  font-size: 13px;
-  font-weight: 750;
-}
-
-.group-create-tab:hover {
-  border-style: solid;
-  background: var(--card-bg);
+  border: 1px dashed var(--line-strong, var(--border-color));
+  background: transparent;
+  color: var(--ink-500, var(--text-muted));
 }
 
 .search-row {
-  --knowledge-control-height: 36px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 16px;
-  padding-right: 16px;
+  gap: 12px;
+  margin-bottom: 22px;
 }
 
 .library-search {
-  height: var(--knowledge-control-height);
-  min-width: 0;
-  flex: 1;
+  position: relative;
+  width: min(600px, 100%);
+  height: 40px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 4px 4px 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 9px;
-  color: var(--text-secondary);
-  background: color-mix(in srgb, var(--card-bg) 88%, var(--primary-soft));
-  box-shadow: none;
-  overflow: hidden;
-  transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease,
-    background-color 0.16s ease;
+  color: var(--ink-400, var(--text-muted));
 }
 
-.library-search:focus-within {
-  border-color: color-mix(in srgb, var(--primary-color) 42%, var(--border-color));
-  background: var(--card-bg);
-  box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--primary-color) 9%, transparent);
-}
-
-.search-icon-shell {
-  width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-muted);
+.library-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .library-search input {
-  flex: 1;
-  min-width: 0;
-  height: 100%;
-  color: var(--text-main);
+  width: 100%;
+  height: 40px;
+  padding: 0 64px 0 36px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 10px;
+  background: var(--bg-panel, var(--card-bg));
+  color: var(--ink-900, var(--text-main));
   font-size: 14px;
-  font-weight: 500;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .library-search input::placeholder {
-  color: var(--text-muted);
+  color: var(--ink-400, var(--text-muted));
+}
+
+.library-search input:focus {
+  border-color: var(--ink-900, var(--primary-color));
+  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
 }
 
 .search-button {
-  align-self: center;
-  width: 54px;
-  height: 28px;
-  flex-shrink: 0;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  height: 30px;
+  transform: translateY(-50%);
+  padding: 0 12px;
+  border: 0;
   border-radius: 7px;
-  background: var(--surface-soft);
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 700;
-  box-shadow: none;
+  background: var(--bg-soft, var(--surface-soft));
+  color: var(--ink-700, var(--text-secondary));
+  font-size: 12.5px;
+  cursor: pointer;
 }
 
-.search-button:hover {
-  background: var(--primary-soft);
-  color: var(--primary-color);
+.add-button {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--ink-900, var(--primary-color));
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 .folder-row {
-  min-height: 105px;
-  display: grid;
-  grid-template-columns: repeat(7, minmax(66px, 1fr));
-  gap: 10px;
-  align-items: start;
-  padding: 0 16px 14px 9px;
-  border-bottom: 1px solid rgba(190, 205, 232, 0.9);
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 22px 34px;
+  margin-bottom: 26px;
 }
 
 .folder-card {
-  min-width: 0;
-  height: 84px;
+  width: 92px;
+  min-height: 58px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  gap: 9px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 1.25;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-900, var(--text-strong));
+  font-size: 13px;
+  line-height: 1.3;
   text-align: center;
+  cursor: pointer;
+}
+
+.folder-card:hover {
+  background: rgba(26, 22, 20, 0.035);
+}
+
+.folder-card span:last-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .folder-icon {
   position: relative;
-  width: 44px;
-  height: 34px;
-  margin-top: 1px;
+  width: 34px;
+  height: 24px;
+  margin-top: 2px;
   display: block;
+  border: 1px solid #d7b36f;
   border-radius: 4px;
-  background: linear-gradient(180deg, var(--warning-border) 0%, var(--warning-border) 100%);
-  box-shadow: inset 0 -1px 0 rgba(160, 111, 10, 0.08);
+  background: linear-gradient(180deg, #e9ca89 0%, #dcb36d 100%);
+  box-shadow: inset 0 -1px 0 rgba(133, 90, 24, 0.12);
 }
 
 .folder-icon::before {
   content: '';
   position: absolute;
-  left: 0;
+  left: 2px;
   top: -5px;
-  width: 21px;
-  height: 9px;
-  border-radius: 3px 3px 0 0;
-  background: var(--warning-color);
+  width: 16px;
+  height: 7px;
+  border: 1px solid #d7b36f;
+  border-bottom: 0;
+  border-radius: 4px 4px 0 0;
+  background: #e2bd78;
 }
 
 .file-list {
-  min-height: 0;
-  flex: 1;
-  overflow-y: auto;
-  padding: 17px 16px 22px 0;
-  scrollbar-color: var(--primary-border) transparent;
-  scrollbar-width: thin;
-}
-
-.file-list::-webkit-scrollbar {
-  width: 5px;
-}
-
-.file-list::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--primary-border);
+  padding-top: 6px;
+  border-top: 1px solid var(--line, var(--border-color));
 }
 
 .file-row {
   min-width: 0;
-  min-height: 40px;
+  min-height: 58px;
   display: grid;
-  grid-template-columns: 26px minmax(180px, 1fr) auto auto 60px;
+  grid-template-columns: 32px minmax(180px, 1fr) auto 28px;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-  padding: 0 11px 0 17px;
-  border: 1px solid rgba(226, 232, 240, 0.75);
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.74);
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+  gap: 14px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: transparent;
+  cursor: default;
+  transition: background-color 0.12s ease;
+}
+
+.file-row:hover {
+  background: var(--bg-panel, var(--card-bg));
 }
 
 .file-type {
-  width: 18px;
-  height: 20px;
+  width: 32px;
+  height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 3px;
-  color: var(--on-primary);
-  font-size: 8px;
-  font-weight: 900;
+  border-radius: 6px;
+  background: var(--bg-soft, var(--surface-soft));
+  color: var(--ink-700, var(--text-secondary));
+  font-size: 9px;
+  font-weight: 700;
   line-height: 1;
 }
 
-.file-type-pdf {
-  background: var(--diff-removed);
-}
-
-.file-type-word {
-  background: var(--primary-color);
-  font-size: 10px;
+.file-type-word,
+.file-type-sheet,
+.file-type-slide {
+  font-size: 11px;
 }
 
 .file-type-markdown {
-  position: relative;
-  background: var(--text-muted);
-}
-
-.file-type-markdown::before,
-.file-type-markdown::after {
-  content: '';
-  position: absolute;
-  left: 5px;
-  right: 5px;
-  height: 2px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.75);
-}
-
-.file-type-markdown::before {
-  top: 7px;
-}
-
-.file-type-markdown::after {
-  top: 12px;
-}
-
-.file-type-sheet {
-  background: var(--diff-added);
-  font-size: 10px;
-}
-
-.file-type-slide {
-  background: var(--warning-color);
   font-size: 10px;
 }
 
@@ -1066,10 +749,10 @@ const referenceSources = [
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  color: var(--text-secondary);
+  color: var(--ink-900, var(--text-strong));
   font-size: 14px;
-  font-weight: 800;
-  line-height: 40px;
+  font-weight: 500;
+  line-height: 1.4;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -1077,538 +760,186 @@ const referenceSources = [
 .file-meta {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 500;
+  gap: 12px;
+  color: var(--ink-500, var(--text-muted));
+  font-size: 12px;
+  line-height: 1.4;
   white-space: nowrap;
 }
 
 .file-actions {
-  display: inline-flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-secondary);
+  width: 28px;
+  display: flex;
+  justify-content: center;
 }
 
 .file-actions button {
   width: 24px;
-  height: 28px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: inherit;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-500, var(--text-muted));
+  cursor: pointer;
 }
 
-.column-divider {
-  grid-column: 2;
-  grid-row: 1 / 3;
-  height: 100%;
-  background: var(--primary-soft);
-  border-left: 1px solid rgba(199, 213, 238, 0.8);
-  border-right: 1px solid rgba(199, 213, 238, 0.45);
+.file-actions button:hover {
+  background: var(--bg-soft, var(--surface-soft));
+  color: var(--ink-900, var(--text-strong));
 }
 
-.answer-panel {
-  grid-column: 3;
-  grid-row: 1;
-  position: relative;
+.qa-panel {
   min-width: 0;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line, var(--border-color));
+  background: var(--accent-tint, var(--primary-soft));
   overflow: hidden;
-  background: var(--primary-soft);
 }
 
-.answer-scroll {
-  height: 100%;
+.qa-suggestions {
   min-height: 0;
+  flex: 1;
   overflow-y: auto;
-  padding: 24px 32px 12px 26px;
-  scrollbar-color: var(--primary-border) transparent;
-  scrollbar-width: thin;
+  padding: 28px 26px 16px;
 }
 
-.answer-scroll::-webkit-scrollbar {
-  width: 5px;
+.qa-kicker {
+  margin: 0 0 14px;
+  color: var(--ink-500, var(--text-muted));
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
 }
 
-.answer-scroll::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--primary-border);
+.question-list {
+  display: grid;
+  gap: 10px;
 }
 
-.answer-card {
-  min-height: 704px;
-  padding: 0 30px 14px;
-  border-radius: 13px 13px 0 0;
-  background: var(--card-bg);
-  color: var(--text-main);
-}
-
-.user-message {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-}
-
-.question-bubble {
-  max-width: 260px;
-  padding: 14px 15px 12px;
-  border-radius: 13px 13px 0 13px;
-  background: var(--primary-soft);
-  color: var(--text-main);
-}
-
-.question-bubble p {
-  margin: 0;
-  color: var(--text-main);
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.45;
-}
-
-.question-actions {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-top: 12px;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-
-.question-actions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: inherit;
-  font-size: inherit;
-}
-
-.answer-card-header {
+.question-card {
   min-height: 46px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding-top: 10px;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 10px;
+  background: var(--bg-panel, var(--card-bg));
+  color: var(--ink-900, var(--text-strong));
+  font-size: 13.5px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
 }
 
-.answer-status-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--text-main);
+.question-card:hover {
+  border-color: var(--accent, var(--primary-color));
+}
+
+.question-card span:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+.question-gesture {
+  flex-shrink: 0;
   font-size: 14px;
-  font-weight: 700;
 }
 
-.reference-button {
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 0 12px;
-  border-radius: 9px;
-  background: var(--bg-color);
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.reference-button.active,
-.reference-button:hover {
-  background: var(--primary-soft);
-  color: var(--text-secondary);
-}
-
-.reference-button svg {
-  color: var(--primary-color);
-}
-
-.answer-content {
-  font-size: 16px;
-  line-height: 1.72;
-}
-
-.answer-content p {
-  margin: 0 0 12px;
-}
-
-.numbered-title {
-  margin: 18px 0 5px !important;
-  color: var(--text-strong);
-  font-weight: 800;
-}
-
-.answer-content h3 {
-  margin: 28px 0 10px;
-  color: var(--text-strong);
-  font-size: 20px;
-  font-weight: 900;
-  line-height: 1.35;
-}
-
-.answer-content ul {
-  margin: 0 0 4px;
-  padding-left: 36px;
-}
-
-.answer-content ul ul {
-  margin-top: 2px;
-  padding-left: 28px;
-  list-style-type: circle;
-}
-
-.answer-content li {
-  margin: 5px 0;
-}
-
-.answer-content strong {
-  font-weight: 900;
-}
-
-.process-list {
-  position: relative;
-  margin: 3px 0 12px !important;
-  padding-left: 24px !important;
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.66;
-}
-
-.process-list li {
-  margin: 0 !important;
-}
-
-.reasoning-timeline {
-  margin: 2px 0 16px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.68;
-}
-
-.timeline-node {
-  position: relative;
-  padding: 0 0 21px 28px;
-}
-
-.timeline-node::before {
-  content: '';
-  position: absolute;
-  top: 7px;
-  left: 3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--border-color);
-}
-
-.timeline-node::after {
-  content: '';
-  position: absolute;
-  top: 18px;
-  bottom: 6px;
-  left: 5px;
-  width: 1px;
-  background: var(--border-color);
-}
-
-.timeline-node.last::after {
-  display: none;
-}
-
-.timeline-node p {
-  margin: 0 0 10px;
-}
-
-.tool-step {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  column-gap: 18px;
-  row-gap: 4px;
-  margin: 12px 0 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.tool-step strong {
-  color: var(--primary-color);
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.tool-step span {
-  justify-self: start;
-  padding: 4px 13px;
-  border-radius: 7px;
-  background: var(--surface-muted);
-  color: var(--text-secondary);
-}
-
-.tool-step small {
-  grid-column: 1 / -1;
-  margin-left: 94px;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.mock-answer-content > ul:not(.process-list) {
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.74;
-}
-
-.mock-answer-content > p {
-  color: var(--text-main);
-}
-
-.bubble {
-  min-width: 20px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 1px;
-  border-radius: 999px;
-  background: var(--surface-soft);
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1;
-}
-
-.answer-content hr {
-  height: 1px;
-  margin: 13px 0 10px;
-  border: 0;
-  background: var(--text-strong);
-}
-
-.closing-copy {
-  margin-bottom: 12px !important;
-}
-
-.ai-tag {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 21px;
-  min-width: 25px;
-  margin-left: 4px;
-  border-radius: 5px;
-  background: var(--surface-soft);
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.answer-actions {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 12px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1;
-}
-
-.answer-actions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: inherit;
-  font-size: inherit;
-}
-
-.qa-dock {
-  grid-column: 3;
-  grid-row: 2;
-  min-height: 0;
-  box-sizing: border-box;
-  padding: 0 10px 8px 12px;
-  background: var(--primary-soft);
-}
-
-.qa-toolbar {
-  height: 42px;
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 9px;
-  padding-right: 0;
-}
-
-.qa-toolbar button {
-  height: 34px;
-  min-width: 96px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border: 1px solid var(--primary-border);
-  border-radius: 8px;
-  background: var(--card-bg);
-  color: var(--text-secondary);
-  font-size: 14px;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.06);
+.qa-composer-shell {
+  padding: 0 26px 18px;
 }
 
 .qa-composer {
-  position: relative;
-  height: 108px;
-  border: 1px solid var(--primary-border);
-  border-radius: 11px;
-  background: var(--card-bg);
+  border: 1px solid var(--line-strong, var(--border-color));
+  border-radius: 20px;
+  background: var(--bg-panel, var(--card-bg));
   overflow: hidden;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.qa-composer:focus-within {
+  border-color: var(--ink-900, var(--primary-color));
+  box-shadow: 0 0 0 4px rgba(26, 22, 20, 0.05), var(--sh-2, var(--shadow-soft));
 }
 
 .qa-composer textarea {
   width: 100%;
-  height: 100%;
+  min-height: 88px;
   resize: none;
-  padding: 13px 84px 14px 12px;
-  color: var(--text-main);
-  font-size: 16px;
-  line-height: 1.5;
+  padding: 18px 20px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-900, var(--text-main));
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 .qa-composer textarea::placeholder {
-  color: var(--text-muted);
+  color: var(--ink-400, var(--text-muted));
 }
 
-.composer-actions {
-  position: absolute;
-  right: 12px;
-  bottom: 16px;
+.composer-toolbar {
   display: flex;
   align-items: center;
-  gap: 13px;
-  color: var(--text-secondary);
+  gap: 4px;
+  padding: 4px 12px 12px;
 }
 
-.composer-actions button {
+.composer-tool,
+.send-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: inherit;
+  border: 0;
+  cursor: pointer;
+}
+
+.composer-tool {
+  gap: 6px;
+  min-height: 32px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-700, var(--text-secondary));
+  font-size: 12.5px;
+}
+
+.composer-tool:hover {
+  background: var(--bg-soft, var(--surface-soft));
+  color: var(--ink-900, var(--text-strong));
+}
+
+.composer-tool.icon-only {
+  width: 32px;
+}
+
+.composer-spacer {
+  flex: 1;
+  min-width: 8px;
 }
 
 .send-button {
-  width: 35px;
-  height: 35px;
-  border-radius: 11px;
-  background: var(--border-color);
-  color: var(--on-primary) !important;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--ink-900, var(--primary-color));
+  color: #fff;
 }
 
-.qa-dock p {
-  margin: 4px 0 0;
-  color: var(--text-secondary);
+.qa-disclaimer {
+  margin: 8px 0 0;
+  color: var(--ink-500, var(--text-muted));
   font-size: 12px;
-  text-align: center;
-}
-
-.source-drawer {
-  grid-column: 4;
-  grid-row: 1 / 3;
-  min-width: 0;
-  height: 100%;
-  padding: 18px 16px;
-  border-left: 1px solid var(--border-color);
-  background: var(--bg-color);
-  box-shadow: -8px 0 18px rgba(64, 88, 128, 0.08);
-}
-
-.source-drawer-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-}
-
-.source-drawer-header div {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.source-drawer-header strong {
-  color: var(--text-main);
-  font-size: 16px;
-  font-weight: 800;
-}
-
-.source-drawer-header span {
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 9px;
-  border-radius: 8px;
-  background: var(--surface-soft);
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.source-drawer-header button {
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 7px;
-  color: var(--text-muted);
-}
-
-.source-drawer-header button:hover {
-  background: var(--border-soft);
-  color: var(--text-secondary);
-}
-
-.source-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.source-card {
-  padding: 17px 18px 18px;
-  border-radius: 8px;
-  background: var(--card-bg);
-  box-shadow: 0 2px 9px rgba(45, 70, 110, 0.06);
-}
-
-.source-card-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: var(--text-main);
-}
-
-.source-card-title svg {
-  color: var(--primary-color);
-}
-
-.source-card-title strong {
-  font-size: 14px;
-  font-weight: 900;
-}
-
-.source-card h4 {
-  margin: 0 0 9px;
-  color: var(--text-main);
-  font-size: 14px;
-  font-weight: 800;
   line-height: 1.45;
-}
-
-.source-card p {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.75;
 }
 
 .group-modal-backdrop {
@@ -1619,7 +950,7 @@ const referenceSources = [
   align-items: center;
   justify-content: center;
   padding: 28px;
-  background: rgba(15, 23, 42, 0.28);
+  background: var(--bg-veil, rgba(15, 23, 42, 0.28));
 }
 
 .group-create-modal {
@@ -1629,8 +960,8 @@ const referenceSources = [
   flex-direction: column;
   overflow: hidden;
   border-radius: 14px;
-  background: var(--primary-soft);
-  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+  background: var(--bg, var(--bg-color));
+  box-shadow: var(--sh-elev, var(--shadow-popover));
 }
 
 .group-create-header {
@@ -1640,8 +971,8 @@ const referenceSources = [
   justify-content: space-between;
   gap: 16px;
   padding: 0 24px;
-  border-bottom: 1px solid rgba(203, 213, 225, 0.75);
-  background: var(--card-bg);
+  border-bottom: 1px solid var(--line, var(--border-color));
+  background: var(--bg-panel, var(--card-bg));
 }
 
 .group-create-header div {
@@ -1650,13 +981,13 @@ const referenceSources = [
 }
 
 .group-create-header strong {
-  color: var(--text-strong);
+  color: var(--ink-900, var(--text-strong));
   font-size: 17px;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .group-create-header span {
-  color: var(--text-muted);
+  color: var(--ink-500, var(--text-muted));
   font-size: 13px;
 }
 
@@ -1666,41 +997,31 @@ const referenceSources = [
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 0;
   border-radius: 8px;
-  color: var(--text-muted);
+  background: transparent;
+  color: var(--ink-500, var(--text-muted));
+  cursor: pointer;
 }
 
 .group-create-header button:hover {
-  background: var(--surface-soft);
-  color: var(--text-secondary);
+  background: var(--bg-soft, var(--surface-soft));
+  color: var(--ink-900, var(--text-strong));
 }
 
 .group-modal-section {
   margin: 16px 20px 0;
   padding: 18px 24px 20px;
+  border: 1px solid var(--line, var(--border-color));
   border-radius: 12px;
-  background: var(--card-bg);
-  box-shadow: 0 2px 10px rgba(45, 70, 110, 0.06);
+  background: var(--bg-panel, var(--card-bg));
 }
 
 .group-modal-section h3 {
-  position: relative;
   margin: 0 0 14px;
-  padding-left: 10px;
-  color: var(--text-strong);
+  color: var(--ink-900, var(--text-strong));
   font-size: 15px;
-  font-weight: 850;
-}
-
-.group-modal-section h3::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 3px;
-  bottom: 3px;
-  width: 3px;
-  border-radius: 999px;
-  background: var(--primary-color);
+  font-weight: 600;
 }
 
 .group-form-field {
@@ -1714,9 +1035,9 @@ const referenceSources = [
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  color: var(--text-secondary);
+  color: var(--ink-700, var(--text-secondary));
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 500;
 }
 
 .field-title {
@@ -1728,24 +1049,24 @@ const referenceSources = [
 }
 
 .field-title strong {
-  color: var(--diff-removed);
+  color: var(--danger, var(--diff-removed));
   line-height: 1;
 }
 
 .field-label-row small {
   flex-shrink: 0;
-  color: var(--text-muted);
+  color: var(--ink-500, var(--text-muted));
   font-size: 12px;
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .group-form-field input,
 .group-form-field textarea {
   width: 100%;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--line, var(--border-color));
   border-radius: 8px;
-  background: var(--card-bg);
-  color: var(--text-main);
+  background: var(--bg-panel, var(--card-bg));
+  color: var(--ink-900, var(--text-main));
   font-size: 14px;
 }
 
@@ -1763,8 +1084,8 @@ const referenceSources = [
 
 .group-form-field input:focus,
 .group-form-field textarea:focus {
-  border-color: var(--primary-border);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: var(--ink-900, var(--primary-color));
+  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
 }
 
 .member-section {
@@ -1793,10 +1114,8 @@ const referenceSources = [
 
 .member-section-header p {
   margin: 0;
-  padding-left: 10px;
-  color: var(--text-muted);
+  color: var(--ink-500, var(--text-muted));
   font-size: 13px;
-  font-weight: 650;
 }
 
 .member-search {
@@ -1806,35 +1125,36 @@ const referenceSources = [
   align-items: center;
   gap: 8px;
   padding: 3px 4px 3px 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 7px;
-  color: var(--text-muted);
-  background: var(--card-bg);
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 8px;
+  color: var(--ink-500, var(--text-muted));
+  background: var(--bg-panel, var(--card-bg));
 }
 
 .member-search input {
   min-width: 0;
   flex: 1;
   height: 100%;
-  color: var(--text-main);
+  color: var(--ink-900, var(--text-main));
   font-size: 13px;
 }
 
 .member-search button {
   width: 52px;
   height: 28px;
+  border: 0;
   border-radius: 7px;
-  background: var(--primary-color);
-  color: var(--on-primary);
+  background: var(--ink-900, var(--primary-color));
+  color: #fff;
   font-size: 13px;
-  font-weight: 750;
+  cursor: pointer;
 }
 
 .member-table {
   min-height: 0;
   max-height: 304px;
   overflow-y: auto;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--line, var(--border-color));
   border-radius: 8px;
 }
 
@@ -1846,8 +1166,10 @@ const referenceSources = [
   align-items: center;
   gap: 12px;
   padding: 0 16px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.82);
-  color: var(--text-main);
+  border: 0;
+  border-bottom: 1px solid var(--line, var(--border-color));
+  background: transparent;
+  color: var(--ink-900, var(--text-main));
   font-size: 14px;
   text-align: left;
 }
@@ -1861,13 +1183,17 @@ const referenceSources = [
   top: 0;
   z-index: 1;
   min-height: 37px;
-  background: color-mix(in srgb, var(--surface-soft) 72%, var(--card-bg));
-  color: var(--text-secondary);
-  font-weight: 800;
+  background: var(--bg-soft, var(--surface-soft));
+  color: var(--ink-700, var(--text-secondary));
+  font-weight: 600;
+}
+
+button.member-table-row {
+  cursor: pointer;
 }
 
 button.member-table-row:hover {
-  background: var(--primary-soft);
+  background: var(--bg-soft, var(--surface-soft));
 }
 
 .member-table-row.locked {
@@ -1875,7 +1201,7 @@ button.member-table-row:hover {
 }
 
 .member-table-row.selected {
-  background: color-mix(in srgb, var(--primary-soft) 66%, var(--card-bg));
+  background: var(--accent-tint, var(--primary-soft));
 }
 
 .member-name-cell {
@@ -1893,10 +1219,10 @@ button.member-table-row:hover {
   justify-content: center;
   flex-shrink: 0;
   border-radius: 999px;
-  background: var(--primary-soft-strong);
-  color: var(--primary-color);
+  background: var(--bg-soft, var(--surface-soft));
+  color: var(--ink-700, var(--text-secondary));
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 600;
 }
 
 .member-check-cell {
@@ -1910,15 +1236,15 @@ button.member-table-row:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--line, var(--border-color));
   border-radius: 999px;
-  color: var(--primary-color);
-  background: var(--card-bg);
+  color: var(--accent-700, var(--primary-hover));
+  background: var(--bg-panel, var(--card-bg));
 }
 
 .member-table-row.selected .member-check {
-  border-color: color-mix(in srgb, var(--primary-color) 45%, var(--border-color));
-  background: var(--primary-soft-strong);
+  border-color: var(--accent, var(--primary-color));
+  background: var(--accent-tint, var(--primary-soft));
 }
 
 .group-create-footer {
@@ -1928,7 +1254,7 @@ button.member-table-row:hover {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 20px 20px;
-  color: var(--text-secondary);
+  color: var(--ink-700, var(--text-secondary));
   font-size: 14px;
 }
 
@@ -1948,46 +1274,117 @@ button.member-table-row:hover {
   padding: 0 16px;
   border-radius: 8px;
   font-size: 14px;
-  font-weight: 750;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 .group-cancel-button {
-  border: 1px solid var(--border-color);
-  background: var(--card-bg);
-  color: var(--text-secondary);
+  border: 1px solid var(--line, var(--border-color));
+  background: var(--bg-panel, var(--card-bg));
+  color: var(--ink-700, var(--text-secondary));
 }
 
 .group-create-button {
-  min-width: 116px;
-  background: var(--primary-color);
-  color: var(--on-primary);
+  border: 0;
+  background: var(--ink-900, var(--primary-color));
+  color: #fff;
 }
 
 .group-create-button:disabled {
-  background: var(--surface-muted);
-  color: var(--text-muted);
+  background: var(--ink-300, var(--surface-soft));
+  color: var(--ink-500, var(--text-muted));
   cursor: not-allowed;
 }
 
 @media (max-width: 1180px) {
   .knowledge-page {
-    grid-template-columns: minmax(540px, 1fr) 8px minmax(390px, 0.85fr);
-    min-width: 938px;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
   }
 
-  .knowledge-page.with-source-drawer {
-    grid-template-columns: minmax(540px, 1fr) 8px minmax(390px, 0.85fr) 320px;
-    min-width: 1258px;
+  .library-body {
+    padding: 20px 24px 34px;
   }
 
   .folder-row {
-    gap: 6px;
+    gap: 18px 24px;
   }
 
   .file-row {
-    grid-template-columns: 24px minmax(150px, 1fr) auto auto 54px;
-    padding-left: 12px;
+    grid-template-columns: 32px minmax(140px, 1fr) auto 28px;
+    gap: 10px;
   }
 
+  .file-meta {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 980px) {
+  .knowledge-page {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) 340px;
+  }
+
+  .library-pane {
+    border-right: 0;
+  }
+
+  .qa-panel {
+    border-left: 0;
+    border-top: 1px solid var(--line, var(--border-color));
+  }
+
+  .qa-suggestions {
+    padding: 20px 20px 12px;
+  }
+
+  .qa-composer-shell {
+    padding: 0 20px 16px;
+  }
+}
+
+@media (max-width: 760px) {
+  .library-body {
+    padding: 18px 16px 28px;
+  }
+
+  .search-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .library-search {
+    width: 100%;
+  }
+
+  .add-button {
+    align-self: flex-start;
+  }
+
+  .file-row {
+    grid-template-columns: 32px minmax(0, 1fr) 28px;
+  }
+
+  .file-meta {
+    grid-column: 2 / -1;
+    flex-wrap: wrap;
+  }
+
+  .composer-tool span {
+    display: none;
+  }
+
+  .member-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .member-search {
+    width: 100%;
+  }
+
+  .member-table-row {
+    grid-template-columns: minmax(160px, 1fr) minmax(120px, 0.8fr) 54px;
+  }
 }
 </style>

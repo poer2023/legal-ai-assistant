@@ -421,10 +421,6 @@ router.beforeEach((to) => {
   const { currentOrganization, hasActiveOrganization, isAuthenticated } = useOrgSession();
 
   if (!AUTH_FLOW_ENABLED) {
-    if (to.name === 'login' || to.name === 'org-select') {
-      return { name: 'home' };
-    }
-
     return true;
   }
 

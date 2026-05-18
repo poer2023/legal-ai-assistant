@@ -1,22 +1,37 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import type { Component } from 'vue';
 import { useRouter } from 'vue-router';
 import {
+  BookOpen,
+  BriefcaseBusiness,
   Check,
   ChevronDown,
   ChevronRight,
+  ClipboardCheck,
   Copy,
   Download,
+  FileSearch,
   FileText,
+  Gavel,
+  Landmark,
+  ListChecks,
   MoreHorizontal,
   Pencil,
+  PenLine,
   Plus,
   Power,
   PowerOff,
+  Puzzle,
+  Scale,
   Search,
+  ShieldCheck,
+  Sparkles,
   Trash2,
+  UserRound,
   UsersRound,
   X,
+  Zap,
 } from 'lucide-vue-next';
 import {
   addPersonalSkill,
@@ -36,7 +51,6 @@ import {
   type SkillFile,
   type SkillPublishDestination,
 } from '../data/skillCatalog';
-import { getSkillAvatarStyle } from '../data/skillAvatars';
 import {
   getSkillAuthorAvatarStyle as resolveSkillAuthorAvatarStyle,
   getSkillAuthorAvatarText as resolveSkillAuthorAvatarText,
@@ -46,7 +60,7 @@ import {
 } from '../data/profileIdentity';
 import { createSkillWithSkillCreator } from '../services/skillCreator';
 import { useOrgSession } from '../stores/orgSession';
-import LibraryTypeDropdown from './LibraryTypeDropdown.vue';
+import SkillCreateModal from './SkillCreateModal.vue';
 
 const props = withDefaults(defineProps<{
   startInCreate?: boolean;
@@ -63,14 +77,41 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const { currentUser } = useOrgSession();
+const { currentOrganization, currentUser } = useOrgSession();
 type SkillListPage = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
+type SkillStatusFilter = 'all' | 'inactive' | 'enabled';
+type RecommendedSortFilter = 'latest' | 'popular' | 'rated';
+type StandaloneSourceKey = 'mine' | 'group' | 'team' | 'official' | 'market';
+type StandaloneSkillKind = 'case' | 'draft' | 'ca' | 'reg' | 'spa' | 'data' | 'labor' | 'ipo';
+
+type SkillChipDisplay = {
+  id: string;
+  name: string;
+  kind: string;
+  virtual: true;
+};
+
+type StandaloneSkillPresentation = {
+  id: string;
+  order: number;
+  title: string;
+  description: string;
+  kind: StandaloneSkillKind;
+  creator: string;
+  firm: string;
+  source: StandaloneSourceKey;
+  enabled: boolean;
+  deliverables: Array<{ name: string; kind: 'docx' | 'xlsx' }>;
+  match: (skill: SkillCatalogItem, searchable: string) => boolean;
+};
 
 const selectedSkill = ref<SkillCatalogItem | null>(null);
 const activeListPage = ref<SkillListPage>('personal');
 const modalSearchKeyword = ref('');
-const selectedListCategory = ref('全部');
+const selectedStatusFilter = ref<SkillStatusFilter>('all');
+const selectedRecommendedSort = ref<RecommendedSortFilter>('popular');
 const isCreateMode = ref(false);
+const showSkillCreateModal = ref(false);
 const activeFileId = ref('');
 const expandedTreeKeys = ref<Record<string, boolean>>({});
 const editMode = ref(false);
@@ -104,100 +145,315 @@ const skillListPageCopy: Record<SkillListPage, { name: string; empty: string }> 
   personal: { name: '个人', empty: '暂无个人技能' },
   'group-shared': { name: '小组', empty: '暂无小组共享技能' },
   'team-shared': { name: '团队', empty: '暂无团队共享技能' },
-  'public-hub': { name: '市场（hub）', empty: '暂无市场技能' },
-  recommended: { name: '官方', empty: '暂无官方推荐技能' },
+  'public-hub': { name: '推荐', empty: '暂无推荐技能' },
+  recommended: { name: '推荐', empty: '暂无推荐技能' },
 };
 
-const shouldShowCategoryFilter = computed(() => activeListPage.value === 'recommended');
+const utilitySkillIds = new Set(['docx', 'pdf', 'xlsx']);
+const standaloneSourceLabels: Record<StandaloneSourceKey, string> = {
+  mine: '个人',
+  group: '小组',
+  team: '团队',
+  official: '推荐',
+  market: '推荐',
+};
+
+const standaloneSkillPresentations: StandaloneSkillPresentation[] = [
+  {
+    id: 'case-analysis',
+    order: 1,
+    title: '类案检索分析报告',
+    description: '按当事人与争议焦点检索相似案例，输出裁判规则与胜诉率分析。',
+    kind: 'case',
+    creator: '顾明远',
+    firm: '金杜律师事务所',
+    source: 'mine',
+    enabled: true,
+    deliverables: [{ name: '类案分析报告', kind: 'docx' }, { name: '裁判规则汇总', kind: 'xlsx' }],
+    match: (_skill, searchable) => /类案|similar case|class case|case-law|案例检索|裁判规则/.test(searchable),
+  },
+  {
+    id: 'doc-write',
+    order: 2,
+    title: '法律文书写作',
+    description: '按文书类型与司法层级生成结构化初稿，含格式校验与必备要素核对。',
+    kind: 'draft',
+    creator: '周知行',
+    firm: '方达律师事务所',
+    source: 'team',
+    enabled: true,
+    deliverables: [{ name: '文书定稿', kind: 'docx' }, { name: '格式校验报告', kind: 'docx' }],
+    match: (skill, searchable) => (
+      /legal-document-writing|法律文书写作|文书写作|律所管理文书|律师见证文书|诉讼时间线|常用管理类文书/.test(searchable)
+      || skill.id === 'legal-opinion'
+      || skill.id === 'legal-memo'
+      || skill.id === 'lawyer-letter'
+    ) && !/咨询意见起草|legal-consultation|consultation-reply/.test(searchable) && skill.id !== 'contract-drafting',
+  },
+  {
+    id: 'contract',
+    order: 3,
+    title: '合同审查与红线生成',
+    description: '审查商事合同文本，识别关键风险、生成红线修改建议、谈判口径和可交付的修改稿。',
+    kind: 'ca',
+    creator: '唐予安',
+    firm: '君合律师事务所',
+    source: 'mine',
+    enabled: true,
+    deliverables: [{ name: '审查备忘录', kind: 'docx' }, { name: '修订版合同', kind: 'docx' }, { name: '风险点汇总表', kind: 'xlsx' }],
+    match: (_skill, searchable) => /合同审查|红线|contract-review|contract review|风险点/.test(searchable),
+  },
+  {
+    id: 'reg-gap',
+    order: 4,
+    title: '法规差距分析助手',
+    description: '输入新规要求与现行业务，自动比对生成差距清单、整改建议与时间路径。',
+    kind: 'reg',
+    creator: '陆明薇',
+    firm: '中伦律师事务所',
+    source: 'group',
+    enabled: true,
+    deliverables: [{ name: '差距清单', kind: 'xlsx' }, { name: '整改路径', kind: 'docx' }],
+    match: (_skill, searchable) => /法规差距|监管差距|regulatory gap|gap analysis|整改路径/.test(searchable),
+  },
+  {
+    id: 'spa',
+    order: 5,
+    title: 'SPA 起草',
+    description: '在投融资 / 并购场景下，基于团队知识库中的 SPA 相关材料，辅助生成可复用的初稿。',
+    kind: 'spa',
+    creator: '孙启明',
+    firm: '汉坤律师事务所',
+    source: 'mine',
+    enabled: false,
+    deliverables: [{ name: 'SPA 初稿', kind: 'docx' }, { name: '关键条款清单', kind: 'xlsx' }],
+    match: (_skill, searchable) => /spa|股权购买协议|share purchase|投融资并购/.test(searchable),
+  },
+  {
+    id: 'opinion',
+    order: 6,
+    title: '咨询意见起草',
+    description: '基于用户提供的事实材料，自动生成咨询意见草稿，含背景、分析、结论与法规援引。',
+    kind: 'draft',
+    creator: '宋知夏',
+    firm: '海问律师事务所',
+    source: 'official',
+    enabled: false,
+    deliverables: [{ name: '咨询意见书', kind: 'docx' }],
+    match: (_skill, searchable) => /咨询意见|legal memo drafter|consultation|意见书|legal-consultation/.test(searchable),
+  },
+  {
+    id: 'data-resp',
+    order: 7,
+    title: '数据合规事件处置',
+    description: '按 PIPL / DSL 输出事件研判、监管通报口径与对外披露模板。',
+    kind: 'data',
+    creator: '陆明薇',
+    firm: '中伦律师事务所',
+    source: 'group',
+    enabled: true,
+    deliverables: [{ name: '事件研判报告', kind: 'docx' }, { name: '监管通报口径', kind: 'docx' }, { name: '对外披露模板', kind: 'docx' }],
+    match: (_skill, searchable) => /数据合规|data-incident|data compliance|pipl|dsl|监管通报/.test(searchable),
+  },
+  {
+    id: 'labor',
+    order: 8,
+    title: '劳动争议证据清单',
+    description: '按争议类型与诉求生成证据链清单，对照举证规则补全缺项。',
+    kind: 'labor',
+    creator: '方谨行',
+    firm: '通商律师事务所',
+    source: 'market',
+    enabled: false,
+    deliverables: [{ name: '证据链清单', kind: 'xlsx' }],
+    match: (_skill, searchable) => /劳动争议|labou?r|证据链清单|evidence checklist/.test(searchable),
+  },
+  {
+    id: 'ipo-qa',
+    order: 9,
+    title: 'IPO 反馈意见回复',
+    description: '针对交易所反馈意见，分类生成回复要点、底层逻辑与佐证材料指引。',
+    kind: 'ipo',
+    creator: '周知行',
+    firm: '方达律师事务所',
+    source: 'team',
+    enabled: true,
+    deliverables: [{ name: '反馈回复要点', kind: 'docx' }, { name: '底层逻辑梳理', kind: 'docx' }, { name: '佐证材料指引', kind: 'xlsx' }],
+    match: (_skill, searchable) => /ipo|反馈回复|补充法律意见|comment-letter|交易所反馈/.test(searchable),
+  },
+];
+
+const getStableIndex = (value: string, total: number) => {
+  if (!total) return 0;
+  let hash = 0;
+  for (const character of value) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return hash % total;
+};
+
+const getSkillSearchText = (skill: SkillCatalogItem) => [
+  skill.id,
+  skill.name,
+  skill.description,
+  skill.category,
+  ...skill.tags,
+  ...skill.files.map((file) => `${file.name} ${file.path}`),
+].join(' ').toLowerCase();
+
+const getStandalonePresentation = (skill: SkillCatalogItem) => {
+  const searchable = getSkillSearchText(skill);
+  return standaloneSkillPresentations.find((presentation) => presentation.match(skill, searchable)) ?? null;
+};
+
+const isSkillDisplayEnabled = (skill: SkillCatalogItem) =>
+  getStandalonePresentation(skill)?.enabled ?? isSkillEnabled(skill);
+
+const dedupeSkillsById = (skills: SkillCatalogItem[]) => {
+  const seen = new Set<string>();
+  const deduped: SkillCatalogItem[] = [];
+  skills.forEach((skill) => {
+    if (seen.has(skill.id)) return;
+    seen.add(skill.id);
+    deduped.push(skill);
+  });
+  return deduped;
+};
+
+const sortSkillsForLibrary = (skills: SkillCatalogItem[]) =>
+  [...skills].sort((left, right) => {
+    const leftIsUtility = utilitySkillIds.has(left.id);
+    const rightIsUtility = utilitySkillIds.has(right.id);
+    if (leftIsUtility === rightIsUtility) return 0;
+    return leftIsUtility ? 1 : -1;
+  });
+
+const getSkillDisplayOrder = (skill: SkillCatalogItem) =>
+  getStandalonePresentation(skill)?.order ?? 1000 + getStableIndex(`${skill.id}:${skill.name}`, 1000);
+
+const sortSkillsForDisplay = (skills: SkillCatalogItem[]) =>
+  [...skills].sort((left, right) => getSkillDisplayOrder(left) - getSkillDisplayOrder(right));
+
+const collapseStandaloneDuplicates = (skills: SkillCatalogItem[]) => {
+  const seenPresentationIds = new Set<string>();
+  return skills.filter((skill) => {
+    const presentation = getStandalonePresentation(skill);
+    if (!presentation) return true;
+    if (seenPresentationIds.has(presentation.id)) return false;
+    seenPresentationIds.add(presentation.id);
+    return true;
+  });
+};
+
+const recommendedSkills = computed(() =>
+  dedupeSkillsById([
+    ...officialRecommendedSkills,
+    ...catalogPublicHubSkills.value,
+  ]),
+);
+
 const activeListSkills = computed(() =>
-  ({
-    personal: personalSkills.value,
+  sortSkillsForLibrary({
+    personal: dedupeSkillsById([
+      ...personalSkills.value,
+      ...catalogGroupSharedSkills.value,
+      ...teamSharedSkills.value,
+      ...recommendedSkills.value,
+    ]),
     'group-shared': catalogGroupSharedSkills.value,
     'team-shared': teamSharedSkills.value,
-    'public-hub': catalogPublicHubSkills.value,
-    recommended: officialRecommendedSkills,
-  })[activeListPage.value],
+    'public-hub': recommendedSkills.value,
+    recommended: recommendedSkills.value,
+  }[activeListPage.value]),
 );
 
 const sourceTabs = computed(() => [
   { key: 'personal' as const, name: skillListPageCopy.personal.name, count: personalSkills.value.length },
   { key: 'group-shared' as const, name: skillListPageCopy['group-shared'].name, count: catalogGroupSharedSkills.value.length },
   { key: 'team-shared' as const, name: skillListPageCopy['team-shared'].name, count: teamSharedSkills.value.length },
-  { key: 'recommended' as const, name: skillListPageCopy.recommended.name, count: officialRecommendedSkills.length },
-  { key: 'public-hub' as const, name: skillListPageCopy['public-hub'].name, count: catalogPublicHubSkills.value.length },
+  { key: 'recommended' as const, name: skillListPageCopy.recommended.name, count: recommendedSkills.value.length },
 ]);
 
-const activeListCategoryOptions = computed(() => {
-  const counts = new Map<string, number>();
-  activeListSkills.value.forEach((skill) => {
-    counts.set(skill.category, (counts.get(skill.category) ?? 0) + 1);
-  });
+const getSkillStatusKind = (skill: SkillCatalogItem): Exclude<SkillStatusFilter, 'all'> =>
+  isSkillDisplayEnabled(skill) ? 'enabled' : 'inactive';
+
+const statusFilterOptions = computed(() => {
+  const counts = activeListSkills.value.reduce<Record<Exclude<SkillStatusFilter, 'all'>, number>>(
+    (nextCounts, skill) => {
+      nextCounts[getSkillStatusKind(skill)] += 1;
+      return nextCounts;
+    },
+    { inactive: 0, enabled: 0 },
+  );
 
   return [
-    { name: '全部', count: activeListSkills.value.length },
-    ...Array.from(counts, ([name, count]) => ({ name, count })).sort((left, right) =>
-      left.name.localeCompare(right.name, 'zh-Hans-CN'),
-    ),
+    { key: 'all' as const, label: '全部', count: activeListSkills.value.length },
+    { key: 'inactive' as const, label: '未启用', count: counts.inactive },
+    { key: 'enabled' as const, label: '已启用', count: counts.enabled },
   ];
 });
+
+const recommendedSortOptions: Array<{ key: RecommendedSortFilter; label: string }> = [
+  { key: 'latest', label: '最新上架' },
+  { key: 'popular', label: '最多使用' },
+  { key: 'rated', label: '最高好评' },
+];
+
+const getSkillDateValue = (skill: SkillCatalogItem) => {
+  const parsedTime = Date.parse(skill.updatedAt ?? skill.createdAt ?? '');
+  return Number.isNaN(parsedTime) ? 0 : parsedTime;
+};
+
+const sortRecommendedSkills = (skills: SkillCatalogItem[]) =>
+  [...skills].sort((left, right) => {
+    if (selectedRecommendedSort.value === 'latest') {
+      const dateDelta = getSkillDateValue(right) - getSkillDateValue(left);
+      if (dateDelta) return dateDelta;
+    }
+
+    if (selectedRecommendedSort.value === 'popular') {
+      const usageDelta = (right.usageCount ?? 0) - (left.usageCount ?? 0);
+      if (usageDelta) return usageDelta;
+    }
+
+    if (selectedRecommendedSort.value === 'rated') {
+      const ratingDelta = getStableIndex(`${right.id}:rating`, 1000) - getStableIndex(`${left.id}:rating`, 1000);
+      if (ratingDelta) return ratingDelta;
+    }
+
+    return getSkillDisplayOrder(left) - getSkillDisplayOrder(right);
+  });
 
 const visibleListSkills = computed(() => {
   const keyword = modalSearchKeyword.value.trim().toLowerCase();
 
-  return activeListSkills.value.filter((skill) => {
-    const matchesCategory =
-      !shouldShowCategoryFilter.value ||
-      selectedListCategory.value === '全部' ||
-      skill.category === selectedListCategory.value;
+  const filteredSkills = activeListSkills.value.filter((skill) => {
+    const matchesStatus =
+      activeListPage.value !== 'personal' ||
+      selectedStatusFilter.value === 'all' ||
+      getSkillStatusKind(skill) === selectedStatusFilter.value;
+    const presentation = getStandalonePresentation(skill);
     const searchable = [
-      skill.name,
-      skill.description,
-      skill.category,
-      ...skill.tags,
-      ...skill.files.map((file) => `${file.name} ${file.path}`),
+      getSkillSearchText(skill),
+      presentation?.title ?? '',
+      presentation?.description ?? '',
+      ...(presentation?.deliverables.map((deliverable) => deliverable.name) ?? []),
     ]
       .join(' ')
       .toLowerCase();
 
-    return matchesCategory && (!keyword || searchable.includes(keyword));
+    return matchesStatus && (!keyword || searchable.includes(keyword));
   });
+
+  const collapsedSkills = collapseStandaloneDuplicates(filteredSkills);
+  if (activeListPage.value === 'recommended') return sortRecommendedSkills(collapsedSkills);
+  return sortSkillsForDisplay(collapsedSkills);
 });
-
-const getUsedAtTime = (skill: SkillCatalogItem) => {
-  if (!skill.lastUsedAt) return 0;
-  const time = Date.parse(skill.lastUsedAt);
-  return Number.isNaN(time) ? 0 : time;
-};
-
-const mostUsedListSkills = computed(() => {
-  const activePersonalSkills = personalSkills.value.filter(isSkillEnabled);
-  const originalIndex = new Map(activePersonalSkills.map((skill, index) => [skill.id, index]));
-  return [...activePersonalSkills]
-    .sort((left, right) => {
-      const usageDelta = (right.usageCount ?? 0) - (left.usageCount ?? 0);
-      if (usageDelta) return usageDelta;
-
-      const timeDelta = getUsedAtTime(right) - getUsedAtTime(left);
-      if (timeDelta) return timeDelta;
-
-      return (originalIndex.get(left.id) ?? 0) - (originalIndex.get(right.id) ?? 0);
-    })
-    .slice(0, 3);
-});
-
-const getSkillUsageMeta = (skill: SkillCatalogItem) =>
-  isSkillEnabled(skill)
-    ? skill.usageCount && skill.usageCount > 0 ? `${skill.usageCount} 次使用` : '可直接调用'
-    : '已停用，启用后可调用';
 
 const shouldShowSkillAuthor = (skill: SkillCatalogItem) => resolveShouldShowSkillAuthor(skill, currentUser.value);
 const getSkillAuthorName = (skill: SkillCatalogItem) => resolveSkillAuthorName(skill, currentUser.value);
 const getSkillAuthorAvatarText = (skill: SkillCatalogItem) => resolveSkillAuthorAvatarText(skill, currentUser.value);
 const getSkillAuthorAvatarStyle = (skill: SkillCatalogItem) => resolveSkillAuthorAvatarStyle(skill, currentUser.value);
-
-const activeListTitle = computed(() => {
-  return skillListPageCopy[activeListPage.value].name;
-});
 
 const selectedFiles = computed(() => selectedSkill.value?.files ?? []);
 
@@ -312,7 +568,7 @@ const resetDetailState = (skill: SkillCatalogItem) => {
 
 const setListPage = (page: SkillListPage) => {
   activeListPage.value = page;
-  selectedListCategory.value = '全部';
+  selectedStatusFilter.value = 'all';
   selectedSkill.value = null;
   isCreateMode.value = false;
   activeFileId.value = '';
@@ -328,11 +584,13 @@ const selectFile = (file: SkillFile) => {
 };
 
 const closeModal = () => {
+  showSkillCreateModal.value = false;
   emit('close');
 };
 
 const createSkill = () => {
-  isCreateMode.value = true;
+  showSkillCreateModal.value = true;
+  isCreateMode.value = false;
   selectedSkill.value = null;
   editMode.value = false;
   editBuffer.value = '';
@@ -340,12 +598,16 @@ const createSkill = () => {
 };
 
 const handleCreateSkillAction = () => {
-  if (props.createBehavior === 'emit') {
-    emit('create');
-    return;
-  }
-
   createSkill();
+};
+
+const handleSkillCreated = (skill: SkillCatalogItem) => {
+  showSkillCreateModal.value = false;
+  isCreateMode.value = false;
+  activeListPage.value = skill.scope === 'team' ? 'team-shared' : 'personal';
+  selectedStatusFilter.value = 'all';
+  openSkill(skill);
+  setStatus(`${skill.name} 已创建`);
 };
 
 const useSkill = (skillName?: string, skillId?: string) => {
@@ -459,24 +721,202 @@ const editSkill = (skill: SkillCatalogItem) => {
 
 const isSkillAdded = (skill: SkillCatalogItem) => isSkillAvailable(skill.id);
 
+const shouldShowSkillDisplayAuthor = (skill: SkillCatalogItem) =>
+  Boolean(getStandalonePresentation(skill)) || shouldShowSkillAuthor(skill);
+
+const getSkillDisplayName = (skill: SkillCatalogItem) =>
+  getStandalonePresentation(skill)?.title ?? skill.name;
+
+const getSkillDisplayDescription = (skill: SkillCatalogItem) =>
+  getStandalonePresentation(skill)?.description ?? skill.description;
+
+const getSkillDisplayAuthorName = (skill: SkillCatalogItem) =>
+  getStandalonePresentation(skill)?.creator ?? getSkillAuthorName(skill);
+
+const getSkillDisplayAuthorAvatarText = (skill: SkillCatalogItem) =>
+  getStandalonePresentation(skill)?.creator.slice(0, 1) ?? getSkillAuthorAvatarText(skill);
+
+const hasSkillDisplayAuthorAvatarImage = (skill: SkillCatalogItem) =>
+  !getStandalonePresentation(skill) && hasSkillAuthorAvatarImage(skill, currentUser.value);
+
+const getSkillDisplayAuthorAvatarStyle = (skill: SkillCatalogItem) => {
+  if (getStandalonePresentation(skill)) {
+    return {
+      background: 'var(--skill-ink)',
+      color: 'var(--on-primary)',
+    };
+  }
+
+  return getSkillAuthorAvatarStyle(skill);
+};
+
+const skillIconOptions: Component[] = [
+  FileSearch,
+  PenLine,
+  ShieldCheck,
+  Zap,
+  Scale,
+  Sparkles,
+  ListChecks,
+  BookOpen,
+  ClipboardCheck,
+  BriefcaseBusiness,
+  Gavel,
+  Landmark,
+  FileText,
+];
+
+const firmOptions = [
+  '金杜律师事务所',
+  '方达律师事务所',
+  '君合律师事务所',
+  '中伦律师事务所',
+  '汉坤律师事务所',
+  '海问律师事务所',
+  '通商律师事务所',
+  '天元律师事务所',
+  '涌见律所',
+];
+
+const getSkillIcon = (skill: SkillCatalogItem) => {
+  const presentation = getStandalonePresentation(skill);
+  if (presentation?.kind === 'case') return FileSearch;
+  if (presentation?.kind === 'draft') return FileText;
+  if (presentation?.kind === 'ca') return ShieldCheck;
+  if (presentation?.kind === 'reg') return Zap;
+  if (presentation?.kind === 'spa') return Sparkles;
+  if (presentation?.kind === 'data') return BookOpen;
+  if (presentation?.kind === 'labor') return ShieldCheck;
+  if (presentation?.kind === 'ipo') return Sparkles;
+
+  const searchableName = `${skill.id} ${skill.name} ${skill.category} ${skill.tags.join(' ')}`.toLowerCase();
+  if (/case|类案|检索|判例/.test(searchableName)) return FileSearch;
+  if (/spa|起草|写作|文书|咨询|意见|draft|write/.test(searchableName)) return PenLine;
+  if (/合同|审查|红线|风险|shield|contract/.test(searchableName)) return ShieldCheck;
+  if (/法规|监管|差距|合规|reg|watch/.test(searchableName)) return Zap;
+  if (/数据|事件|清单|证据|劳动|data|labor|checklist/.test(searchableName)) return ListChecks;
+  if (/ipo|反馈|资本|证券/.test(searchableName)) return Sparkles;
+  return skillIconOptions[getStableIndex(`${skill.id}:${skill.category}`, skillIconOptions.length)] ?? Sparkles;
+};
+
+const getSkillToneClass = (_skill: SkillCatalogItem) => 'tone-neutral';
+
+const getSkillSourceLabel = (skill: SkillCatalogItem) => {
+  if (activeListPage.value === 'recommended' || activeListPage.value === 'public-hub') return '来自 推荐';
+
+  const presentation = getStandalonePresentation(skill);
+  if (presentation) return `来自 ${standaloneSourceLabels[presentation.source]}`;
+
+  if (activeListPage.value === 'personal') return '来自 个人';
+  if (activeListPage.value === 'group-shared') return '来自 小组';
+  if (activeListPage.value === 'team-shared') return '来自 团队';
+  if (skill.source === 'recommended') return '来自 推荐';
+  return '来自 推荐';
+};
+
+const getSkillSourceClass = (skill: SkillCatalogItem) => {
+  if (activeListPage.value === 'recommended' || activeListPage.value === 'public-hub') return 'source-recommended';
+
+  const presentation = getStandalonePresentation(skill);
+  if (presentation?.source === 'mine') return 'source-personal';
+  if (presentation?.source === 'group') return 'source-group-shared';
+  if (presentation?.source === 'team') return 'source-team-shared';
+  if (presentation?.source === 'official' || presentation?.source === 'market') return 'source-recommended';
+  return `source-${activeListPage.value}`;
+};
+
+const getSkillSourceIcon = (skill: SkillCatalogItem) => {
+  if (activeListPage.value === 'recommended' || activeListPage.value === 'public-hub') return ShieldCheck;
+
+  const source = getStandalonePresentation(skill)?.source;
+  if (source === 'mine' || (!source && activeListPage.value === 'personal')) return UserRound;
+  if (source === 'official' || source === 'market') return ShieldCheck;
+  if (source === 'team' || (!source && activeListPage.value === 'team-shared')) return Landmark;
+  return UsersRound;
+};
+
+const getSkillAuthorFirm = (skill: SkillCatalogItem) => {
+  const presentation = getStandalonePresentation(skill);
+  if (presentation) return presentation.firm;
+
+  if (skill.source === 'custom' && skill.scope !== 'team') {
+    return currentUser.value?.firmShortName || currentOrganization.value?.shortName || '个人工作区';
+  }
+
+  if (activeListPage.value === 'recommended' || activeListPage.value === 'public-hub' || skill.source === 'recommended') {
+    return '涌见推荐';
+  }
+
+  return firmOptions[getStableIndex(`${skill.id}:${skill.category}:firm`, firmOptions.length)] ?? '涌见律所';
+};
+
+const getSkillStateLabel = (skill: SkillCatalogItem) =>
+  getSkillStatusKind(skill) === 'enabled' ? '已启用' : '未启用';
+
+const getSkillFileChips = (skill: SkillCatalogItem) => {
+  const presentation = getStandalonePresentation(skill);
+  if (presentation) {
+    return presentation.deliverables.map<SkillChipDisplay>((deliverable, index) => ({
+      id: `${skill.id}-${presentation.id}-${index}`,
+      name: deliverable.name,
+      kind: deliverable.kind,
+      virtual: true,
+    }));
+  }
+
+  const files = skill.files.filter((file) => file.path !== 'SKILL.md');
+  return (files.length ? files : skill.files).slice(0, 3);
+};
+
+const getSkillFileTypeLabel = (file: SkillFile | SkillChipDisplay) => {
+  if ('virtual' in file) return file.kind.toUpperCase();
+
+  const ext = file.path.split('.').pop()?.toUpperCase() || file.type.toUpperCase();
+  if (ext === 'MARKDOWN') return 'MD';
+  if (ext === 'YML') return 'YAML';
+  return ext;
+};
+
+const getSkillFileTypeClass = (file: SkillFile | SkillChipDisplay) =>
+  `file-${getSkillFileTypeLabel(file).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+const getSkillFileDisplayName = (file: SkillFile | SkillChipDisplay) =>
+  file.name.replace(/\.(md|markdown|json|ya?ml|ts)$/i, '');
+
+const getPrimarySkillActionLabel = (skill: SkillCatalogItem) => {
+  if (activeListPage.value === 'personal') return isSkillDisplayEnabled(skill) ? '使用' : '启用';
+  if ((activeListPage.value === 'recommended' || activeListPage.value === 'public-hub') && isSkillAdded(skill)) return '已安装';
+  return '安装';
+};
+
+const isPrimarySkillActionDisabled = (skill: SkillCatalogItem) =>
+  (activeListPage.value === 'recommended' || activeListPage.value === 'public-hub') && isSkillAdded(skill);
+
+const handlePrimarySkillAction = (skill: SkillCatalogItem) => {
+  if (activeListPage.value === 'personal') {
+    if (isSkillEnabled(skill)) {
+      useSkill(skill.name, skill.id);
+      return;
+    }
+    setSkillOpen(skill, true);
+    return;
+  }
+
+  installSkill(skill);
+};
+
 const addSkill = (skill: SkillCatalogItem) => {
   const didAdd = addPersonalSkill(skill.id);
   setStatus(didAdd ? `${skill.name} 已安装到我的技能` : `${skill.name} 已在我的技能中`);
 };
 
 const installSkill = (skill: SkillCatalogItem) => {
-  if (activeListPage.value === 'recommended') {
+  if (activeListPage.value === 'recommended' || activeListPage.value === 'public-hub') {
     addSkill(skill);
     return;
   }
   setStatus(`${skill.name} 已安装到我的技能`);
 };
-
-const isInstallDisabled = (skill: SkillCatalogItem) =>
-  activeListPage.value === 'recommended' && isSkillAdded(skill);
-
-const installButtonLabel = (skill: SkillCatalogItem) =>
-  isInstallDisabled(skill) ? '已安装' : '安装';
 
 const setSkillOpen = (skill: SkillCatalogItem, enabled: boolean) => {
   const updatedSkill = setSkillEnabled(skill.id, enabled);
@@ -490,7 +930,7 @@ const setSkillOpen = (skill: SkillCatalogItem, enabled: boolean) => {
 const publishDestinationLabels: Record<SkillPublishDestination, string> = {
   group: '小组',
   team: '团队',
-  public: '市场',
+  public: '推荐',
 };
 
 const publishSkill = (skill: SkillCatalogItem, destination: SkillPublishDestination) => {
@@ -601,8 +1041,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="skill-modal-backdrop" @click.self="closeModal">
+  <div class="skill-modal-backdrop" :class="{ 'create-modal-open': showSkillCreateModal }" @click.self="closeModal">
     <section
+      v-if="!showSkillCreateModal"
       class="skill-modal"
       :class="{ 'detail-mode': selectedSkill }"
       role="dialog"
@@ -622,11 +1063,11 @@ onBeforeUnmount(() => {
         </div>
         <template v-else>
           <div class="modal-title-row">
-            <h2 id="skill-modal-title">技能市场</h2>
+            <h2 id="skill-modal-title">沉淀律师的经验技能，让 AI 像你一样工作</h2>
           </div>
 
           <div class="modal-command-bar">
-            <label class="modal-search-control">
+            <label class="modal-search-control market-search">
               <Search :size="16" />
               <input v-model="modalSearchKeyword" type="text" placeholder="搜索技能、描述、标签" />
             </label>
@@ -651,28 +1092,35 @@ onBeforeUnmount(() => {
                 @click="setListPage(tab.key)"
               >
                 <span>{{ tab.name }}</span>
-                <strong>{{ tab.count }}</strong>
               </button>
             </nav>
-          </div>
 
-          <div v-if="activeListPage !== 'personal'" class="modal-result-toolbar">
-            <div class="modal-result-title">
-              <strong>{{ activeListTitle }}</strong>
-              <span>{{ visibleListSkills.length }} 个技能</span>
+            <div v-if="activeListPage === 'personal'" class="modal-status-filter-row">
+              <button
+                v-for="option in statusFilterOptions"
+                :key="option.key"
+                class="status-filter-btn"
+                :class="{ active: selectedStatusFilter === option.key }"
+                type="button"
+                @click="selectedStatusFilter = option.key"
+              >
+                {{ option.label }}
+              </button>
             </div>
-            <div class="modal-source-actions">
-              <LibraryTypeDropdown
-                v-if="shouldShowCategoryFilter"
-                v-model="selectedListCategory"
-                :options="activeListCategoryOptions"
-                label="类型"
-              />
 
-              <div v-else class="modal-sort-segment" aria-label="排序">
-                <button class="active" type="button">最近更新</button>
-                <button type="button">安装量</button>
-              </div>
+            <div v-else-if="activeListPage === 'recommended'" class="modal-recommended-sort-row">
+              <nav class="modal-recommended-sort-tabs" aria-label="推荐排序">
+                <button
+                  v-for="option in recommendedSortOptions"
+                  :key="option.key"
+                  class="modal-recommended-sort-tab"
+                  :data-active="selectedRecommendedSort === option.key"
+                  type="button"
+                  @click="selectedRecommendedSort = option.key"
+                >
+                  {{ option.label }}
+                </button>
+              </nav>
             </div>
           </div>
           <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
@@ -740,190 +1188,130 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <p v-if="!selectedSkill && !isCreateMode && !visibleListSkills.length" class="empty-list">
-        {{ skillListPageCopy[activeListPage].empty }}
-      </p>
+      <div v-if="!selectedSkill && !isCreateMode && !visibleListSkills.length" class="empty-list">
+        <span class="empty-icon" aria-hidden="true">
+          <Puzzle :size="22" />
+        </span>
+        <h3>{{ skillListPageCopy[activeListPage].empty }}</h3>
+        <button type="button" @click="handleCreateSkillAction">
+          <Plus :size="16" />
+          <span>创建技能</span>
+        </button>
+      </div>
 
       <template v-else-if="!selectedSkill && !isCreateMode">
-        <section
-          v-if="activeListPage === 'personal' && mostUsedListSkills.length"
-          class="modal-frequent-section"
-          aria-label="最常使用技能"
-        >
-          <header class="modal-frequent-header">
-            <strong>最常使用</strong>
-            <span>按使用频率排序</span>
-          </header>
+        <div class="card-grid">
+          <article
+            v-for="skill in visibleListSkills"
+            :key="skill.id"
+            class="managed-card"
+            :class="{
+              'recommend-card': activeListPage !== 'personal',
+              'is-closed': activeListPage === 'personal' && getSkillStatusKind(skill) === 'inactive',
+              'menu-open': openCardMenuId === skill.id
+            }"
+            tabindex="0"
+            @click="handleListCardClick(skill)"
+            @keydown.enter.prevent="handleListCardClick(skill)"
+          >
+            <div v-if="activeListPage === 'personal' && openCardMenuId === skill.id" class="card-action-menu" @click.stop>
+              <button class="menu-action" type="button" @click="editSkill(skill)">
+                <Pencil :size="15" />
+                <span>编辑</span>
+              </button>
+              <button class="menu-action" type="button" @click="downloadSkill(skill)">
+                <Download :size="15" />
+                <span>下载</span>
+              </button>
+              <button class="menu-action" type="button" @click="setSkillOpen(skill, !isSkillEnabled(skill))">
+                <Power v-if="!isSkillEnabled(skill)" :size="15" />
+                <PowerOff v-else :size="15" />
+                <span>{{ isSkillEnabled(skill) ? '停用' : '启用' }}</span>
+              </button>
+              <div class="menu-submenu-item">
+                <button class="menu-action submenu-trigger" type="button">
+                  <UsersRound :size="15" />
+                  <span>发布</span>
+                  <ChevronRight :size="14" class="submenu-chevron" />
+                </button>
+                <div class="publish-submenu" role="menu" aria-label="发布范围">
+                  <button type="button" @click="publishSkill(skill, 'group')">发布到小组</button>
+                  <button type="button" @click="publishSkill(skill, 'team')">发布到团队</button>
+                  <button type="button" @click="publishSkill(skill, 'public')">发布到推荐</button>
+                </div>
+              </div>
+              <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
+                <Trash2 :size="15" />
+                <span>删除</span>
+              </button>
+            </div>
 
-          <div class="modal-frequent-list">
-            <article
-              v-for="skill in mostUsedListSkills"
-              :key="`modal-frequent-${skill.id}`"
-              class="modal-frequent-item"
-              :class="{ 'menu-open': openCardMenuId === `modal-frequent-${skill.id}` }"
-              role="button"
-              tabindex="0"
-              @click="useSkill(skill.name, skill.id)"
-              @keydown.enter.prevent="useSkill(skill.name, skill.id)"
-            >
-              <span class="modal-frequent-avatar" :style="getSkillAvatarStyle(skill)" aria-hidden="true"></span>
-              <span class="modal-frequent-copy">
-                <strong>{{ skill.name }}</strong>
-                <span>{{ getSkillUsageMeta(skill) }}</span>
-                <span v-if="shouldShowSkillAuthor(skill)" class="skill-author-meta">
-                  <span class="skill-author-avatar" :style="getSkillAuthorAvatarStyle(skill)">
-                    <span v-if="!hasSkillAuthorAvatarImage(skill, currentUser)">{{ getSkillAuthorAvatarText(skill) }}</span>
+            <div class="card-main-row">
+              <div class="card-avatar" :class="getSkillToneClass(skill)" aria-hidden="true">
+                <component :is="getSkillIcon(skill)" :size="30" :stroke-width="2" />
+              </div>
+              <div class="card-copy">
+                <div class="card-title-row">
+                  <h3>{{ getSkillDisplayName(skill) }}</h3>
+                  <span class="skill-state-badge" :class="getSkillStatusKind(skill)">
+                    {{ getSkillStateLabel(skill) }}
                   </span>
-                  <span>{{ getSkillAuthorName(skill) }}</span>
+                </div>
+                <p>{{ getSkillDisplayDescription(skill) }}</p>
+                <span v-if="shouldShowSkillDisplayAuthor(skill)" class="skill-author-line">
+                  <span class="skill-author-avatar" :style="getSkillDisplayAuthorAvatarStyle(skill)">
+                    <span v-if="!hasSkillDisplayAuthorAvatarImage(skill)">{{ getSkillDisplayAuthorAvatarText(skill) }}</span>
+                  </span>
+                  <strong>{{ getSkillDisplayAuthorName(skill) }}</strong>
+                  <span>·</span>
+                  <span>{{ getSkillAuthorFirm(skill) }}</span>
                 </span>
+              </div>
+            </div>
+
+            <div class="file-chip-row" aria-label="技能文件">
+              <span
+                v-for="file in getSkillFileChips(skill)"
+                :key="file.id"
+                class="file-chip"
+                :class="getSkillFileTypeClass(file)"
+              >
+                <strong>{{ getSkillFileTypeLabel(file) }}</strong>
+                <span>{{ getSkillFileDisplayName(file) }}</span>
               </span>
-              <div class="modal-card-actions">
+            </div>
+
+            <footer class="card-footer">
+              <span class="source-badge" :class="getSkillSourceClass(skill)">
+                <component :is="getSkillSourceIcon(skill)" :size="13" />
+                {{ getSkillSourceLabel(skill) }}
+              </span>
+
+              <div class="card-actions">
                 <button
+                  class="card-use-btn"
+                  type="button"
+                  :disabled="isPrimarySkillActionDisabled(skill)"
+                  :aria-label="`${getPrimarySkillActionLabel(skill)}${getSkillDisplayName(skill)}`"
+                  @click.stop="handlePrimarySkillAction(skill)"
+                >
+                  <Check v-if="isPrimarySkillActionDisabled(skill)" :size="14" />
+                  <Plus v-else-if="getPrimarySkillActionLabel(skill) === '安装'" :size="14" />
+                  <span>{{ getPrimarySkillActionLabel(skill) }}</span>
+                </button>
+                <button
+                  v-if="activeListPage === 'personal'"
                   class="card-more-btn"
                   type="button"
-                  :aria-label="`${skill.name} 更多操作`"
-                  @click.stop="toggleCardMenu(`modal-frequent-${skill.id}`)"
+                  :aria-label="`${getSkillDisplayName(skill)} 更多操作`"
+                  @click.stop="toggleCardMenu(skill.id)"
                 >
                   <MoreHorizontal :size="18" />
                 </button>
               </div>
-
-              <div v-if="openCardMenuId === `modal-frequent-${skill.id}`" class="card-action-menu" @click.stop>
-                <button class="menu-action" type="button" @click="editSkill(skill)">
-                  <Pencil :size="15" />
-                  <span>编辑</span>
-                </button>
-                <button class="menu-action" type="button" @click="downloadSkill(skill)">
-                  <Download :size="15" />
-                  <span>下载</span>
-                </button>
-                <button class="menu-action" type="button" @click="setSkillOpen(skill, false)">
-                  <PowerOff :size="15" />
-                  <span>停用技能</span>
-                </button>
-                <div class="menu-submenu-item">
-                  <button class="menu-action submenu-trigger" type="button">
-                    <UsersRound :size="15" />
-                    <span>发布</span>
-                    <ChevronRight :size="14" class="submenu-chevron" />
-                  </button>
-                  <div class="publish-submenu" role="menu" aria-label="发布范围">
-                    <button type="button" @click="publishSkill(skill, 'group')">发布到小组</button>
-                    <button type="button" @click="publishSkill(skill, 'team')">发布到团队</button>
-                    <button type="button" @click="publishSkill(skill, 'public')">发布到市场</button>
-                  </div>
-                </div>
-                <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
-                  <Trash2 :size="15" />
-                  <span>删除</span>
-                </button>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <div v-if="activeListPage === 'personal' && visibleListSkills.length" class="modal-list-heading">
-          <strong>全部技能</strong>
-          <span>{{ visibleListSkills.length }} 个</span>
+            </footer>
+          </article>
         </div>
-
-      <div class="skill-card-grid">
-        <article
-          v-for="skill in visibleListSkills"
-          :key="skill.id"
-          class="managed-skill-card"
-          :class="{
-            'recommendation-card': activeListPage !== 'personal',
-            'is-closed': activeListPage === 'personal' && !isSkillEnabled(skill),
-            'menu-open': openCardMenuId === skill.id
-          }"
-          tabindex="0"
-          @click="handleListCardClick(skill)"
-          @keydown.enter.prevent="handleListCardClick(skill)"
-        >
-          <div v-if="activeListPage === 'personal'" class="modal-card-actions">
-            <button
-              v-if="!isSkillEnabled(skill)"
-              class="modal-card-open-btn"
-              type="button"
-              :aria-label="`启用${skill.name}`"
-              @click.stop="setSkillOpen(skill, true)"
-            >
-              <Power :size="13" />
-              <span>启用</span>
-            </button>
-            <button
-              class="card-more-btn"
-              type="button"
-              :aria-label="`${skill.name} 更多操作`"
-              @click.stop="toggleCardMenu(skill.id)"
-            >
-              <MoreHorizontal :size="18" />
-            </button>
-          </div>
-
-          <button
-            v-if="activeListPage !== 'personal'"
-            class="add-skill-btn"
-            type="button"
-            :disabled="isInstallDisabled(skill)"
-            @click.stop="installSkill(skill)"
-          >
-            <Check v-if="isInstallDisabled(skill)" :size="15" />
-            <Plus v-else :size="15" />
-            <span>{{ installButtonLabel(skill) }}</span>
-          </button>
-
-          <div v-if="activeListPage === 'personal' && openCardMenuId === skill.id" class="card-action-menu" @click.stop>
-            <button class="menu-action" type="button" @click="editSkill(skill)">
-              <Pencil :size="15" />
-              <span>编辑</span>
-            </button>
-            <button class="menu-action" type="button" @click="downloadSkill(skill)">
-              <Download :size="15" />
-              <span>下载</span>
-            </button>
-            <button class="menu-action" type="button" @click="setSkillOpen(skill, !isSkillEnabled(skill))">
-              <Power v-if="!isSkillEnabled(skill)" :size="15" />
-              <PowerOff v-else :size="15" />
-              <span>{{ isSkillEnabled(skill) ? '停用技能' : '启用技能' }}</span>
-            </button>
-            <div class="menu-submenu-item">
-              <button class="menu-action submenu-trigger" type="button">
-                <UsersRound :size="15" />
-                <span>发布</span>
-                <ChevronRight :size="14" class="submenu-chevron" />
-              </button>
-              <div class="publish-submenu" role="menu" aria-label="发布范围">
-                <button type="button" @click="publishSkill(skill, 'group')">发布到小组</button>
-                <button type="button" @click="publishSkill(skill, 'team')">发布到团队</button>
-                <button type="button" @click="publishSkill(skill, 'public')">发布到市场</button>
-              </div>
-            </div>
-            <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
-              <Trash2 :size="15" />
-              <span>删除</span>
-            </button>
-          </div>
-
-          <div class="skill-card-avatar" :style="getSkillAvatarStyle(skill)" aria-hidden="true"></div>
-          <div class="skill-card-copy">
-            <div class="skill-card-title-row">
-              <h3>{{ skill.name }}</h3>
-              <span v-if="activeListPage === 'personal'" class="skill-state-badge" :class="{ closed: !isSkillEnabled(skill) }">
-                {{ isSkillEnabled(skill) ? '已启用' : '已停用' }}
-              </span>
-            </div>
-            <div v-if="shouldShowSkillAuthor(skill)" class="skill-author-meta">
-              <span class="skill-author-avatar" :style="getSkillAuthorAvatarStyle(skill)">
-                <span v-if="!hasSkillAuthorAvatarImage(skill, currentUser)">{{ getSkillAuthorAvatarText(skill) }}</span>
-              </span>
-              <span>{{ getSkillAuthorName(skill) }}</span>
-            </div>
-            <p>{{ skill.description }}</p>
-          </div>
-        </article>
-      </div>
       </template>
 
       <template v-if="selectedSkill">
@@ -1064,6 +1452,12 @@ onBeforeUnmount(() => {
         </div>
       </template>
     </section>
+
+    <SkillCreateModal
+      v-if="showSkillCreateModal"
+      @close="showSkillCreateModal = false"
+      @created="handleSkillCreated"
+    />
   </div>
 </template>
 
@@ -1077,6 +1471,10 @@ onBeforeUnmount(() => {
   justify-content: center;
   padding: 20px;
   background: rgba(0, 0, 0, 0.48);
+}
+
+.skill-modal-backdrop.create-modal-open {
+  background: transparent;
 }
 
 .skill-modal {
@@ -2384,6 +2782,725 @@ onBeforeUnmount(() => {
 
   .doc-content p {
     font-size: 14px;
+  }
+}
+
+/* Keep the composer popup visually aligned with the independent skills page.
+   These overrides sit last so the existing detail editor remains unchanged. */
+.skill-modal {
+  --skill-page-bg: var(--bg, var(--bg-color));
+  --skill-panel: var(--bg-panel, var(--card-bg));
+  --skill-paper: var(--bg-soft, var(--surface-muted));
+  --skill-ink: var(--ink-900, var(--text-strong));
+  --skill-ink-soft: var(--ink-700, var(--text-main));
+  --skill-muted: var(--ink-500, var(--text-secondary));
+  --skill-faint: var(--ink-400, var(--text-muted));
+  --skill-line: var(--line, var(--border-color));
+  --skill-line-strong: var(--line-strong, var(--primary-border));
+  --skill-accent: var(--accent, var(--primary-color));
+  --skill-accent-strong: var(--accent-700, var(--primary-hover));
+  --skill-accent-soft: var(--accent-tint, var(--primary-soft));
+  --skill-radius-md: var(--r-md, 10px);
+  --skill-radius-lg: var(--r-lg, 14px);
+  --skill-shadow-card: var(--sh-2, var(--shadow-card));
+  --skill-shadow-popover: var(--sh-elev, var(--shadow-popover));
+  font-family: var(--font-sans, 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif);
+}
+
+.skill-modal:not(.detail-mode) {
+  width: min(900px, calc(100vw - 48px));
+  min-height: 0;
+  max-height: calc(100vh - 56px);
+  padding: 22px 26px 24px;
+  border-radius: var(--skill-radius-lg);
+  background: var(--skill-page-bg);
+  color: var(--skill-ink-soft);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+}
+
+.skill-modal:not(.detail-mode) .modal-close-btn {
+  top: 18px;
+  right: 18px;
+  width: 30px;
+  height: 30px;
+  color: var(--skill-ink);
+}
+
+.skill-modal:not(.detail-mode) .modal-close-btn:hover {
+  background: var(--skill-paper);
+}
+
+.skill-modal:not(.detail-mode) .modal-title-row {
+  min-height: 0;
+  padding-right: 44px;
+  margin-bottom: 12px;
+}
+
+.skill-modal:not(.detail-mode) .modal-title-row h2 {
+  margin: 0;
+  color: var(--skill-ink);
+  font-family: var(--font-serif, 'Songti SC', 'STSong', 'SimSun', Georgia, serif);
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.32;
+  letter-spacing: 0;
+}
+
+.skill-modal:not(.detail-mode) .modal-command-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  margin-bottom: 12px;
+  padding-right: 0;
+}
+
+.skill-modal:not(.detail-mode) .modal-search-control.market-search {
+  flex: 1 1 640px;
+  height: 38px;
+  max-width: none;
+  padding: 0 12px;
+  border: 1px solid var(--skill-line);
+  border-radius: var(--skill-radius-md);
+  background: var(--skill-panel);
+  color: var(--skill-faint);
+  box-shadow: none;
+}
+
+.skill-modal:not(.detail-mode) .modal-search-control.market-search:focus-within {
+  border-color: var(--skill-line-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--skill-accent) 10%, transparent);
+}
+
+.skill-modal:not(.detail-mode) .modal-search-control.market-search input {
+  color: var(--skill-ink);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.skill-modal:not(.detail-mode) .modal-create-btn {
+  height: 38px;
+  min-width: 104px;
+  padding: 0 14px;
+  border: 1px solid var(--skill-ink);
+  border-radius: var(--skill-radius-md);
+  background: var(--skill-ink);
+  color: var(--on-primary);
+  box-shadow: none;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.skill-modal:not(.detail-mode) .modal-create-btn:hover {
+  border-color: color-mix(in srgb, var(--skill-ink) 88%, var(--skill-accent));
+  background: color-mix(in srgb, var(--skill-ink) 88%, var(--skill-accent));
+  box-shadow: var(--skill-shadow-card);
+}
+
+.skill-modal:not(.detail-mode) .modal-source-switcher {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-right: 0;
+}
+
+.skill-modal:not(.detail-mode) .modal-tabs {
+  gap: 8px;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.skill-modal:not(.detail-mode) .modal-tab {
+  height: 30px;
+  padding: 5px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--skill-radius-md);
+  background: transparent;
+  color: var(--skill-ink-soft);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.skill-modal:not(.detail-mode) .modal-tab:hover {
+  background: var(--skill-paper);
+  color: var(--skill-ink);
+}
+
+.skill-modal:not(.detail-mode) .modal-tab.active {
+  border-color: color-mix(in srgb, var(--skill-accent) 15%, var(--skill-line));
+  background: var(--skill-accent-soft);
+  color: var(--skill-accent-strong);
+  box-shadow: none;
+}
+
+.modal-status-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  flex-wrap: wrap;
+}
+
+.status-filter-btn {
+  height: 28px;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--skill-ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.status-filter-btn:hover {
+  background: var(--skill-paper);
+  color: var(--skill-ink);
+}
+
+.status-filter-btn.active {
+  background: var(--skill-ink);
+  color: var(--on-primary);
+}
+
+.modal-recommended-sort-row {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+}
+
+.modal-recommended-sort-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--skill-paper);
+}
+
+.modal-recommended-sort-tab {
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--skill-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.modal-recommended-sort-tab:hover {
+  color: var(--skill-ink);
+}
+
+.modal-recommended-sort-tab[data-active='true'] {
+  background: var(--skill-panel);
+  color: var(--skill-ink);
+  box-shadow: 0 1px 2px rgba(26, 22, 20, 0.06);
+}
+
+.skill-modal:not(.detail-mode) .modal-status {
+  margin: -4px 0 12px;
+  color: var(--skill-accent-strong);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+
+.managed-card {
+  position: relative;
+  min-width: 0;
+  min-height: 184px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--skill-line);
+  border-radius: var(--skill-radius-lg);
+  background: var(--skill-panel);
+  color: var(--skill-ink-soft);
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.managed-card:hover {
+  border-color: var(--skill-line-strong);
+  box-shadow: var(--skill-shadow-card);
+  transform: translateY(-1px);
+}
+
+.managed-card.is-closed {
+  background: var(--skill-panel);
+}
+
+.managed-card:focus {
+  outline: none;
+}
+
+.managed-card.menu-open {
+  z-index: 40;
+}
+
+.card-main-row {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.card-avatar,
+.card-avatar.tone-neutral,
+.card-avatar[class*='tone-'] {
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--skill-radius-lg);
+  background: var(--skill-paper);
+  color: var(--skill-ink-soft);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.card-avatar svg {
+  width: 25px;
+  height: 25px;
+}
+
+.card-copy {
+  min-width: 0;
+}
+
+.card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.card-title-row h3 {
+  min-width: 0;
+  margin: 0;
+  color: var(--skill-ink);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0;
+}
+
+.skill-state-badge {
+  display: inline-flex;
+  align-items: center;
+  height: auto;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--skill-accent-soft);
+  color: var(--skill-accent-strong);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.skill-state-badge.inactive {
+  background: var(--skill-paper);
+  color: var(--skill-muted);
+}
+
+.card-copy p {
+  display: -webkit-box;
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--skill-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.42;
+  letter-spacing: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.skill-author-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 5px;
+  color: var(--skill-faint);
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.skill-author-line strong {
+  color: var(--skill-ink);
+  font-weight: 500;
+}
+
+.skill-author-avatar {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background-color: var(--skill-ink);
+  background-position: center;
+  background-size: cover;
+  color: var(--on-primary);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.file-chip-row {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  margin-top: 0;
+}
+
+.file-chip {
+  min-width: 0;
+  max-width: 100%;
+  height: 23px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px 3px 5px;
+  border: 1px solid var(--skill-line);
+  border-radius: 6px;
+  background: var(--skill-paper);
+  color: var(--skill-ink-soft);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.file-chip strong {
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--skill-panel) 72%, var(--skill-paper));
+  color: var(--primary-hover);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
+.file-chip span {
+  max-width: 118px;
+  overflow: hidden;
+  color: var(--skill-ink-soft);
+  text-overflow: ellipsis;
+}
+
+.file-chip.file-xlsx strong,
+.file-chip.file-json strong,
+.file-chip.file-yaml strong,
+.file-chip.file-yml strong {
+  color: color-mix(in srgb, var(--diff-added) 82%, var(--skill-ink));
+}
+
+.card-footer {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--skill-line);
+}
+
+.source-badge,
+.source-personal,
+.source-group-shared,
+.source-team-shared,
+.source-recommended,
+.source-public-hub,
+.source-mine,
+.source-group,
+.source-team,
+.source-official,
+.source-market {
+  min-width: 0;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--skill-paper);
+  color: var(--skill-ink-soft);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.card-use-btn,
+.card-open-btn,
+.add-btn {
+  min-width: 54px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 14px;
+  border: 1px solid var(--skill-ink);
+  border-radius: 8px;
+  background: var(--skill-ink);
+  color: var(--on-primary);
+  box-shadow: none;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.card-use-btn:hover,
+.card-open-btn:hover,
+.add-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--skill-ink) 88%, var(--skill-accent));
+  background: color-mix(in srgb, var(--skill-ink) 88%, var(--skill-accent));
+}
+
+.card-use-btn:disabled {
+  border-color: var(--skill-line);
+  background: var(--skill-paper);
+  color: var(--skill-muted);
+  cursor: default;
+}
+
+.card-more-btn {
+  position: static;
+  top: auto;
+  right: auto;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--skill-muted);
+  transform: none;
+}
+
+.card-more-btn:hover {
+  background: var(--skill-paper);
+  color: var(--skill-ink);
+}
+
+.card-action-menu {
+  top: auto;
+  right: 14px;
+  bottom: 48px;
+  width: 164px;
+  min-width: 164px;
+  box-sizing: border-box;
+  padding: 6px;
+  border: 1px solid var(--skill-line);
+  border-radius: var(--skill-radius-md);
+  background: var(--skill-panel);
+  box-shadow: var(--skill-shadow-popover);
+  overflow: visible;
+}
+
+.menu-action,
+.publish-submenu button {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 9px;
+  border-radius: 6px;
+  color: var(--skill-ink);
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.menu-action:hover,
+.publish-submenu button:hover {
+  background: var(--skill-paper);
+}
+
+.menu-action svg,
+.publish-submenu button svg {
+  flex: 0 0 auto;
+  color: var(--skill-muted);
+}
+
+.menu-action.danger {
+  margin-top: 6px;
+  background: color-mix(in srgb, var(--diff-removed) 7%, var(--skill-paper));
+  color: var(--diff-removed);
+}
+
+.menu-action.danger svg {
+  color: currentColor;
+}
+
+.menu-action.danger:hover {
+  background: color-mix(in srgb, var(--diff-removed) 11%, var(--skill-paper));
+  color: var(--diff-removed);
+}
+
+.publish-submenu {
+  border-color: var(--skill-line);
+  border-radius: var(--skill-radius-md);
+  background: var(--skill-panel);
+  box-shadow: var(--skill-shadow-popover);
+}
+
+.empty-list {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  padding: 28px;
+  border: 1px dashed var(--skill-line);
+  border-radius: var(--skill-radius-lg);
+  background: var(--skill-panel);
+  color: var(--skill-muted);
+  text-align: center;
+}
+
+.empty-list h3 {
+  margin: 0;
+  color: var(--skill-ink);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.empty-icon {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--skill-accent);
+  background: var(--skill-accent-soft);
+}
+
+.empty-list button {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--on-primary);
+  background: var(--skill-ink);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.modal-tab:focus-visible,
+.status-filter-btn:focus-visible,
+.modal-recommended-sort-tab:focus-visible,
+.modal-search-control.market-search:focus-within,
+.modal-create-btn:focus-visible,
+.card-use-btn:focus-visible,
+.card-more-btn:focus-visible,
+.card-action-menu button:focus-visible,
+.empty-list button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--skill-accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .skill-modal:not(.detail-mode) {
+    width: calc(100vw - 32px);
+    padding: 22px 20px 24px;
+  }
+
+  .skill-modal:not(.detail-mode) .modal-command-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .skill-modal:not(.detail-mode) .modal-create-btn {
+    width: 100%;
+  }
+
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .skill-modal:not(.detail-mode) {
+    width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    padding: 20px 16px 22px;
+    border-radius: 18px;
+  }
+
+  .skill-modal:not(.detail-mode) .modal-title-row h2 {
+    font-size: 21px;
+  }
+
+  .card-main-row {
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+  }
+
+  .card-avatar,
+  .card-avatar.tone-neutral,
+  .card-avatar[class*='tone-'] {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+
+  .card-footer {
+    align-items: center;
+    flex-direction: row;
   }
 }
 </style>

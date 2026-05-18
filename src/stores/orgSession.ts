@@ -2,7 +2,7 @@ import { computed, ref } from 'vue';
 
 const SESSION_STORAGE_KEY = 'legal-demo-org-session-v1';
 const MOCK_VERIFY_CODE = '112233';
-const PUBLIC_DEMO_PHONE = '13800000000';
+const PUBLIC_DEMO_PHONE = '11111111111';
 export const NO_ORGANIZATION_DEMO_PHONE = '19900000000';
 export const AUTH_FLOW_ENABLED = false;
 
@@ -26,6 +26,9 @@ export type MockUser = {
   avatarDataUrl?: string;
   firmShortName?: string;
   bio?: string;
+  yearsInPractice?: string;
+  qualification?: string;
+  expertise?: string[];
 };
 
 type OrgSessionState = {
@@ -103,9 +106,12 @@ const createPublicDemoState = (): OrgSessionState => {
     user: {
       ...createUser(PUBLIC_DEMO_PHONE),
       id: 'public-demo-user',
-      displayName: '演示用户',
-      avatarText: '演',
-      firmShortName: organizations[0]?.shortName,
+      displayName: '律师 · 1111',
+      avatarText: '律',
+      firmShortName: '金杜律师事务所',
+      yearsInPractice: '12',
+      qualification: '合伙人',
+      expertise: ['跨境投融资', '并购重组', '私募基金'],
     },
     organizations,
     currentOrganizationId: organizations[0]?.id ?? '',
@@ -160,6 +166,11 @@ const readStoredSession = (): OrgSessionState => {
         avatarDataUrl: typeof user.avatarDataUrl === 'string' ? user.avatarDataUrl : undefined,
         firmShortName: typeof user.firmShortName === 'string' ? user.firmShortName : undefined,
         bio: typeof user.bio === 'string' ? user.bio : undefined,
+        yearsInPractice: typeof user.yearsInPractice === 'string' ? user.yearsInPractice : undefined,
+        qualification: typeof user.qualification === 'string' ? user.qualification : undefined,
+        expertise: Array.isArray(user.expertise)
+          ? user.expertise.filter((item): item is string => typeof item === 'string').slice(0, 5)
+          : undefined,
       },
       organizations,
       currentOrganizationId: organizations.some((org) => org.id === currentOrganizationId)
@@ -198,6 +209,10 @@ const persistSession = () => {
 };
 
 const isValidMockPhone = (phone: string) => /^\d{11}$/.test(phone);
+const isValidMockPassword = (phone: string, password: string) => {
+  const trimmedPassword = password.trim();
+  return trimmedPassword === phone.slice(-6) || trimmedPassword === MOCK_VERIFY_CODE;
+};
 
 export const getCurrentOrganizationId = () => state.value.currentOrganizationId;
 
@@ -215,12 +230,12 @@ export const useOrgSession = () => {
   const isAuthenticated = computed(() => Boolean(state.value.user));
   const hasActiveOrganization = computed(() => Boolean(currentOrganization.value));
 
-  const login = (rawPhone: string, code: string) => {
+  const login = (rawPhone: string, password: string) => {
     const phone = normalizePhone(rawPhone);
-    if (!isValidMockPhone(phone) || code.trim() !== MOCK_VERIFY_CODE) {
+    if (!isValidMockPhone(phone) || !isValidMockPassword(phone, password)) {
       return {
         ok: false,
-        message: '手机号或验证码不正确',
+        message: '手机号或密码不正确',
       };
     }
 
@@ -273,6 +288,9 @@ export const useOrgSession = () => {
     avatarDataUrl?: string;
     firmShortName?: string;
     bio?: string;
+    yearsInPractice?: string;
+    qualification?: string;
+    expertise?: string[];
   }) => {
     if (!state.value.user) return false;
 
@@ -280,6 +298,11 @@ export const useOrgSession = () => {
     const avatarDataUrl = profile.avatarDataUrl?.trim();
     const firmShortName = profile.firmShortName?.trim();
     const bio = profile.bio?.trim();
+    const yearsInPractice = profile.yearsInPractice?.trim();
+    const qualification = profile.qualification?.trim();
+    const expertise = Array.isArray(profile.expertise)
+      ? profile.expertise.map((item) => item.trim()).filter(Boolean).slice(0, 5)
+      : undefined;
     state.value = {
       ...state.value,
       user: {
@@ -289,6 +312,9 @@ export const useOrgSession = () => {
         avatarDataUrl: avatarDataUrl || undefined,
         firmShortName: firmShortName || undefined,
         bio: bio || undefined,
+        yearsInPractice: yearsInPractice || undefined,
+        qualification: qualification || undefined,
+        expertise: expertise?.length ? expertise : undefined,
       },
     };
     persistSession();

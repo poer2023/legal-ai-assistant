@@ -1,19 +1,20 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import {
-  Check,
+  Building2,
   FileText,
+  MoreHorizontal,
   Plus,
   Search,
-  Sparkles,
-  Upload,
-  X,
+  ShieldCheck,
+  Store,
+  User,
+  Users,
 } from 'lucide-vue-next';
 import { templateAssets, type TemplateAsset, type TemplateDocumentSection } from '../data/legalAssets';
 import { getMockSkillAuthor } from '../data/mockSkillAuthors';
 import { hasTemplatePublishDestination } from '../data/templateCatalog';
 import { sendDeepSeekMessage } from '../services/deepseekChat';
-import LibraryTypeDropdown from './LibraryTypeDropdown.vue';
 import TemplateCreateModal from './TemplateCreateModal.vue';
 import TemplateDetailPanel from './TemplateDetailPanel.vue';
 
@@ -39,12 +40,12 @@ type SourceFilter = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' |
 
 const searchKeyword = ref('');
 const selectedSource = ref<SourceFilter>('personal');
-const selectedCategory = ref('全部');
 const selectedTemplate = ref<TemplateAsset | null>(null);
 const customTemplateAssets = ref<TemplateAsset[]>([]);
 const originalFilesByTemplateId = ref<Record<string, UploadedOriginalTemplate>>({});
 const extractionStateByTemplateId = ref<Record<string, ExtractionState>>({});
 const extractionMessageByTemplateId = ref<Record<string, string>>({});
+const enabledTemplateIds = ref<Record<string, boolean>>({});
 const showCreateModal = ref(false);
 const uploadedTemplateFile = ref<File | null>(null);
 const extractionState = ref<ExtractionState>('idle');
@@ -58,9 +59,6 @@ const templateFilePath = (template: TemplateAsset) => {
   return original ? `uploaded://${original.fileName}` : `assets/templates/${template.id}.md`;
 };
 const getTemplateAuthor = (template: TemplateAsset) => getMockSkillAuthor(template.id, 9);
-const getTemplateAuthorAvatarStyle = (template: TemplateAsset) => ({
-  backgroundImage: `url("${getTemplateAuthor(template).avatarUrl}")`,
-});
 const isDetailOpen = computed(() => Boolean(selectedTemplate.value));
 const selectedOriginalFile = computed(() =>
   selectedTemplate.value ? originalFilesByTemplateId.value[selectedTemplate.value.id] : undefined
@@ -71,24 +69,11 @@ const selectedExtractionState = computed<ExtractionState>(() =>
 const selectedExtractionMessage = computed(() =>
   selectedTemplate.value ? extractionMessageByTemplateId.value[selectedTemplate.value.id] ?? '' : ''
 );
-const primaryTemplateCategories = [
-  '项目启动',
-  '尽职调查',
-  '咨询意见',
-  '交易文件',
-  '投资交易',
-  '资本市场',
-  '并购交易',
-  '基金业务',
-  '合规日常',
-];
-
 const sourceTabsKeys: SourceFilter[] = [
   'personal',
   'group-shared',
   'team-shared',
   'recommended',
-  'public-hub',
 ];
 
 const templateModeCopy: Record<SourceFilter, { name: string; emptyTitle: string; emptyDescription: string }> = {
@@ -108,14 +93,14 @@ const templateModeCopy: Record<SourceFilter, { name: string; emptyTitle: string;
     emptyDescription: '团队发布的通用模板会集中展示在这里。',
   },
   'public-hub': {
-    name: '市场（hub）',
-    emptyTitle: '暂无市场模板',
-    emptyDescription: '市场（hub）模板同步后会展示在这里。',
+    name: '推荐',
+    emptyTitle: '暂无推荐模板',
+    emptyDescription: '推荐模板同步后会展示在这里。',
   },
   recommended: {
-    name: '官方',
-    emptyTitle: '暂无官方推荐模板',
-    emptyDescription: '官方维护的模板会集中展示在这里。',
+    name: '推荐',
+    emptyTitle: '暂无推荐模板',
+    emptyDescription: '推荐模板会集中展示在这里。',
   },
 };
 
@@ -136,6 +121,10 @@ const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter
   }
   if (source === 'public-hub') {
     return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'public');
+  }
+  if (source === 'recommended') {
+    const staticSource = getTemplateStaticSourceKind(template);
+    return staticSource === 'recommended' || staticSource === 'public-hub' || hasTemplatePublishDestination(template.id, 'public');
   }
   return getTemplateStaticSourceKind(template) === source;
 };
@@ -160,40 +149,80 @@ const sourceTabs = computed(() => {
     { key: 'group-shared' as const, name: templateModeCopy['group-shared'].name, count: counts['group-shared'] },
     { key: 'team-shared' as const, name: templateModeCopy['team-shared'].name, count: counts['team-shared'] },
     { key: 'recommended' as const, name: templateModeCopy.recommended.name, count: counts.recommended },
-    { key: 'public-hub' as const, name: templateModeCopy['public-hub'].name, count: counts['public-hub'] },
   ];
 });
 
-const activeModeCopy = computed(() => templateModeCopy[selectedSource.value]);
-const isPersonalMode = computed(() => selectedSource.value === 'personal');
-const shouldShowCategoryFilter = computed(() => selectedSource.value === 'recommended');
+const templateAuthorFirms = [
+  '汉坤律师事务所',
+  '方达律师事务所',
+  '天元律师事务所',
+  '海问律师事务所',
+  '金杜律师事务所',
+  '君合律师事务所',
+  '中伦律师事务所',
+  '通商律师事务所',
+];
 
-const sourceFilteredTemplates = computed(() => {
-  return combinedTemplates.value.filter((template) => isTemplateVisibleInSource(template, selectedSource.value));
-});
+const sourceChipCopy: Record<SourceFilter, string> = {
+  personal: '来自 个人',
+  'group-shared': '来自 小组',
+  'team-shared': '来自 团队',
+  recommended: '来自 推荐',
+  'public-hub': '来自 推荐',
+};
 
-const categoryTabs = computed(() => {
-  const counts = new Map<string, number>();
-  sourceFilteredTemplates.value.forEach((template) => {
-    counts.set(template.docType, (counts.get(template.docType) ?? 0) + 1);
-  });
+const getStableHash = (value: string) => {
+  let hash = 0;
+  for (const character of value) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return hash;
+};
 
-  return [
-    { name: '全部', count: sourceFilteredTemplates.value.length },
-    ...primaryTemplateCategories
-      .map((name) => ({ name, count: counts.get(name) ?? 0 }))
-      .filter((tab) => tab.count > 0),
-  ];
-});
+const getTemplateAuthorFirm = (template: TemplateAsset) =>
+  templateAuthorFirms[getStableHash(template.id) % templateAuthorFirms.length]!;
+
+const getTemplateAuthorInitial = (template: TemplateAsset) => getTemplateAuthor(template).name.slice(0, 1);
+
+const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
+  if (selectedSource.value === 'group-shared' && hasTemplatePublishDestination(template.id, 'group')) {
+    return 'group-shared';
+  }
+  if (selectedSource.value === 'team-shared' && hasTemplatePublishDestination(template.id, 'team')) {
+    return 'team-shared';
+  }
+  if (selectedSource.value === 'recommended') {
+    const staticSource = getTemplateStaticSourceKind(template);
+    if (staticSource === 'recommended' || staticSource === 'public-hub' || hasTemplatePublishDestination(template.id, 'public')) {
+      return 'recommended';
+    }
+  }
+  return getTemplateStaticSourceKind(template);
+};
+
+const isTemplateEnabledByDefault = (template: TemplateAsset) => getStableHash(template.id) % 5 !== 2;
+
+const isTemplateEnabled = (template: TemplateAsset) =>
+  enabledTemplateIds.value[template.id] ?? isTemplateEnabledByDefault(template);
+
+const getTemplateStatusLabel = (template: TemplateAsset) => (isTemplateEnabled(template) ? '已启用' : '未启用');
+
+const handleTemplatePrimaryAction = (template: TemplateAsset) => {
+  if (!isTemplateEnabled(template)) {
+    enabledTemplateIds.value = {
+      ...enabledTemplateIds.value,
+      [template.id]: true,
+    };
+    return;
+  }
+
+  openTemplate(template);
+};
 
 const filteredTemplates = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
 
-  return sourceFilteredTemplates.value.filter((template) => {
-    const matchesCategory =
-      !shouldShowCategoryFilter.value ||
-      selectedCategory.value === '全部' ||
-      template.docType === selectedCategory.value;
+  return combinedTemplates.value.filter((template) => {
     const searchable = [
       template.name,
       template.docType,
@@ -207,13 +236,15 @@ const filteredTemplates = computed(() => {
       .join(' ')
       .toLowerCase();
 
-    return matchesCategory && (!keyword || searchable.includes(keyword));
+    const matchesSource =
+      selectedSource.value === 'personal' || isTemplateVisibleInSource(template, selectedSource.value);
+
+    return matchesSource && (!keyword || searchable.includes(keyword));
   });
 });
 
 const setSource = (source: SourceFilter) => {
   selectedSource.value = source;
-  selectedCategory.value = '全部';
 };
 
 const openTemplate = (template: TemplateAsset) => {
@@ -226,7 +257,6 @@ const backToList = () => {
 
 const resetFilters = () => {
   searchKeyword.value = '';
-  selectedCategory.value = '全部';
 };
 
 const openCreateModal = () => {
@@ -477,7 +507,6 @@ const analyzeUploadedTemplate = async (file: File) => {
     };
     extractionStateByTemplateId.value[templateId] = 'analyzing';
     extractionMessageByTemplateId.value[templateId] = '生成模板中...';
-    selectedCategory.value = '全部';
     selectedTemplate.value = placeholderTemplate;
     closeCreateModal();
 
@@ -540,103 +569,101 @@ const handleTemplateDrop = (event: DragEvent) => {
       />
 
       <template v-else>
-        <header class="market-topbar">
-          <span class="market-kicker">模板市场</span>
-          <button class="create-template-btn" type="button" @click="openCreateModal">
-            <Plus :size="16" />
-            <span>创建模板</span>
-          </button>
+        <header class="template-market-header" aria-labelledby="template-market-title">
+          <h1 id="template-market-title">法律文书的标准模板，让每一次交付都专业一致</h1>
         </header>
 
-        <section class="market-hero" aria-labelledby="template-market-title">
-          <h1 id="template-market-title">沉淀可复用的法律文书模板</h1>
-          <p>管理、创建和调用标准模板，让常用文书、字段结构和交付格式保持一致。</p>
-        </section>
-
-        <div class="market-controls">
-          <nav class="source-tabs" aria-label="模板来源">
-            <button
-              v-for="tab in sourceTabs"
-              :key="tab.key"
-              class="source-tab"
-              :class="{ active: selectedSource === tab.key }"
-              type="button"
-              @click="setSource(tab.key)"
-            >
-              <span>{{ tab.name }}</span>
-              <strong>{{ tab.count }}</strong>
-            </button>
-          </nav>
-
-          <label class="search-control market-search">
+        <div class="template-market-toolbar">
+          <label class="template-search-control">
             <Search :size="17" />
             <input v-model="searchKeyword" type="text" placeholder="搜索模板、字段、适用场景" />
           </label>
+
+          <button class="create-template-btn" type="button" @click="openCreateModal">
+            <Plus :size="14" />
+            <span>创建模板</span>
+          </button>
         </div>
 
-        <div v-if="!isPersonalMode" class="result-toolbar">
-          <div class="result-title">
-            <strong>{{ activeModeCopy.name }}</strong>
-            <span>{{ filteredTemplates.length }} 个模板</span>
-          </div>
-          <div class="toolbar-actions">
-            <LibraryTypeDropdown
-              v-if="shouldShowCategoryFilter"
-              v-model="selectedCategory"
-              :options="categoryTabs"
-              label="类型"
-            />
-
-            <div v-else class="sort-segment" aria-label="排序">
-              <button class="active" type="button">最近更新</button>
-              <button type="button">使用量</button>
-            </div>
-          </div>
-        </div>
+        <nav class="template-source-tabs" aria-label="模板来源">
+          <button
+            v-for="tab in sourceTabs"
+            :key="tab.key"
+            class="template-source-tab"
+            :data-active="selectedSource === tab.key"
+            type="button"
+            @click="setSource(tab.key)"
+          >
+            {{ tab.name }}
+          </button>
+        </nav>
 
         <section class="content-section" aria-label="模板管理">
           <section class="template-section" aria-label="模板文件列表">
-            <div v-if="isPersonalMode && filteredTemplates.length" class="list-section-heading">
-              <strong>全部模板</strong>
-              <span>{{ filteredTemplates.length }} 个</span>
-            </div>
-
             <div v-if="filteredTemplates.length" class="template-grid">
               <article
                 v-for="template in filteredTemplates"
                 :key="template.id"
-                class="managed-template-card"
+                class="template-market-card"
                 :title="`${template.name}\n${templateFilePath(template)}`"
                 tabindex="0"
                 @click="openTemplate(template)"
                 @keydown.enter.prevent="openTemplate(template)"
               >
-                <div class="thumbnail-page" aria-hidden="true">
-                  <div class="thumbnail-topline">
-                    <FileText :size="12" />
-                    <span>{{ template.docType }}</span>
+                <div class="template-card-main">
+                  <div class="template-icon-block" aria-hidden="true">
+                    <FileText :size="34" />
                   </div>
-                  <strong>{{ template.name }}</strong>
-                  <span class="thumb-line wide"></span>
-                  <span class="thumb-line"></span>
-                  <span class="thumb-line short"></span>
-                  <div class="thumbnail-table">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                    <span></span>
+
+                  <div class="template-card-copy">
+                    <div class="template-title-row">
+                      <h2>{{ template.name }}</h2>
+                      <span
+                        class="template-status-badge"
+                        :data-status="isTemplateEnabled(template) ? 'enabled' : 'disabled'"
+                      >
+                        {{ getTemplateStatusLabel(template) }}
+                      </span>
+                    </div>
+
+                    <p>{{ template.preview }}</p>
+
+                    <div class="template-author-row">
+                      <span class="template-author-avatar" aria-hidden="true">
+                        {{ getTemplateAuthorInitial(template) }}
+                      </span>
+                      <strong>{{ getTemplateAuthor(template).name }}</strong>
+                      <span class="template-dot">·</span>
+                      <span>{{ getTemplateAuthorFirm(template) }}</span>
+                    </div>
                   </div>
                 </div>
 
-                <div class="tile-caption">
-                  <h2>{{ template.name }}</h2>
-                  <div class="tile-author">
-                    <span class="tile-author-avatar" :style="getTemplateAuthorAvatarStyle(template)" aria-hidden="true"></span>
-                    <span>{{ getTemplateAuthor(template).name }}</span>
-                  </div>
-                  <div class="tile-meta">
-                    <span>{{ template.source }}</span>
-                    <span>{{ template.updatedAt }}</span>
+                <div class="template-card-footer">
+                  <span class="template-source-chip">
+                    <User v-if="getTemplateDisplaySource(template) === 'personal'" :size="11" />
+                    <Users v-else-if="getTemplateDisplaySource(template) === 'group-shared'" :size="11" />
+                    <Building2 v-else-if="getTemplateDisplaySource(template) === 'team-shared'" :size="11" />
+                    <ShieldCheck
+                      v-else-if="getTemplateDisplaySource(template) === 'recommended' || getTemplateDisplaySource(template) === 'public-hub'"
+                      :size="11"
+                    />
+                    <Store v-else :size="11" />
+                    {{ sourceChipCopy[getTemplateDisplaySource(template)] }}
+                  </span>
+
+                  <div class="template-card-actions" @click.stop>
+                    <button
+                      class="template-primary-action"
+                      :data-enabled="isTemplateEnabled(template)"
+                      type="button"
+                      @click="handleTemplatePrimaryAction(template)"
+                    >
+                      {{ isTemplateEnabled(template) ? '使用' : '启用' }}
+                    </button>
+                    <button class="template-more-btn" type="button" aria-label="更多模板操作">
+                      <MoreHorizontal :size="17" />
+                    </button>
                   </div>
                 </div>
               </article>
@@ -644,8 +671,8 @@ const handleTemplateDrop = (event: DragEvent) => {
 
             <div v-else class="empty-state">
               <FileText :size="22" />
-              <strong>{{ searchKeyword.trim() ? '未找到匹配模板' : activeModeCopy.emptyTitle }}</strong>
-              <span>{{ searchKeyword.trim() ? '调整分类或关键词后再试。' : activeModeCopy.emptyDescription }}</span>
+              <strong>{{ searchKeyword.trim() ? '未找到匹配模板' : '暂无模板' }}</strong>
+              <span>{{ searchKeyword.trim() ? '调整关键词后再试。' : '上传或创建一个模板后，会出现在这里。' }}</span>
               <button class="reset-btn active" type="button" @click="resetFilters">清空筛选</button>
             </div>
           </section>
@@ -1812,6 +1839,541 @@ const handleTemplateDrop = (event: DragEvent) => {
 
   .template-upload-zone {
     min-height: 190px;
+  }
+}
+
+/* LawAgents standalone reference replication for the template marketplace. */
+.templates-view {
+  --tpl-bg: #faf7f1;
+  --tpl-panel: #ffffff;
+  --tpl-soft: #f3eee3;
+  --tpl-line: #e8e1d4;
+  --tpl-line-strong: #d6cdbe;
+  --tpl-ink-900: #1a1614;
+  --tpl-ink-800: #2b2522;
+  --tpl-ink-700: #4a423d;
+  --tpl-ink-500: #837a72;
+  --tpl-ink-400: #a29a91;
+  --tpl-accent: #c8552e;
+  --tpl-accent-700: #a4441f;
+  --tpl-accent-tint: #fbf1e8;
+  --tpl-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif;
+  --tpl-sans: 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  --tpl-shadow-2: 0 2px 4px rgba(26, 22, 20, 0.04), 0 0 0 1px rgba(26, 22, 20, 0.04);
+  min-height: 100%;
+  padding: 32px 56px 60px;
+  overflow: visible;
+  background: var(--tpl-bg);
+  color: var(--tpl-ink-700);
+  font-family: var(--tpl-sans);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.templates-view.detail-view {
+  height: 100%;
+  padding: 22px 32px 8px;
+  overflow: hidden;
+}
+
+.templates-shell {
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.templates-shell.detail-shell {
+  max-width: 1180px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.template-market-header {
+  margin: 0 0 18px;
+}
+
+.template-market-header h1 {
+  margin: 0;
+  color: var(--tpl-ink-900);
+  font-family: var(--tpl-serif);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.template-market-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.template-search-control {
+  position: relative;
+  flex: 1;
+  max-width: 920px;
+  min-width: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.template-search-control svg {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  color: var(--tpl-ink-400);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.template-search-control input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 38px;
+  border: 1px solid var(--tpl-line);
+  border-radius: 10px;
+  background: var(--tpl-panel);
+  color: var(--tpl-ink-900);
+  font-family: var(--tpl-sans);
+  font-size: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.template-search-control input:hover {
+  border-color: var(--tpl-line-strong);
+}
+
+.template-search-control input:focus {
+  outline: 0;
+  border-color: var(--tpl-ink-900);
+  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+}
+
+.template-search-control input::placeholder {
+  color: var(--tpl-ink-400);
+}
+
+.create-template-btn {
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 18px;
+  border: 1px solid var(--tpl-ink-900);
+  border-radius: 10px;
+  background: var(--tpl-ink-900);
+  color: #ffffff;
+  font-family: var(--tpl-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.create-template-btn:hover {
+  background: var(--tpl-ink-800);
+  border-color: var(--tpl-ink-800);
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.template-source-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.template-source-tab {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--tpl-ink-700);
+  font-family: var(--tpl-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.template-source-tab:hover {
+  color: var(--tpl-accent-700);
+}
+
+.template-source-tab[data-active='true'] {
+  border-color: rgba(200, 85, 46, 0.15);
+  background: var(--tpl-accent-tint);
+  color: var(--tpl-accent-700);
+}
+
+.content-section,
+.template-section {
+  min-width: 0;
+}
+
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  justify-content: stretch;
+  gap: 14px;
+}
+
+.template-market-card {
+  min-width: 0;
+  min-height: 188px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px;
+  border: 1px solid var(--tpl-line);
+  border-radius: 14px;
+  background: var(--tpl-panel);
+  color: var(--tpl-ink-700);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.template-market-card:hover {
+  border-color: var(--tpl-line-strong);
+  box-shadow: var(--tpl-shadow-2);
+  transform: translateY(-1px);
+}
+
+.template-market-card:focus {
+  outline: none;
+}
+
+.template-source-tab:focus-visible,
+.template-primary-action:focus-visible,
+.template-more-btn:focus-visible,
+.create-template-btn:focus-visible,
+.reset-btn:focus-visible {
+  outline: 2px solid var(--tpl-ink-900);
+  outline-offset: 2px;
+}
+
+.template-card-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.template-icon-block {
+  width: 64px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 64px;
+  border-radius: 14px;
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-700);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.template-card-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.template-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.template-title-row h2 {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--tpl-ink-900);
+  font-family: var(--tpl-sans);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-status-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 5px;
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-500);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+.template-status-badge[data-status='enabled'] {
+  background: var(--tpl-accent-tint);
+  color: var(--tpl-accent-700);
+}
+
+.template-card-copy p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--tpl-ink-500);
+  font-size: 12.5px;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.template-author-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--tpl-ink-500);
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+
+.template-author-avatar {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  border-radius: 999px;
+  background: var(--tpl-ink-900);
+  color: #ffffff;
+  font-family: var(--tpl-serif);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.template-author-row strong {
+  color: var(--tpl-ink-900);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.template-author-row span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-dot {
+  color: var(--tpl-ink-400);
+}
+
+.template-card-footer {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tpl-line);
+}
+
+.template-source-chip {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 1;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-700);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.template-source-chip svg {
+  flex: 0 0 auto;
+}
+
+.template-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.template-primary-action {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tpl-accent);
+  color: #ffffff;
+  font-family: var(--tpl-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.template-primary-action[data-enabled='true'] {
+  background: var(--tpl-ink-900);
+}
+
+.template-primary-action:hover {
+  filter: brightness(0.94);
+}
+
+.template-more-btn {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--tpl-ink-500);
+  cursor: pointer;
+}
+
+.template-more-btn:hover {
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-900);
+}
+
+.empty-state {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  border: 1px solid var(--tpl-line);
+  border-radius: 14px;
+  background: var(--tpl-panel);
+  color: var(--tpl-ink-500);
+  text-align: center;
+}
+
+.empty-state svg {
+  color: var(--tpl-accent);
+}
+
+.empty-state strong {
+  color: var(--tpl-ink-900);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.empty-state span {
+  font-size: 13px;
+}
+
+.reset-btn {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid var(--tpl-line);
+  border-radius: 10px;
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-900);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.reset-btn:hover,
+.reset-btn.active {
+  border-color: rgba(200, 85, 46, 0.28);
+  background: var(--tpl-accent-tint);
+  color: var(--tpl-accent-700);
+}
+
+@media (max-width: 980px) {
+  .templates-view {
+    padding: 26px 28px 44px;
+  }
+
+  .template-market-toolbar {
+    align-items: stretch;
+  }
+
+  .template-search-control {
+    max-width: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .templates-view {
+    padding: 20px 16px 32px;
+  }
+
+  .template-market-header h1 {
+    font-size: 24px;
+  }
+
+  .template-market-toolbar {
+    flex-direction: column;
+  }
+
+  .create-template-btn {
+    width: 100%;
+  }
+
+  .template-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .template-card-main {
+    align-items: flex-start;
+  }
+
+  .template-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .template-card-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>

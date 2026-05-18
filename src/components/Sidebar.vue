@@ -16,11 +16,17 @@ import {
 } from 'lucide-vue-next';
 import legalLogo from '../assets/legal-logo.png';
 import KnowledgeSearchIcon from './icons/KnowledgeSearchIcon.vue';
+import LawAgentsLogoIcon from './icons/LawAgentsLogoIcon.vue';
+import LawAgentsNavIcon from './icons/LawAgentsNavIcon.vue';
 import { useChatHistory, type ChatHistoryItem } from '../stores/chatHistory';
+import { useOrgSession } from '../stores/orgSession';
+import { useTheme } from '../stores/theme';
 
 const router = useRouter();
 const route = useRoute();
 const { recentHistory, renameConversation, deleteConversation } = useChatHistory();
+const { currentOrganization, currentUser } = useOrgSession();
+const { currentThemeId } = useTheme();
 
 const isCollapsed = ref(false);
 const openHistoryMenuId = ref('');
@@ -65,6 +71,31 @@ const isKnowledgeActive = computed(() => {
   return ['knowledge'].includes(String(route.name ?? ''));
 });
 const isProfileActive = computed(() => route.path.startsWith('/profile'));
+const isLawAgentsTheme = computed(() => currentThemeId.value === 'lawagents-standalone-v1');
+const profileDisplayName = computed(() => {
+  const user = currentUser.value;
+  if (!user) return '个人中心';
+
+  const name = user.displayName?.trim() || user.phone || '个人中心';
+  const suffix = user.phone?.slice(-4);
+  return suffix && !name.includes(suffix) ? `${name} · ${suffix}` : name;
+});
+const profileMeta = computed(() =>
+  currentUser.value?.firmShortName?.trim()
+  || currentOrganization.value?.shortName
+  || currentOrganization.value?.name
+  || '个人中心'
+);
+const profileAvatarText = computed(() =>
+  currentUser.value?.avatarText
+  || currentOrganization.value?.avatarText
+  || '律'
+);
+const hasProfileAvatarImage = computed(() => Boolean(currentUser.value?.avatarDataUrl));
+const profileAvatarStyle = computed(() => {
+  const avatarDataUrl = currentUser.value?.avatarDataUrl;
+  return avatarDataUrl ? { backgroundImage: `url(${JSON.stringify(avatarDataUrl)})` } : undefined;
+});
 
 const toggleSidebarCollapsed = () => {
   isCollapsed.value = !isCollapsed.value;
@@ -194,10 +225,20 @@ onBeforeUnmount(() => {
     <div class="sidebar-header">
       <div class="logo-area">
         <div class="logo-icon">
-          <img :src="legalLogo" alt="涌见AI" />
+          <LawAgentsLogoIcon
+            v-if="isLawAgentsTheme"
+            :size="isCollapsed ? 32 : 36"
+            :radius="isCollapsed ? 8 : 9"
+          />
+          <img v-else :src="legalLogo" alt="涌见AI" />
         </div>
         <div class="logo-text">
-          <span class="logo-brand">涌见AI</span>
+          <span class="logo-brand">
+            <template v-if="isLawAgentsTheme">
+              涌见 <span class="logo-brand-ai">AI</span>
+            </template>
+            <template v-else>涌见AI</template>
+          </span>
         </div>
       </div>
 
@@ -208,7 +249,12 @@ onBeforeUnmount(() => {
         :title="isCollapsed ? '展开侧边栏' : '收起侧边栏'"
         @click="toggleSidebarCollapsed"
       >
-        <ChevronRight v-if="isCollapsed" :size="16" :stroke-width="2.4" />
+        <LawAgentsNavIcon
+          v-if="isLawAgentsTheme"
+          :kind="isCollapsed ? 'chevron-right' : 'chevron-left'"
+          :size="16"
+        />
+        <ChevronRight v-else-if="isCollapsed" :size="16" :stroke-width="2.4" />
         <ChevronLeft v-else :size="16" :stroke-width="2.4" />
       </button>
     </div>
@@ -222,7 +268,8 @@ onBeforeUnmount(() => {
           :title="isCollapsed ? '助手' : undefined"
           @click="handleItemClick('home')"
         >
-          <Workflow :size="18" class="nav-icon" />
+          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="assistant" :size="18" class="nav-icon" />
+          <Workflow v-else :size="18" class="nav-icon" />
           <span class="nav-label">助手</span>
         </button>
 
@@ -233,7 +280,8 @@ onBeforeUnmount(() => {
           :title="isCollapsed ? '技能' : undefined"
           @click="handleItemClick('skills')"
         >
-          <Puzzle :size="18" class="nav-icon" />
+          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="skills" :size="18" class="nav-icon" />
+          <Puzzle v-else :size="18" class="nav-icon" />
           <span class="nav-label">技能</span>
         </button>
 
@@ -244,7 +292,8 @@ onBeforeUnmount(() => {
           :title="isCollapsed ? '模板' : undefined"
           @click="handleItemClick('templates')"
         >
-          <FileText :size="18" class="nav-icon" />
+          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="templates" :size="18" class="nav-icon" />
+          <FileText v-else :size="18" class="nav-icon" />
           <span class="nav-label">模板</span>
         </button>
 
@@ -256,7 +305,8 @@ onBeforeUnmount(() => {
           aria-label="知识库"
           @click="handleKnowledgeClick"
         >
-          <KnowledgeSearchIcon :size="18" class="nav-icon" />
+          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="knowledge" :size="18" class="nav-icon" />
+          <KnowledgeSearchIcon v-else :size="18" class="nav-icon" />
           <span class="nav-label">知识库</span>
         </button>
 
@@ -267,7 +317,8 @@ onBeforeUnmount(() => {
           :title="isCollapsed ? '法律搜索' : undefined"
           @click="handleItemClick('legal-search')"
         >
-          <Scale :size="18" class="nav-icon" />
+          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="search" :size="18" class="nav-icon" />
+          <Scale v-else :size="18" class="nav-icon" />
           <span class="nav-label">法律搜索</span>
         </button>
 
@@ -276,7 +327,8 @@ onBeforeUnmount(() => {
             class="nav-item history-group-label"
             :title="isCollapsed ? '历史会话' : undefined"
           >
-            <History :size="18" class="nav-icon" />
+            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="history" :size="18" class="nav-icon" />
+            <History v-else :size="18" class="nav-icon" />
             <span class="nav-label">历史会话</span>
           </div>
           <div
@@ -322,13 +374,29 @@ onBeforeUnmount(() => {
       <div class="sidebar-nav-bottom">
         <button
           class="nav-item profile-nav-item"
-          :class="{ active: isProfileActive }"
+          :class="{ active: isProfileActive, 'lawagents-profile-item': isLawAgentsTheme }"
           aria-label="个人中心"
           :title="isCollapsed ? '个人中心' : undefined"
           @click="handleItemClick('profile')"
         >
-          <User :size="18" class="nav-icon" />
-          <span class="nav-label">个人中心</span>
+          <template v-if="isLawAgentsTheme">
+            <span
+              class="lawagents-profile-avatar"
+              :class="{ 'has-image': hasProfileAvatarImage }"
+              :style="profileAvatarStyle"
+            >
+              <span v-if="!hasProfileAvatarImage">{{ profileAvatarText }}</span>
+            </span>
+            <span class="lawagents-profile-copy">
+              <span class="lawagents-profile-name">{{ profileDisplayName }}</span>
+              <span class="lawagents-profile-sub">{{ profileMeta }}</span>
+            </span>
+            <LawAgentsNavIcon kind="chevron-right" :size="14" class="lawagents-profile-chevron" />
+          </template>
+          <template v-else>
+            <User :size="18" class="nav-icon" />
+            <span class="nav-label">个人中心</span>
+          </template>
         </button>
       </div>
     </nav>

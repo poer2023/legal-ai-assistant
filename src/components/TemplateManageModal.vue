@@ -77,7 +77,6 @@ const sourceTabsKeys: SourceFilter[] = [
   'group-shared',
   'team-shared',
   'recommended',
-  'public-hub',
 ];
 
 const templateListPageCopy: Record<SourceFilter, { name: string; emptyTitle: string; emptyDescription: string }> = {
@@ -97,14 +96,14 @@ const templateListPageCopy: Record<SourceFilter, { name: string; emptyTitle: str
     emptyDescription: '团队发布的通用模板会集中展示在这里。',
   },
   'public-hub': {
-    name: '市场（hub）',
-    emptyTitle: '暂无市场模板',
-    emptyDescription: '市场（hub）模板同步后会展示在这里。',
+    name: '推荐',
+    emptyTitle: '暂无推荐模板',
+    emptyDescription: '推荐模板同步后会展示在这里。',
   },
   recommended: {
-    name: '官方',
-    emptyTitle: '暂无官方推荐模板',
-    emptyDescription: '官方维护的模板会集中展示在这里。',
+    name: '推荐',
+    emptyTitle: '暂无推荐模板',
+    emptyDescription: '推荐模板会集中展示在这里。',
   },
 };
 
@@ -127,6 +126,10 @@ const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter
   }
   if (source === 'public-hub') {
     return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'public');
+  }
+  if (source === 'recommended') {
+    const staticSource = getTemplateStaticSourceKind(template);
+    return staticSource === 'recommended' || staticSource === 'public-hub' || hasTemplatePublishDestination(template.id, 'public');
   }
   return getTemplateStaticSourceKind(template) === source;
 };
@@ -151,7 +154,6 @@ const sourceTabs = computed(() => {
     { key: 'group-shared' as const, name: templateListPageCopy['group-shared'].name, count: counts['group-shared'] },
     { key: 'team-shared' as const, name: templateListPageCopy['team-shared'].name, count: counts['team-shared'] },
     { key: 'recommended' as const, name: templateListPageCopy.recommended.name, count: counts.recommended },
-    { key: 'public-hub' as const, name: templateListPageCopy['public-hub'].name, count: counts['public-hub'] },
   ];
 });
 
@@ -210,6 +212,13 @@ const getTemplateAuthor = (template: TemplateAsset) => getMockSkillAuthor(templa
 const getTemplateAuthorAvatarStyle = (template: TemplateAsset) => ({
   backgroundImage: `url("${getTemplateAuthor(template).avatarUrl}")`,
 });
+
+const getTemplateDisplaySourceLabel = (template: TemplateAsset) => {
+  if (selectedSource.value === 'recommended') return '推荐';
+  const staticSource = getTemplateStaticSourceKind(template);
+  if (staticSource === 'recommended' || staticSource === 'public-hub') return '推荐';
+  return template.source;
+};
 
 const setSource = (source: SourceFilter) => {
   selectedSource.value = source;
@@ -661,7 +670,7 @@ onBeforeUnmount(() => {
 
       <header v-if="!selectedTemplate" class="modal-header">
         <div class="modal-title-row">
-          <h2 id="template-modal-title">模板市场</h2>
+          <h2 id="template-modal-title">模板库</h2>
         </div>
 
         <div class="modal-command-bar">
@@ -753,7 +762,7 @@ onBeforeUnmount(() => {
                 <span>{{ getTemplateAuthor(template).name }}</span>
               </div>
               <div class="tile-meta">
-                <span>{{ template.source }}</span>
+                <span>{{ getTemplateDisplaySourceLabel(template) }}</span>
                 <span>{{ template.updatedAt }}</span>
               </div>
             </div>
@@ -1441,7 +1450,6 @@ onBeforeUnmount(() => {
 .modal-tab:focus-visible,
 .reset-btn:focus-visible,
 .modal-create-btn:focus-visible,
-.managed-template-card:focus-visible,
 .detail-title-btn:focus-visible,
 .use-template-btn:focus-visible,
 .doc-action-btn:focus-visible,

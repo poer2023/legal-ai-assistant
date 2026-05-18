@@ -24,6 +24,7 @@ import {
   Zap,
 } from 'lucide-vue-next';
 import KnowledgeSearchIcon from './icons/KnowledgeSearchIcon.vue';
+import LawAgentsNavIcon from './icons/LawAgentsNavIcon.vue';
 import SkillDropdownContent from './SkillDropdownContent.vue';
 import type { SkillDropdownSelection } from './SkillDropdownContent.vue';
 import SkillManageModal from './SkillManageModal.vue';
@@ -49,6 +50,7 @@ import {
   shouldUseProfileIdentity,
 } from '../data/profileIdentity';
 import { useOrgSession } from '../stores/orgSession';
+import { useTheme } from '../stores/theme';
 
 const props = defineProps<{
   modelValue?: string;
@@ -61,6 +63,8 @@ const emit = defineEmits<{
 }>();
 
 const { currentUser } = useOrgSession();
+const { currentThemeId } = useTheme();
+const isLawAgentsTheme = computed(() => currentThemeId.value === 'lawagents-standalone-v1');
 
 const inputValue = ref('');
 const showActionMenu = ref(false);
@@ -425,23 +429,6 @@ const hasSkillCreatorCommand = computed(() =>
   hasSkillCreatorToken.value || /\/skill-creator\b/i.test(inputValue.value)
 );
 const isSkillCreatorSubmission = computed(() => hasSkillCreatorCommand.value && hasComposerContent.value);
-
-const selectedComposerSkills = computed(() => {
-  const seen = new Set<string>();
-  return selectedComposerSkillNames.value.reduce<SkillCatalogItem[]>((skills, skillName) => {
-    const skill = getSkillByNameOrId(skillName);
-    if (!skill || seen.has(skill.id)) return skills;
-    seen.add(skill.id);
-    skills.push(skill);
-    return skills;
-  }, []);
-});
-
-const activeDeliverySkill = computed(() => selectedComposerSkills.value[0] ?? null);
-
-const selectedComposerDeliveryItems = computed(() =>
-  activeDeliverySkill.value ? inferDeliveryItems(activeDeliverySkill.value) : []
-);
 
 const showSkillFollowupHint = computed(() =>
   skillTokenCount.value > 0 && editorFreeText.value.trim().length === 0
@@ -2815,7 +2802,8 @@ onBeforeUnmount(() => {
             :aria-expanded="showActionMenu"
             @click="toggleActionMenu"
           >
-            <SlidersHorizontal :size="18" :stroke-width="2.2" />
+            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="settings" :size="16" />
+            <SlidersHorizontal v-else :size="18" :stroke-width="2.2" />
           </button>
 
           <div v-if="showActionMenu" class="action-dropdown" role="menu">
@@ -2864,7 +2852,8 @@ onBeforeUnmount(() => {
             :aria-expanded="showDraftMenu"
             @click="toggleDraftMenu"
           >
-            <Paperclip :size="20" class="text-tool-icon" />
+            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="attach" :size="16" class="text-tool-icon" />
+            <Paperclip v-else :size="20" class="text-tool-icon" />
             <span>底稿</span>
           </button>
 
@@ -2893,7 +2882,8 @@ onBeforeUnmount(() => {
             :aria-expanded="showSkillManageModal"
             @click="openSkillManageModal"
           >
-            <Puzzle :size="20" class="text-tool-icon" />
+            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="skills" :size="16" class="text-tool-icon" />
+            <Puzzle v-else :size="20" class="text-tool-icon" />
             <span>技能</span>
           </button>
         </div>
@@ -2907,7 +2897,8 @@ onBeforeUnmount(() => {
             :aria-expanded="showTemplateManageModal"
             @click="openTemplateLibrary"
           >
-            <FileText :size="20" class="text-tool-icon" />
+            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="templates" :size="16" class="text-tool-icon" />
+            <FileText v-else :size="20" class="text-tool-icon" />
             <span>模板</span>
           </button>
         </div>
@@ -2916,7 +2907,8 @@ onBeforeUnmount(() => {
 
       <div class="right-actions">
         <button class="icon-tool-btn" type="button" aria-label="语音输入">
-          <Mic :size="20" />
+          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="mic" :size="16" />
+          <Mic v-else :size="20" />
         </button>
         <button
           class="send-btn"
@@ -2927,6 +2919,7 @@ onBeforeUnmount(() => {
           @click="handleSubmit"
         >
           <span v-if="isSkillCreatorSubmission">创建技能</span>
+          <LawAgentsNavIcon v-else-if="isLawAgentsTheme" kind="send" :size="14" />
           <ArrowUp v-else :size="18" :stroke-width="2.4" />
         </button>
       </div>
@@ -3095,33 +3088,6 @@ onBeforeUnmount(() => {
     </Teleport>
   </div>
 
-  <section
-    v-if="selectedComposerDeliveryItems.length && !isSkillCreatorCreationActive"
-    class="composer-delivery-panel"
-    aria-label="即将交付内容"
-  >
-    <header class="composer-delivery-header">
-      <h3>即将交付内容</h3>
-      <p>系统将按所选技能生成以下文件</p>
-    </header>
-
-    <div class="composer-delivery-grid">
-      <article
-        v-for="item in selectedComposerDeliveryItems"
-        :key="item.id"
-        class="composer-delivery-card"
-      >
-        <span class="delivery-file-icon" :class="item.format.toLowerCase()" aria-hidden="true">
-          <span>{{ item.format.slice(0, 1) }}</span>
-        </span>
-        <span class="delivery-file-copy">
-          <strong>{{ item.title }}</strong>
-          <small>{{ item.format }} 文件</small>
-        </span>
-      </article>
-    </div>
-
-  </section>
 </template>
 
 <style scoped>
@@ -3360,137 +3326,6 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   align-items: center;
   margin-top: auto;
-}
-
-.composer-delivery-panel {
-  margin-top: 8px;
-  padding: 12px 14px;
-  border: 1px solid #d7dee9;
-  border-radius: 10px;
-  background: var(--card-bg);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
-}
-
-.composer-delivery-header {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-
-.composer-delivery-header h3 {
-  margin: 0;
-  color: #111827;
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.composer-delivery-header p {
-  margin: 0;
-  color: #64748b;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-.composer-delivery-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(140px, 1fr));
-  gap: 8px;
-}
-
-.composer-delivery-card {
-  min-width: 0;
-  min-height: 46px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid #d7dee9;
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.delivery-file-icon {
-  --file-color: #2563eb;
-  position: relative;
-  width: 28px;
-  height: 32px;
-  display: inline-flex;
-  align-items: flex-end;
-  justify-content: center;
-  flex: 0 0 auto;
-  padding-bottom: 5px;
-  border: 1.5px solid currentColor;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--file-color) 8%, #ffffff);
-  color: var(--file-color);
-}
-
-.delivery-file-icon::after {
-  content: "";
-  position: absolute;
-  top: -1.5px;
-  right: -1.5px;
-  width: 10px;
-  height: 10px;
-  border-left: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
-  background: #ffffff;
-  clip-path: polygon(0 0, 100% 100%, 0 100%);
-}
-
-.delivery-file-icon span {
-  position: relative;
-  z-index: 1;
-  width: 16px;
-  height: 15px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  background: var(--file-color);
-  color: #ffffff;
-  font-size: 10px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.delivery-file-icon.xlsx {
-  --file-color: #238547;
-}
-
-.delivery-file-icon.pdf {
-  --file-color: #dc2626;
-}
-
-.delivery-file-copy {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.delivery-file-copy strong,
-.delivery-file-copy small {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.delivery-file-copy strong {
-  color: #111827;
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.delivery-file-copy small {
-  color: #64748b;
-  font-size: 11px;
-  font-weight: 500;
-  line-height: 1.2;
 }
 
 .left-actions {
@@ -5120,36 +4955,6 @@ onBeforeUnmount(() => {
 
   .chat-editor-row :deep(.skill-inline-name) {
     max-width: 150px;
-  }
-
-  .composer-delivery-panel {
-    margin-top: 8px;
-    padding: 12px;
-  }
-
-  .composer-delivery-header {
-    display: grid;
-    gap: 4px;
-    margin-bottom: 10px;
-  }
-
-  .composer-delivery-header h3 {
-    font-size: 15px;
-  }
-
-  .composer-delivery-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
-  }
-
-  .composer-delivery-card {
-    min-height: 54px;
-    gap: 10px;
-    padding: 9px 10px;
-  }
-
-  .delivery-file-copy strong {
-    font-size: 14px;
   }
 
   .input-actions {

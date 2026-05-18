@@ -84,7 +84,7 @@ const publishVisibilityOptions: Array<{
   { id: 'personal', label: '仅自己', description: '只保存在个人模板区，可随时继续调整。' },
   { id: 'group', label: '小组', description: '小组成员可以在模板库中查看和调用。' },
   { id: 'team', label: '本团队', description: '本团队成员可以在模板库中查看和调用。' },
-  { id: 'public', label: '市场（hub）', description: '公开后可进入市场（hub），更多用户可以发现和安装。' },
+  { id: 'public', label: '推荐', description: '公开后可进入推荐，更多用户可以发现和安装。' },
 ];
 
 const activeSectionId = ref<TemplateSectionId>('section-0');
