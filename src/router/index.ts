@@ -31,6 +31,7 @@ import AudioEvidenceResultView from '../components/AudioEvidenceResultView.vue';
 import SimilarCaseFormView from '../components/SimilarCaseFormView.vue';
 import SimilarCaseResultView from '../components/SimilarCaseResultView.vue';
 import AiQnaView from '../components/AiQnaView.vue';
+import HistoryView from '../components/HistoryView.vue';
 import KnowledgeBaseView from '../components/KnowledgeBaseView.vue';
 import TeamManageView from '../components/TeamManageView.vue';
 import TeamOverviewView from '../components/TeamOverviewView.vue';
@@ -76,6 +77,12 @@ const routes = [
     name: 'chat',
     component: AiQnaView,
     meta: { title: '法律咨询' }
+  },
+  {
+    path: '/history',
+    name: 'history',
+    component: HistoryView,
+    meta: { title: '历史会话' }
   },
   {
     path: '/create',

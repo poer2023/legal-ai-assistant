@@ -14,6 +14,7 @@ export type ChatHistoryItem = {
   createdAt: string;
   answer?: ChatHistoryAnswer;
   mock?: 'docx';
+  pinned?: boolean;
 };
 
 export type ChatHistoryAnswer = {
@@ -31,7 +32,7 @@ const normalizePrompt = (prompt: string) => prompt.replace(/\s+/g, ' ').trim();
 const normalizeTitle = (title: string) => {
   const normalized = title.replace(/\s+/g, ' ').trim();
   if (!normalized) return '';
-  return normalized.length > 18 ? normalized.slice(0, 18) : normalized;
+  return normalized.length > 38 ? normalized.slice(0, 38) : normalized;
 };
 
 const parseHistoryTimestamp = (createdAt: string) => {
@@ -54,6 +55,8 @@ const parseHistoryTimestamp = (createdAt: string) => {
 
 const sortHistoryItems = (items: ChatHistoryItem[]) => {
   return [...items].sort((left, right) => {
+    if (left.pinned && !right.pinned) return -1;
+    if (right.pinned && !left.pinned) return 1;
     if (left.mock === 'docx' && right.mock !== 'docx') return 1;
     if (right.mock === 'docx' && left.mock !== 'docx') return -1;
     return parseHistoryTimestamp(right.createdAt) - parseHistoryTimestamp(left.createdAt);
@@ -128,6 +131,7 @@ const readHistory = (): ChatHistoryItem[] => {
         createdAt: item.createdAt,
         ...(answer ? { answer } : {}),
         ...(item.mock === 'docx' ? { mock: 'docx' as const } : {}),
+        ...(item.pinned === true ? { pinned: true } : {}),
       });
 
       return items;
@@ -229,6 +233,7 @@ export const useChatHistory = () => {
             createdAt: item.createdAt,
             ...(item.answer ? { answer: item.answer } : {}),
             ...(item.mock === 'docx' ? { mock: 'docx' as const } : {}),
+            ...(item.pinned === true ? { pinned: true } : {}),
           });
           return items;
         }, []);
@@ -238,11 +243,16 @@ export const useChatHistory = () => {
         if (normalizedItems.length) {
           const localItemsById = new Map(historyItems.value.map((item) => [item.id, item]));
           const mergedItems = normalizedItems.map((item) => {
-            const localAnswer = localItemsById.get(item.id)?.answer;
-            if (!item.answer || !localAnswer) return item;
+            const localItem = localItemsById.get(item.id);
+            const localAnswer = localItem?.answer;
+            const localPinned = localItem?.pinned === true;
+            if (!item.answer || !localAnswer) {
+              return localPinned ? { ...item, pinned: true } : item;
+            }
 
             return {
               ...item,
+              ...(localPinned ? { pinned: true } : {}),
               answer: {
                 ...item.answer,
                 createdSkillId: item.answer.createdSkillId || localAnswer.createdSkillId,
@@ -310,6 +320,27 @@ export const useChatHistory = () => {
 
   const renameConversation = (historyId: string, title: string) => {
     return updateConversationTitle(historyId, null, title);
+  };
+
+  const toggleConversationPinned = (historyId: string) => {
+    const existingIndex = historyItems.value.findIndex((item) => item.id === historyId);
+    const existing = historyItems.value[existingIndex];
+    if (existingIndex < 0 || !existing) return null;
+
+    const updated: ChatHistoryItem = {
+      ...existing,
+      pinned: !existing.pinned,
+    };
+
+    if (!updated.pinned) {
+      delete updated.pinned;
+    }
+
+    historyItems.value.splice(existingIndex, 1, updated);
+    historyItems.value = removeDeprecatedMockHistory(historyItems.value);
+    persistHistory();
+    persistRemoteHistoryItem(updated);
+    return updated;
   };
 
   const applyGeneratedConversationTitle = (
@@ -411,6 +442,7 @@ export const useChatHistory = () => {
     updateConversationTitle,
     applyGeneratedConversationTitle,
     renameConversation,
+    toggleConversationPinned,
     deleteConversation,
     updateConversationAnswer,
   };

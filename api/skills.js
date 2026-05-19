@@ -161,6 +161,40 @@ const normalizeTags = (tags) => Array.isArray(tags)
   ? tags.filter((tag) => typeof tag === 'string' && tag.trim()).map((tag) => tag.trim())
   : [];
 
+const isPublishDestination = (destination) =>
+  destination === 'group' || destination === 'team' || destination === 'public';
+
+const normalizePublishDestinations = (destinations) => {
+  const values = Array.isArray(destinations) ? destinations : [destinations];
+  const normalized = values.filter(isPublishDestination);
+  return Array.from(new Set(normalized.length ? normalized : ['team']));
+};
+
+const normalizeStringList = (value, limit = 20) => {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(
+    value
+      .filter((item) => typeof item === 'string' && item.trim())
+      .map((item) => item.trim()),
+  )).slice(0, limit);
+};
+
+const normalizePublishSettings = (settings, fallbackDestinations) => {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    return null;
+  }
+
+  const pricing = settings.pricing === 'paid' ? 'paid' : 'free';
+  return {
+    destinations: normalizePublishDestinations(settings.destinations ?? fallbackDestinations),
+    groupIds: normalizeStringList(settings.groupIds),
+    pricing,
+    price: pricing === 'paid' ? normalizeText(settings.price) : '',
+    tags: normalizeStringList(settings.tags, 3),
+    publishedAt: normalizeDate(settings.publishedAt),
+  };
+};
+
 const normalizeFiles = (files) => Array.isArray(files)
   ? files.reduce((items, file) => {
       if (
@@ -205,6 +239,8 @@ const toClientSkill = (row, organizationId) => ({
   publisherName: row.publisher_name || undefined,
   publisherAvatarUrl: row.publisher_avatar_url || undefined,
   useProfileIdentity: typeof row.use_profile_identity === 'boolean' ? row.use_profile_identity : true,
+  publishDestinations: normalizePublishDestinations(row.publish_destinations),
+  publishSettings: normalizePublishSettings(row.publish_settings, row.publish_destinations) || undefined,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   lastUsedAt: row.last_used_at || undefined,
@@ -245,6 +281,12 @@ const toStorageRow = (payload, organizationId) => {
     source: 'custom',
     status: payload.status === 'draft' ? 'draft' : 'active',
     files,
+    icon_data_url: normalizeText(payload.iconDataUrl) || null,
+    publisher_name: normalizeText(payload.publisherName) || null,
+    publisher_avatar_url: normalizeText(payload.publisherAvatarUrl) || null,
+    use_profile_identity: typeof payload.useProfileIdentity === 'boolean' ? payload.useProfileIdentity : true,
+    publish_destinations: normalizePublishDestinations(payload.publishDestinations),
+    publish_settings: normalizePublishSettings(payload.publishSettings, payload.publishDestinations),
     usage_count: Number.isFinite(payload.usageCount) ? payload.usageCount : 0,
     last_used_at: payload.lastUsedAt ? normalizeDate(payload.lastUsedAt) : null,
     created_at: payload.createdAt ? normalizeDate(payload.createdAt) : now,
@@ -275,6 +317,12 @@ const readSkills = async (organizationId) => {
     'last_used_at',
     'created_at',
     'updated_at',
+    'icon_data_url',
+    'publisher_name',
+    'publisher_avatar_url',
+    'use_profile_identity',
+    'publish_destinations',
+    'publish_settings',
   ].join(',');
   let rows = [];
   try {

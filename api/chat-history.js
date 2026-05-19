@@ -1,4 +1,18 @@
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const MAX_HISTORY_ITEMS = 20;
+const LOCAL_HISTORY_PATH = process.env.LEGAL_CHAT_HISTORY_FILE
+  || fileURLToPath(new URL('../.data/chat-history.json', import.meta.url));
+
+const canWriteLocalHistory = () => process.env.VERCEL !== '1';
+
+const createStorageError = (message, cause = null) => {
+  const error = new Error(cause instanceof Error ? `${message}：${cause.message}` : message);
+  error.statusCode = 500;
+  return error;
+};
 
 const sendJson = (response, statusCode, payload) => {
   if (typeof response.status === 'function' && typeof response.json === 'function') {
@@ -59,17 +73,64 @@ const supabaseFetch = async (path, init = {}) => {
   return data;
 };
 
+const readLocalRows = async () => {
+  try {
+    const raw = await readFile(LOCAL_HISTORY_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    if (error && typeof error === 'object' && error.code === 'ENOENT') return [];
+    throw error;
+  }
+};
+
+const writeLocalRows = async (rows) => {
+  if (!canWriteLocalHistory()) {
+    throw createStorageError('线上聊天历史持久化需要 Supabase，不能写入 Vercel 只读文件系统');
+  }
+
+  await mkdir(dirname(LOCAL_HISTORY_PATH), { recursive: true });
+  await writeFile(`${LOCAL_HISTORY_PATH}.tmp`, JSON.stringify(rows, null, 2), 'utf8');
+  await rename(`${LOCAL_HISTORY_PATH}.tmp`, LOCAL_HISTORY_PATH);
+};
+
+const rowUpdatedAt = (row) => {
+  const timestamp = Date.parse(row?.updated_at || row?.created_at || '');
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+};
+
+const sortRowsByUpdatedAt = (rows) =>
+  [...rows].sort((left, right) => rowUpdatedAt(right) - rowUpdatedAt(left));
+
+const mergeRowsByLatest = (...rowSets) => {
+  const rowsById = new Map();
+
+  rowSets.flat().forEach((row) => {
+    if (!row || typeof row.id !== 'string' || !row.id.trim()) return;
+
+    const existing = rowsById.get(row.id);
+    if (!existing || rowUpdatedAt(row) >= rowUpdatedAt(existing)) {
+      rowsById.set(row.id, row);
+    }
+  });
+
+  return sortRowsByUpdatedAt([...rowsById.values()]);
+};
+
 const toClientItem = (item) => ({
   id: item.id,
   title: item.title,
   prompt: item.prompt,
   createdAt: item.created_at,
+  ...(item.pinned === true ? { pinned: true } : {}),
   ...(item.answer_content
     ? {
         answer: {
           content: item.answer_content,
           model: item.answer_model || undefined,
           cachedAt: item.answer_cached_at || item.updated_at,
+          createdSkillId: item.answer_created_skill_id || undefined,
+          thinkingContent: item.answer_thinking_content || undefined,
         },
       }
     : {}),
@@ -100,6 +161,9 @@ const stripStorageId = (organizationId, id) => {
   return typeof id === 'string' && id.startsWith(prefix) ? id.slice(prefix.length) : id;
 };
 
+const isOrganizationRow = (organizationId, row) =>
+  typeof row?.id === 'string' && row.id.startsWith(`${organizationId}:`);
+
 const toOrganizationClientItem = (organizationId, item) => ({
   ...toClientItem(item),
   id: stripStorageId(organizationId, item.id),
@@ -113,22 +177,45 @@ const normalizeDate = (value) => {
 };
 
 const readHistoryItems = async (organizationId) => {
+  const localRows = (await readLocalRows()).filter((row) => isOrganizationRow(organizationId, row));
+  const config = getSupabaseConfig();
+  if (!config) {
+    if (!canWriteLocalHistory()) {
+      throw createStorageError('线上聊天历史持久化缺少 Supabase 服务端环境变量');
+    }
+
+    return sortRowsByUpdatedAt(localRows).slice(0, MAX_HISTORY_ITEMS).map((row) =>
+      toOrganizationClientItem(organizationId, row)
+    );
+  }
+
   const fields = [
     'id',
     'title',
     'prompt',
+    'pinned',
     'created_at',
     'updated_at',
     'answer_content',
     'answer_model',
     'answer_cached_at',
+    'answer_created_skill_id',
+    'answer_thinking_content',
   ].join(',');
   const idFilter = encodeURIComponent(`${organizationId}:%`);
-  const rows = await supabaseFetch(
-    `legal_chat_conversations?select=${fields}&id=like.${idFilter}&order=updated_at.desc&limit=${MAX_HISTORY_ITEMS}`,
-  );
+  let rows = [];
+  try {
+    rows = await supabaseFetch(
+      `legal_chat_conversations?select=${fields}&id=like.${idFilter}&order=updated_at.desc&limit=${MAX_HISTORY_ITEMS}`,
+    );
+  } catch (error) {
+    rows = localRows;
+  }
 
-  return Array.isArray(rows) ? rows.map((row) => toOrganizationClientItem(organizationId, row)) : [];
+  return mergeRowsByLatest(Array.isArray(rows) ? rows : [], localRows)
+    .filter((row) => isOrganizationRow(organizationId, row))
+    .slice(0, MAX_HISTORY_ITEMS)
+    .map((row) => toOrganizationClientItem(organizationId, row));
 };
 
 const upsertHistoryItem = async (payload, organizationId) => {
@@ -145,25 +232,60 @@ const upsertHistoryItem = async (payload, organizationId) => {
   const answer = payload.answer && typeof payload.answer === 'object' ? payload.answer : null;
   const answerContent = normalizeText(answer?.content);
   const now = new Date().toISOString();
+  const row = {
+    id,
+    title,
+    prompt,
+    pinned: payload.pinned === true,
+    created_at: normalizeDate(payload.createdAt),
+    updated_at: now,
+    answer_content: answerContent || null,
+    answer_model: normalizeText(answer?.model) || null,
+    answer_cached_at: answerContent ? normalizeDate(answer?.cachedAt || now) : null,
+    answer_created_skill_id: normalizeText(answer?.createdSkillId) || null,
+    answer_thinking_content: normalizeText(answer?.thinkingContent) || null,
+  };
+  const config = getSupabaseConfig();
 
-  const rows = await supabaseFetch('legal_chat_conversations?on_conflict=id', {
-    method: 'POST',
-    headers: {
-      Prefer: 'resolution=merge-duplicates,return=representation',
-    },
-    body: JSON.stringify({
-      id,
-      title,
-      prompt,
-      created_at: normalizeDate(payload.createdAt),
-      updated_at: now,
-      answer_content: answerContent || null,
-      answer_model: normalizeText(answer?.model) || null,
-      answer_cached_at: answerContent ? normalizeDate(answer?.cachedAt || now) : null,
-    }),
-  });
+  if (!config) {
+    if (!canWriteLocalHistory()) {
+      throw createStorageError('线上聊天历史持久化缺少 Supabase 服务端环境变量');
+    }
 
-  return toOrganizationClientItem(organizationId, Array.isArray(rows) ? rows[0] : rows);
+    const rows = mergeRowsByLatest([row], await readLocalRows());
+    await writeLocalRows(rows);
+    return toOrganizationClientItem(organizationId, row);
+  }
+
+  let rows = null;
+  try {
+    rows = await supabaseFetch('legal_chat_conversations?on_conflict=id', {
+      method: 'POST',
+      headers: {
+        Prefer: 'resolution=merge-duplicates,return=representation',
+      },
+      body: JSON.stringify(row),
+    });
+  } catch (error) {
+    if (!canWriteLocalHistory()) {
+      throw createStorageError('Supabase 聊天历史持久化失败', error);
+    }
+
+    const nextRows = mergeRowsByLatest([row], await readLocalRows());
+    await writeLocalRows(nextRows);
+    return toOrganizationClientItem(organizationId, row);
+  }
+
+  if (canWriteLocalHistory()) {
+    await writeLocalRows(mergeRowsByLatest(Array.isArray(rows) ? rows : [rows || row], await readLocalRows())).catch(() => null);
+  }
+
+  return toOrganizationClientItem(organizationId, Array.isArray(rows) ? rows[0] : rows || row);
+};
+
+const deleteLocalHistoryItem = async (historyId) => {
+  const rows = await readLocalRows();
+  await writeLocalRows(rows.filter((item) => item.id !== historyId));
 };
 
 const deleteHistoryItem = async (id, organizationId) => {
@@ -175,12 +297,32 @@ const deleteHistoryItem = async (id, organizationId) => {
     throw error;
   }
 
-  await supabaseFetch(`legal_chat_conversations?id=eq.${encodeURIComponent(historyId)}`, {
-    method: 'DELETE',
-    headers: {
-      Prefer: 'return=minimal',
-    },
-  });
+  const config = getSupabaseConfig();
+  if (!config) {
+    if (!canWriteLocalHistory()) {
+      throw createStorageError('线上聊天历史持久化缺少 Supabase 服务端环境变量');
+    }
+
+    await deleteLocalHistoryItem(historyId);
+    return;
+  }
+
+  try {
+    await supabaseFetch(`legal_chat_conversations?id=eq.${encodeURIComponent(historyId)}`, {
+      method: 'DELETE',
+      headers: {
+        Prefer: 'return=minimal',
+      },
+    });
+  } catch (error) {
+    if (!canWriteLocalHistory()) {
+      throw createStorageError('Supabase 聊天历史删除失败', error);
+    }
+  }
+
+  if (canWriteLocalHistory()) {
+    await deleteLocalHistoryItem(historyId).catch(() => null);
+  }
 };
 
 export default async function handler(request, response) {

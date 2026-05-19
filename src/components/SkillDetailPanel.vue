@@ -1,36 +1,19 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import {
-  Check,
+  Camera,
   ChevronDown,
   ChevronRight,
-  Copy,
-  Download,
   FileText,
-  Pencil,
-  Power,
-  Upload,
+  Folder,
+  Plus,
 } from 'lucide-vue-next';
 import {
-  addPersonalSkill,
   isSkillEnabled,
-  isSkillAvailable,
-  isRecommendedSkill,
-  publishSkillToTeamMarket,
-  setSkillEnabled,
   upsertCustomSkill,
-  type SkillPublishDestination,
   type SkillCatalogItem,
   type SkillFile,
 } from '../data/skillCatalog';
-import {
-  getSkillAuthorAvatarStyle,
-  getSkillAuthorAvatarText,
-  getSkillAuthorName,
-  hasSkillAuthorAvatarImage,
-  getProfileDisplayName,
-} from '../data/profileIdentity';
-import { useOrgSession } from '../stores/orgSession';
 
 const props = withDefaults(
   defineProps<{
@@ -63,67 +46,29 @@ type TreeGroup = {
   folders: TreeFolder[];
 };
 
-type DetailPanelMode = 'preview' | 'publish';
-type SkillPublishVisibility = 'personal' | SkillPublishDestination;
-type ShareablePublishVisibility = Exclude<SkillPublishVisibility, 'personal'>;
-
-type SkillPublishPermissionSettings = {
-  allowCopy: boolean;
-  allowRemix: boolean;
-  showPublisherName: boolean;
-  publisherName: string;
+type DetailPanelMode = 'docs' | 'info';
+type MarkdownListItem = {
+  text: string;
+  todo?: boolean;
+  checked?: boolean;
 };
-
-type SkillPublishSettings = {
-  iconDataUrl: string;
-  name: string;
-  useProfileIdentity: boolean;
-  description: string;
-  visibilities: SkillPublishVisibility[];
-  scopePermissions: Record<ShareablePublishVisibility, SkillPublishPermissionSettings>;
-};
-
-const defaultPublisherName = '李律师';
-const skillPublishSettingsStorageKey = 'legal-version-skill-publish-settings';
-const { currentUser } = useOrgSession();
-
-const createDefaultPublishPermission = (): SkillPublishPermissionSettings => ({
-  allowCopy: false,
-  allowRemix: false,
-  showPublisherName: true,
-  publisherName: defaultPublisherName,
-});
-
-const publishVisibilityOptions: Array<{
-  id: SkillPublishVisibility;
-  label: string;
-  description: string;
-  permissionSubject?: string;
-}> = [
-  { id: 'personal', label: '仅自己', description: '只保存在个人技能区，可随时继续调整。' },
-  { id: 'group', label: '小组', description: '小组成员可以在技能库中查看和调用。', permissionSubject: '小组成员' },
-  { id: 'team', label: '本团队', description: '本团队成员可以在技能库中查看和调用。', permissionSubject: '本团队成员' },
-  { id: 'public', label: '市场（hub）', description: '公开后可进入市场（hub），更多用户可以发现和安装。', permissionSubject: '市场（hub）用户' },
-];
+type MarkdownBlock =
+  | { kind: 'heading'; depth: number; text: string }
+  | { kind: 'paragraph'; text: string }
+  | { kind: 'list'; ordered: boolean; items: MarkdownListItem[] }
+  | { kind: 'space' };
 
 const activeFileId = ref('');
 const expandedTreeKeys = ref<Record<string, boolean>>({});
 const editMode = ref(false);
 const editBuffer = ref('');
 const fileDrafts = ref<Record<string, string>>({});
-const detailPanelMode = ref<DetailPanelMode>('preview');
-const publishIconInputRef = ref<HTMLInputElement | null>(null);
-const publishSettings = ref<SkillPublishSettings>({
+const detailPanelMode = ref<DetailPanelMode>('docs');
+const basicIconInputRef = ref<HTMLInputElement | null>(null);
+const basicInfoDraft = ref({
   iconDataUrl: '',
   name: '',
-  useProfileIdentity: true,
   description: '',
-  visibilities: ['personal'],
-  scopePermissions: {
-    group: createDefaultPublishPermission(),
-    team: createDefaultPublishPermission(),
-    public: createDefaultPublishPermission(),
-  },
 });
 const statusMessage = ref('');
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -152,6 +97,17 @@ const activeFileParentPath = computed(() => {
 });
 
 const activeFileName = computed(() => activeFile.value?.name ?? '');
+const currentFileKey = computed(() =>
+  activeFile.value ? `${props.skill.id}:${activeFile.value.id}` : ''
+);
+
+const panelClass = computed(() => `${props.layout}-layout`);
+const selectedSkillIsEnabled = computed(() => isSkillEnabled(props.skill));
+const displayName = computed(() => basicInfoDraft.value.name || props.skill.name);
+const displayDescription = computed(() => basicInfoDraft.value.description || props.skill.description);
+const displayIconUrl = computed(() => basicInfoDraft.value.iconDataUrl || props.skill.iconDataUrl || '');
+const iconFallback = computed(() => displayName.value.trim().slice(0, 1).toUpperCase() || '技');
+const isMarkdownFile = computed(() => (activeFile.value?.type ?? 'markdown') === 'markdown');
 
 const treeGroups = computed<TreeGroup[]>(() => {
   type GroupBucket = { files: SkillFile[]; folderMap: Map<string, SkillFile[]> };
@@ -192,183 +148,87 @@ const treeGroups = computed<TreeGroup[]>(() => {
   }));
 });
 
-const currentFileKey = computed(() =>
-  activeFile.value ? `${props.skill.id}:${activeFile.value.id}` : ''
-);
-
-const selectedSkillIsRecommended = computed(() => isRecommendedSkill(props.skill.id));
-
-const selectedSkillIsAdded = computed(() =>
-  !selectedSkillIsRecommended.value || isSkillAvailable(props.skill.id)
-);
-
-const selectedSkillIsEnabled = computed(() => isSkillEnabled(props.skill));
-
-const panelClass = computed(() => `${props.layout}-layout`);
-
-type StoredPublishSettings = Partial<Omit<SkillPublishSettings, 'visibilities' | 'scopePermissions'>> & {
-  visibility?: SkillPublishVisibility | 'public';
-  visibilities?: unknown;
-  scopePermissions?: Partial<Record<ShareablePublishVisibility, Partial<SkillPublishPermissionSettings>>>;
-} & Partial<SkillPublishPermissionSettings>;
-
-const isShareablePublishVisibility = (value: unknown): value is ShareablePublishVisibility =>
-  value === 'group' || value === 'team' || value === 'public';
-
-const isPublishVisibility = (value: unknown): value is SkillPublishVisibility =>
-  value === 'personal' || isShareablePublishVisibility(value);
-
-const normalizePublishVisibilities = (value: unknown): SkillPublishVisibility[] => {
-  const values = Array.isArray(value) ? value : [value];
-  const normalized = values.filter(isPublishVisibility);
-  return Array.from(new Set(normalized.length ? normalized : ['personal']));
+const stripFrontmatter = (content: string) => {
+  const normalized = content.replace(/\r\n/g, '\n');
+  return normalized.startsWith('---\n')
+    ? normalized.replace(/^---\n[\s\S]*?\n---\n?/, '')
+    : normalized;
 };
 
-const hasLegacyPublishPermission = (settings: StoredPublishSettings) =>
-  'allowCopy' in settings
-  || 'allowRemix' in settings
-  || 'showPublisherName' in settings
-  || 'publisherName' in settings;
+const parseMarkdown = (content: string): MarkdownBlock[] => {
+  const blocks: MarkdownBlock[] = [];
+  let activeList: { ordered: boolean; items: MarkdownListItem[] } | null = null;
 
-const normalizePublishPermission = (
-  permission: Partial<SkillPublishPermissionSettings> | undefined,
-): SkillPublishPermissionSettings => {
-  const allowCopy = Boolean(permission?.allowCopy);
-  const publisherName = typeof permission?.publisherName === 'string' && permission.publisherName.trim()
-    ? permission.publisherName.trim()
-    : defaultPublisherName;
-
-  return {
-    allowCopy,
-    allowRemix: allowCopy && Boolean(permission?.allowRemix),
-    showPublisherName: typeof permission?.showPublisherName === 'boolean'
-      ? permission.showPublisherName
-      : true,
-    publisherName,
+  const flushList = () => {
+    if (!activeList) return;
+    blocks.push({ kind: 'list', ordered: activeList.ordered, items: activeList.items });
+    activeList = null;
   };
-};
 
-const readStoredPublishSettings = (): Record<string, StoredPublishSettings> => {
-  if (typeof window === 'undefined') return {};
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(skillPublishSettingsStorageKey) || '{}');
-    return parsed && typeof parsed === 'object'
-      ? parsed as Record<string, StoredPublishSettings>
-      : {};
-  } catch {
-    return {};
-  }
-};
+  stripFrontmatter(content).split('\n').forEach((rawLine) => {
+    const line = rawLine.replace(/\r$/, '');
+    const trimmed = line.trim();
+    let match = trimmed.match(/^(#{1,6})\s+(.+)$/);
 
-const writeStoredPublishSettings = (skillId: string, settings: SkillPublishSettings) => {
-  if (typeof window === 'undefined' || !skillId) return;
-  const stored = readStoredPublishSettings();
-  stored[skillId] = settings;
-  window.localStorage.setItem(skillPublishSettingsStorageKey, JSON.stringify(stored));
-};
+    if (match) {
+      flushList();
+      blocks.push({ kind: 'heading', depth: (match[1] ?? '#').length, text: (match[2] ?? '').trim() });
+      return;
+    }
 
-const createPublishSettingsForSkill = (skill: SkillCatalogItem): SkillPublishSettings => {
-  const stored = readStoredPublishSettings()[skill.id] ?? {};
-  const visibilities = normalizePublishVisibilities(
-    Array.isArray(stored.visibilities) ? stored.visibilities : stored.visibility,
+    match = trimmed.match(/^[-*]\s+\[([ xX])\]\s+(.+)$/);
+    if (match) {
+      if (!activeList || activeList.ordered) {
+        flushList();
+        activeList = { ordered: false, items: [] };
+      }
+      activeList.items.push({
+        text: (match[2] ?? '').trim(),
+        todo: true,
+        checked: (match[1] ?? '').toLowerCase() === 'x',
+      });
+      return;
+    }
+
+    match = trimmed.match(/^[-*•]\s+(.+)$/);
+    if (match) {
+      if (!activeList || activeList.ordered) {
+        flushList();
+        activeList = { ordered: false, items: [] };
+      }
+      activeList.items.push({ text: (match[1] ?? '').trim() });
+      return;
+    }
+
+    match = trimmed.match(/^\d+\.\s+(.+)$/);
+    if (match) {
+      if (!activeList || !activeList.ordered) {
+        flushList();
+        activeList = { ordered: true, items: [] };
+      }
+      activeList.items.push({ text: (match[1] ?? '').trim() });
+      return;
+    }
+
+    if (!trimmed) {
+      flushList();
+      if (blocks[blocks.length - 1]?.kind !== 'space') {
+        blocks.push({ kind: 'space' });
+      }
+      return;
+    }
+
+    flushList();
+    blocks.push({ kind: 'paragraph', text: trimmed });
+  });
+
+  flushList();
+  return blocks.filter((block, index, items) =>
+    block.kind !== 'space' || (index > 0 && index < items.length - 1)
   );
-  const storedScopePermissions = stored.scopePermissions && typeof stored.scopePermissions === 'object'
-    ? stored.scopePermissions
-    : {};
-  const legacyPermission = normalizePublishPermission(stored);
-  const createPermissionForVisibility = (option: ShareablePublishVisibility) => {
-    const scopedPermission = storedScopePermissions[option];
-    if (scopedPermission && typeof scopedPermission === 'object') {
-      return normalizePublishPermission(scopedPermission);
-    }
-    if (visibilities.includes(option) && hasLegacyPublishPermission(stored)) {
-      return legacyPermission;
-    }
-    return createDefaultPublishPermission();
-  };
-
-  return {
-    iconDataUrl: typeof stored.iconDataUrl === 'string' ? stored.iconDataUrl : skill.iconDataUrl || '',
-    name: typeof stored.name === 'string' && stored.name.trim() ? stored.name : skill.name,
-    useProfileIdentity: typeof stored.useProfileIdentity === 'boolean'
-      ? stored.useProfileIdentity
-      : skill.useProfileIdentity !== false,
-    description: typeof stored.description === 'string' && stored.description.trim()
-      ? stored.description
-      : skill.description,
-    visibilities,
-    scopePermissions: {
-      group: createPermissionForVisibility('group'),
-      team: createPermissionForVisibility('team'),
-      public: createPermissionForVisibility('public'),
-    },
-  };
 };
 
-const selectedPublishVisibilityOptions = computed(() =>
-  publishVisibilityOptions.filter((option) => publishSettings.value.visibilities.includes(option.id))
-);
-
-const selectedShareablePublishOptions = computed(() =>
-  selectedPublishVisibilityOptions.value.filter(
-    (option): option is typeof option & { id: ShareablePublishVisibility } =>
-      isShareablePublishVisibility(option.id),
-  )
-);
-
-const publishVisibilityDescription = computed(() =>
-  selectedPublishVisibilityOptions.value.length
-    ? `已选择 ${selectedPublishVisibilityOptions.value.map((option) => option.label).join('、')}，可同时发布到多个范围。`
-    : '请选择至少一个发布范围。'
-);
-
-const publishSettingsSummary = computed(() => {
-  const previewSkill = {
-    ...props.skill,
-    useProfileIdentity: publishSettings.value.useProfileIdentity,
-  };
-  const authorName = getSkillAuthorName(previewSkill, currentUser.value);
-  const identity = publishSettings.value.useProfileIdentity
-    ? `使用个人资料：${getProfileDisplayName(currentUser.value)} / ${publishSettings.value.name || props.skill.name}`
-    : authorName
-      ? `技能作者：${authorName} / ${publishSettings.value.name || props.skill.name}`
-      : `仅显示技能：${publishSettings.value.name || props.skill.name}`;
-  const shareableLabels = selectedShareablePublishOptions.value.map((option) => option.label);
-  if (!shareableLabels.length) return `仅保存在个人技能区 · ${identity}`;
-
-  return `发布到：${shareableLabels.join('、')} · ${identity}`;
-});
-
-const publishIdentityPreviewSkill = computed(() => ({
-  ...props.skill,
-  useProfileIdentity: publishSettings.value.useProfileIdentity,
-}));
-const profileIdentityPreviewName = computed(() =>
-  getSkillAuthorName(publishIdentityPreviewSkill.value, currentUser.value) || '未设置作者'
-);
-const profileIdentityPreviewText = computed(() =>
-  getSkillAuthorAvatarText(publishIdentityPreviewSkill.value, currentUser.value) || '作'
-);
-const profileIdentityPreviewStyle = computed(() =>
-  getSkillAuthorAvatarStyle(publishIdentityPreviewSkill.value, currentUser.value)
-);
-const profileIdentityPreviewHasImage = computed(() =>
-  hasSkillAuthorAvatarImage(publishIdentityPreviewSkill.value, currentUser.value)
-);
-const profileIdentityPreviewSource = computed(() =>
-  publishSettings.value.useProfileIdentity ? '来自个人中心' : '来自技能作者'
-);
-
-const publishIconFallback = computed(() =>
-  (publishSettings.value.name || props.skill.name || '技').trim().slice(0, 1).toUpperCase()
-);
-
-const canSavePublishSettings = computed(() =>
-  Boolean(
-    publishSettings.value.name.trim()
-    && publishSettings.value.description.trim()
-  )
-);
+const markdownBlocks = computed(() => parseMarkdown(activeFileContent.value));
 
 const setStatus = (message: string) => {
   statusMessage.value = message;
@@ -386,7 +246,12 @@ const resetDetailState = (skill: SkillCatalogItem) => {
   activeFileId.value = firstFile?.id ?? '';
   editMode.value = false;
   editBuffer.value = '';
-  publishSettings.value = createPublishSettingsForSkill(skill);
+  fileDrafts.value = {};
+  basicInfoDraft.value = {
+    iconDataUrl: skill.iconDataUrl || '',
+    name: skill.name,
+    description: skill.description,
+  };
 
   const nextExpanded: Record<string, boolean> = {};
   skill.files.forEach((file) => {
@@ -410,95 +275,29 @@ const toggleExpanded = (key: string) => {
   };
 };
 
-const selectFile = (file: SkillFile) => {
-  detailPanelMode.value = 'preview';
-  activeFileId.value = file.id;
-  editMode.value = false;
-  editBuffer.value = '';
-};
-
-const copyText = async (text: string, label: string) => {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const textarea = document.createElement('textarea');
-    textarea.value = text;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    textarea.remove();
-  }
-  setStatus(`${label}已复制`);
-};
-
-const downloadText = (filename: string, content: string) => {
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-  setStatus(`${filename} 已下载`);
-};
-
-const createSkillBundleContent = (skill: SkillCatalogItem) =>
-  skill.files.map((file) => `# ${file.path}\n\n${file.content}`).join('\n\n---\n\n');
-
-const copyCurrentFile = () => {
-  if (!activeFile.value) return;
-  void copyText(activeFileContent.value, activeFile.value.name);
-};
-
-const downloadCurrentSkill = () => {
-  downloadText(`${props.skill.name}-skill-bundle.md`, createSkillBundleContent(props.skill));
-};
-
-const useSkill = () => {
-  if (!selectedSkillIsEnabled.value) {
-    setStatus('请先启用技能后再使用');
-    return;
-  }
-
-  emit('use', props.skill.name);
-  setStatus(`${props.skill.name} 已选择`);
-};
-
-const addSkill = () => {
-  const didAdd = addPersonalSkill(props.skill.id);
-  setStatus(didAdd ? `${props.skill.name} 已添加` : `${props.skill.name} 已添加`);
-};
-
-const enableSkill = () => {
-  const updatedSkill = setSkillEnabled(props.skill.id, true);
-  if (updatedSkill) {
-    emit('updated', updatedSkill);
-  }
-  setStatus(`${props.skill.name} 已启用`);
-};
-
 const setDetailPanelMode = (mode: DetailPanelMode) => {
-  if (mode === 'publish' && editMode.value) {
+  if (mode === detailPanelMode.value) return;
+  if (editMode.value) {
     setStatus('请先保存或取消当前文件编辑');
     return;
   }
   detailPanelMode.value = mode;
 };
 
-const choosePublishIcon = () => {
-  publishIconInputRef.value?.click();
+const selectFile = (file: SkillFile) => {
+  if (editMode.value) {
+    setStatus('请先保存或取消当前文件编辑');
+    return;
+  }
+  detailPanelMode.value = 'docs';
+  activeFileId.value = file.id;
 };
 
-const clearPublishIcon = () => {
-  publishSettings.value = {
-    ...publishSettings.value,
-    iconDataUrl: '',
-  };
+const chooseBasicIcon = () => {
+  basicIconInputRef.value?.click();
 };
 
-const handlePublishIconUpload = (event: Event) => {
+const handleBasicIconUpload = (event: Event) => {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   input.value = '';
@@ -512,180 +311,71 @@ const handlePublishIconUpload = (event: Event) => {
   const reader = new FileReader();
   reader.onload = () => {
     if (typeof reader.result !== 'string') return;
-    publishSettings.value = {
-      ...publishSettings.value,
+    basicInfoDraft.value = {
+      ...basicInfoDraft.value,
       iconDataUrl: reader.result,
     };
   };
   reader.readAsDataURL(file);
 };
 
-const updatePublishPermission = (
-  visibility: ShareablePublishVisibility,
-  patch: Partial<SkillPublishPermissionSettings>,
-) => {
-  const { scopePermissions } = publishSettings.value;
-  const nextPermission = {
-    ...scopePermissions[visibility],
-    ...patch,
-  };
-  if (!nextPermission.allowCopy) {
-    nextPermission.allowRemix = false;
-  }
-
-  publishSettings.value = {
-    ...publishSettings.value,
-    scopePermissions: {
-      ...scopePermissions,
-      [visibility]: nextPermission,
-    },
-  };
-};
-
-const handlePermissionCopyChange = (visibility: ShareablePublishVisibility, event: Event) => {
-  const allowCopy = (event.target as HTMLInputElement).checked;
-  updatePublishPermission(visibility, {
-    allowCopy,
-    allowRemix: allowCopy ? publishSettings.value.scopePermissions[visibility].allowRemix : false,
-  });
-};
-
-const handlePermissionRemixChange = (visibility: ShareablePublishVisibility, event: Event) => {
-  updatePublishPermission(visibility, {
-    allowRemix: (event.target as HTMLInputElement).checked,
-  });
-};
-
-const isPublishVisibilitySelected = (visibility: SkillPublishVisibility) =>
-  publishSettings.value.visibilities.includes(visibility);
-
-const isScopePermissionEnabled = (visibility: SkillPublishVisibility) =>
-  isShareablePublishVisibility(visibility) && isPublishVisibilitySelected(visibility);
-
-const getScopePermission = (visibility: SkillPublishVisibility) =>
-  isShareablePublishVisibility(visibility)
-    ? publishSettings.value.scopePermissions[visibility]
-    : null;
-
-const isScopePermissionAllowCopy = (visibility: SkillPublishVisibility) =>
-  Boolean(getScopePermission(visibility)?.allowCopy);
-
-const isScopePermissionAllowRemix = (visibility: SkillPublishVisibility) =>
-  Boolean(getScopePermission(visibility)?.allowRemix);
-
-const handleScopePermissionCopyChange = (visibility: SkillPublishVisibility, event: Event) => {
-  if (!isShareablePublishVisibility(visibility)) return;
-  handlePermissionCopyChange(visibility, event);
-};
-
-const handleScopePermissionRemixChange = (visibility: SkillPublishVisibility, event: Event) => {
-  if (!isShareablePublishVisibility(visibility)) return;
-  handlePermissionRemixChange(visibility, event);
-};
-
-const togglePublishVisibility = (visibility: SkillPublishVisibility) => {
-  const current = publishSettings.value.visibilities;
-  const next = current.includes(visibility)
-    ? current.filter((item) => item !== visibility)
-    : [...current, visibility];
-
-  publishSettings.value = {
-    ...publishSettings.value,
-    visibilities: normalizePublishVisibilities(next),
-  };
-};
-
-const normalizePublishSettings = (settings: SkillPublishSettings): SkillPublishSettings => ({
-  ...settings,
-  name: settings.name.trim(),
-  description: settings.description.trim(),
-  useProfileIdentity: Boolean(settings.useProfileIdentity),
-  visibilities: normalizePublishVisibilities(settings.visibilities),
-  scopePermissions: {
-    group: normalizePublishPermission(settings.scopePermissions.group),
-    team: normalizePublishPermission(settings.scopePermissions.team),
-    public: normalizePublishPermission(settings.scopePermissions.public),
-  },
-});
-
-const formatPublishDestinations = (visibilities: SkillPublishVisibility[]) => {
-  const labels = publishVisibilityOptions
-    .filter((option) => visibilities.includes(option.id))
-    .map((option) => option.label);
-  return labels.length ? labels.join('、') : '未选择范围';
-};
-
-const saveSkillPublishSettings = (mode: 'draft' | 'publish') => {
-  const settings = normalizePublishSettings(publishSettings.value);
-
-  if (!settings.name || !settings.description) {
-    setStatus('请补全技能名称和描述');
+const saveBasicInfo = () => {
+  const name = basicInfoDraft.value.name.trim();
+  const description = basicInfoDraft.value.description.trim();
+  if (!name || !description) {
+    setStatus('请补全技能名称和简要描述');
     return;
   }
 
   const updatedSkill = upsertCustomSkill({
     ...props.skill,
-    name: settings.name,
-    iconDataUrl: settings.iconDataUrl,
-    useProfileIdentity: settings.useProfileIdentity,
-    description: settings.description,
-    scope: mode === 'publish' && settings.visibilities.some(isShareablePublishVisibility) ? 'team' : 'personal',
-    status: mode === 'publish' ? 'active' : 'draft',
+    name,
+    description,
+    iconDataUrl: basicInfoDraft.value.iconDataUrl,
+    status: props.skill.status || 'active',
   });
 
   if (!updatedSkill) {
-    setStatus('发布设置保存失败');
+    setStatus('保存失败');
     return;
   }
 
-  publishSettings.value = settings;
-  writeStoredPublishSettings(updatedSkill.id, settings);
-  if (mode === 'publish') {
-    const destinations = settings.visibilities.filter(isShareablePublishVisibility);
-    if (destinations.length) {
-      publishSkillToTeamMarket(updatedSkill.id, destinations);
-    }
-  }
   emit('updated', updatedSkill);
-  setStatus(
-    mode === 'publish'
-      ? `技能已发布到${formatPublishDestinations(settings.visibilities)}`
-      : '技能发布设置已保存为草稿',
-  );
+  setStatus('基本信息已保存');
 };
 
 const startEditMode = () => {
   if (!activeFile.value || !currentFileKey.value) return;
 
-  detailPanelMode.value = 'preview';
+  detailPanelMode.value = 'docs';
   editBuffer.value = activeFileContent.value;
   editMode.value = true;
-  setStatus('已进入编辑模式');
 };
 
 const saveEdit = () => {
   if (!activeFile.value || !currentFileKey.value) return;
 
+  const targetFileId = activeFile.value.id;
+  const updatedFiles = props.skill.files.map((file) =>
+    file.id === targetFileId ? { ...file, content: editBuffer.value } : file
+  );
+  const updatedSkill = upsertCustomSkill({
+    ...props.skill,
+    files: updatedFiles,
+    status: props.skill.status || 'active',
+  });
+
+  if (!updatedSkill) {
+    setStatus('保存失败');
+    return;
+  }
+
   fileDrafts.value = {
     ...fileDrafts.value,
     [currentFileKey.value]: editBuffer.value,
   };
-
-  if (props.skill.source === 'custom') {
-    const updatedFiles = props.skill.files.map((file) =>
-      file.id === activeFile.value?.id ? { ...file, content: editBuffer.value } : file
-    );
-    const updatedSkill = upsertCustomSkill({
-      ...props.skill,
-      files: updatedFiles,
-      status: props.skill.status || 'active',
-    });
-    if (updatedSkill) {
-      emit('updated', updatedSkill);
-    }
-  }
-
   editMode.value = false;
+  emit('updated', updatedSkill);
   setStatus('当前文件已保存');
 };
 
@@ -693,6 +383,30 @@ const cancelEdit = () => {
   editBuffer.value = '';
   editMode.value = false;
   setStatus('已取消编辑');
+};
+
+const handleCancel = () => {
+  if (editMode.value) {
+    cancelEdit();
+    return;
+  }
+  emit('back');
+};
+
+const handleSave = () => {
+  if (detailPanelMode.value === 'info') {
+    saveBasicInfo();
+    return;
+  }
+  if (editMode.value) {
+    saveEdit();
+    return;
+  }
+  setStatus('当前技能已保存');
+};
+
+const handleTreeAdd = () => {
+  setStatus('请在创建流程中新增技能文件');
 };
 
 watch(
@@ -704,34 +418,7 @@ watch(
 watch(
   () => props.skill.id,
   () => {
-    detailPanelMode.value = 'preview';
-  },
-);
-
-watch(
-  () => [
-    publishSettings.value.scopePermissions.group.allowCopy,
-    publishSettings.value.scopePermissions.team.allowCopy,
-    publishSettings.value.scopePermissions.public.allowCopy,
-  ] as const,
-  ([groupAllowCopy, teamAllowCopy, publicAllowCopy]) => {
-    const { group, team, public: publicPermission } = publishSettings.value.scopePermissions;
-    if (
-      (groupAllowCopy || !group.allowRemix)
-      && (teamAllowCopy || !team.allowRemix)
-      && (publicAllowCopy || !publicPermission.allowRemix)
-    ) {
-      return;
-    }
-
-    publishSettings.value = {
-      ...publishSettings.value,
-      scopePermissions: {
-        group: groupAllowCopy ? group : { ...group, allowRemix: false },
-        team: teamAllowCopy ? team : { ...team, allowRemix: false },
-        public: publicAllowCopy ? publicPermission : { ...publicPermission, allowRemix: false },
-      },
-    };
+    detailPanelMode.value = 'docs';
   },
 );
 
@@ -759,78 +446,49 @@ onBeforeUnmount(() => {
         <button class="detail-back-btn" type="button" aria-label="返回技能列表" @click="emit('back')">
           <ChevronRight :size="17" class="back-chevron" />
         </button>
+        <span class="detail-skill-icon" aria-hidden="true">
+          <img v-if="displayIconUrl" :src="displayIconUrl" alt="" />
+          <FileText v-else :size="20" :stroke-width="1.6" />
+        </span>
         <div class="detail-title-copy">
           <div class="detail-title-row">
-            <h2>{{ skill.name }}</h2>
+            <h2>{{ displayName }}</h2>
             <span class="skill-state-badge" :class="{ closed: !selectedSkillIsEnabled }">
               {{ selectedSkillIsEnabled ? '已启用' : '已停用' }}
             </span>
           </div>
-          <p>{{ skill.description }}</p>
+          <p>{{ displayDescription }}</p>
         </div>
       </div>
       <div class="detail-actions">
         <span v-if="statusMessage" class="detail-status">{{ statusMessage }}</span>
-        <div class="detail-view-switch" role="tablist" aria-label="技能详情视图">
-          <button
-            type="button"
-            role="tab"
-            :class="{ active: detailPanelMode === 'preview' }"
-            :aria-selected="detailPanelMode === 'preview'"
-            @click="setDetailPanelMode('preview')"
-          >
-            预览
-          </button>
-          <button
-            type="button"
-            role="tab"
-            :class="{ active: detailPanelMode === 'publish' }"
-            :aria-selected="detailPanelMode === 'publish'"
-            @click="setDetailPanelMode('publish')"
-          >
-            发布设置
-          </button>
-        </div>
-        <button v-if="selectedSkillIsAdded && selectedSkillIsEnabled" class="use-skill-btn" type="button" @click="useSkill">去使用</button>
-        <button
-          v-else-if="selectedSkillIsAdded"
-          class="use-skill-btn add-detail-btn"
-          type="button"
-          @click="enableSkill"
-        >
-          <Power :size="15" />
-          启用技能
-        </button>
-        <button v-else class="use-skill-btn add-detail-btn" type="button" @click="addSkill">
-          添加
-        </button>
-        <template v-if="editMode">
-          <button class="edit-cancel-btn" type="button" @click="cancelEdit">取消</button>
-          <button class="edit-save-btn" type="button" @click="saveEdit">保存</button>
-        </template>
-        <button
-          v-else
-          class="detail-icon-btn"
-          type="button"
-          aria-label="编辑当前技能文件"
-          title="编辑当前技能文件"
-          @click="startEditMode"
-        >
-          <Pencil :size="18" />
-        </button>
-        <button
-          class="detail-icon-btn"
-          type="button"
-          aria-label="下载技能包"
-          title="下载技能包"
-          @click="downloadCurrentSkill"
-        >
-          <Download :size="18" />
-        </button>
+        <button class="edit-cancel-btn" type="button" @click="handleCancel">取消</button>
+        <button class="edit-save-btn" type="button" @click="handleSave">保存</button>
       </div>
     </header>
 
-    <div v-if="detailPanelMode === 'preview'" class="skill-detail-shell">
+    <nav class="detail-tabs" role="tablist" aria-label="技能详情视图">
+      <button
+        type="button"
+        role="tab"
+        :class="{ active: detailPanelMode === 'docs' }"
+        :aria-selected="detailPanelMode === 'docs'"
+        @click="setDetailPanelMode('docs')"
+      >
+        技能文档
+      </button>
+      <button
+        type="button"
+        role="tab"
+        :class="{ active: detailPanelMode === 'info' }"
+        :aria-selected="detailPanelMode === 'info'"
+        @click="setDetailPanelMode('info')"
+      >
+        基本信息
+      </button>
+    </nav>
+
+    <div v-if="detailPanelMode === 'docs'" class="skill-detail-shell">
       <aside class="detail-tree" aria-label="技能文件">
         <button
           v-if="rootFile"
@@ -839,27 +497,35 @@ onBeforeUnmount(() => {
           type="button"
           @click="selectFile(rootFile)"
         >
-          <FileText :size="15" />
+          <FileText :size="15" :stroke-width="1.7" />
           <span>{{ rootFile.name }}</span>
+          <em>技能定义</em>
         </button>
 
         <div v-for="group in treeGroups" :key="group.key" class="tree-group">
-          <button class="tree-heading" type="button" @click="toggleExpanded(group.key)">
-            <ChevronDown v-if="isExpanded(group.key)" :size="15" />
-            <ChevronRight v-else :size="15" />
-            <span>{{ group.label }}</span>
-          </button>
+          <div class="tree-heading-row">
+            <button class="tree-heading" type="button" @click="toggleExpanded(group.key)">
+              <ChevronDown v-if="isExpanded(group.key)" :size="14" />
+              <ChevronRight v-else :size="14" />
+              <Folder :size="15" :stroke-width="1.7" />
+              <span>{{ group.label }}</span>
+              <em>{{ group.files.length + group.folders.reduce((count, folder) => count + folder.files.length, 0) }}</em>
+            </button>
+            <button class="tree-add-btn" type="button" aria-label="新增技能文件" @click="handleTreeAdd">
+              <Plus :size="13" :stroke-width="2" />
+            </button>
+          </div>
 
           <template v-if="isExpanded(group.key)">
             <button
               v-for="file in group.files"
               :key="file.id"
-              class="tree-file"
+              class="tree-file nested"
               :class="{ active: activeFile?.id === file.id }"
               type="button"
               @click="selectFile(file)"
             >
-              <FileText :size="15" />
+              <FileText :size="14" :stroke-width="1.7" />
               <span>{{ file.name }}</span>
             </button>
 
@@ -869,21 +535,23 @@ onBeforeUnmount(() => {
                 type="button"
                 @click="toggleExpanded(folder.key)"
               >
-                <ChevronDown v-if="isExpanded(folder.key)" :size="15" />
-                <ChevronRight v-else :size="15" />
+                <ChevronDown v-if="isExpanded(folder.key)" :size="14" />
+                <ChevronRight v-else :size="14" />
+                <Folder :size="14" :stroke-width="1.7" />
                 <span>{{ folder.label }}</span>
+                <em>{{ folder.files.length }}</em>
               </button>
 
               <template v-if="isExpanded(folder.key)">
                 <button
                   v-for="file in folder.files"
                   :key="file.id"
-                  class="tree-file nested"
+                  class="tree-file folder-file"
                   :class="{ active: activeFile?.id === file.id }"
                   type="button"
                   @click="selectFile(file)"
                 >
-                  <FileText :size="15" />
+                  <FileText :size="14" :stroke-width="1.7" />
                   <span>{{ file.name }}</span>
                 </button>
               </template>
@@ -895,19 +563,29 @@ onBeforeUnmount(() => {
       <main class="detail-doc">
         <header class="doc-header">
           <div class="doc-path" aria-label="当前文件路径">
-            <span v-if="activeFileParentPath" class="doc-path-parent">{{ activeFileParentPath }}</span>
+            <FileText :size="15" :stroke-width="1.7" />
             <span class="doc-path-name">{{ activeFileName }}</span>
+            <span v-if="activeFileParentPath" class="doc-path-parent">· {{ activeFileParentPath }}</span>
           </div>
 
-          <div class="doc-actions">
+          <div class="doc-mode-switch" role="tablist" aria-label="文档查看方式">
             <button
-              class="detail-icon-btn"
               type="button"
-              aria-label="复制当前文件"
-              title="复制当前文件"
-              @click="copyCurrentFile"
+              role="tab"
+              :class="{ active: !editMode }"
+              :aria-selected="!editMode"
+              @click="editMode ? setStatus('请先保存或取消当前文件编辑') : undefined"
             >
-              <Copy :size="17" />
+              预览
+            </button>
+            <button
+              type="button"
+              role="tab"
+              :class="{ active: editMode }"
+              :aria-selected="editMode"
+              @click="startEditMode"
+            >
+              编辑
             </button>
           </div>
         </header>
@@ -920,156 +598,65 @@ onBeforeUnmount(() => {
             spellcheck="false"
             aria-label="编辑当前技能文件"
           ></textarea>
-          <pre v-else class="doc-pre" :class="`file-${activeFile?.type ?? 'markdown'}`">{{ activeFileContent }}</pre>
+
+          <div v-else-if="isMarkdownFile" class="doc-rendered">
+            <template v-for="(block, index) in markdownBlocks" :key="`${block.kind}-${index}`">
+              <h1 v-if="block.kind === 'heading' && block.depth === 1">{{ block.text }}</h1>
+              <h2 v-else-if="block.kind === 'heading' && block.depth === 2">{{ block.text }}</h2>
+              <h3 v-else-if="block.kind === 'heading'">{{ block.text }}</h3>
+              <p v-else-if="block.kind === 'paragraph'">{{ block.text }}</p>
+              <ol v-else-if="block.kind === 'list' && block.ordered">
+                <li v-for="item in block.items" :key="item.text">{{ item.text }}</li>
+              </ol>
+              <ul v-else-if="block.kind === 'list'">
+                <li v-for="item in block.items" :key="item.text" :class="{ todo: item.todo }">
+                  <input v-if="item.todo" type="checkbox" :checked="item.checked" disabled />
+                  <span>{{ item.text }}</span>
+                </li>
+              </ul>
+              <div v-else class="doc-space" aria-hidden="true"></div>
+            </template>
+          </div>
+
+          <pre v-else class="doc-pre">{{ activeFileContent }}</pre>
         </article>
       </main>
     </div>
 
-    <section v-else class="skill-publish-shell" aria-label="技能发布设置">
-      <div class="skill-publish-panel">
-        <div class="publish-section publish-identity-section">
-          <div class="publish-identity-row">
-            <div class="publish-skill-info-group">
-              <div class="publish-avatar-control">
-                <span class="publish-control-label">技能头像</span>
-                <div class="publish-avatar-line">
-                  <button
-                    type="button"
-                    class="publish-icon-preview"
-                    aria-label="更换技能头像"
-                    title="更换技能头像"
-                    @click="choosePublishIcon"
-                  >
-                    <span class="publish-icon-thumb">
-                      <img v-if="publishSettings.iconDataUrl" :src="publishSettings.iconDataUrl" alt="" />
-                      <span v-else>{{ publishIconFallback }}</span>
-                    </span>
-                    <span class="publish-icon-change">
-                      <Upload :size="13" />
-                      <span>更换</span>
-                    </span>
-                  </button>
-                  <input
-                    ref="publishIconInputRef"
-                    class="publish-icon-input"
-                    type="file"
-                    accept="image/*"
-                    @change="handlePublishIconUpload"
-                  />
-                </div>
-              </div>
+    <section v-else class="basic-info-shell" aria-label="技能基本信息">
+      <div class="basic-info-panel">
+        <div class="basic-icon-field">
+          <span class="field-label">技能图标</span>
+          <button
+            type="button"
+            class="basic-icon-upload"
+            aria-label="上传技能图标"
+            @click="chooseBasicIcon"
+          >
+            <img v-if="basicInfoDraft.iconDataUrl" :src="basicInfoDraft.iconDataUrl" alt="" />
+            <Camera v-else :size="22" :stroke-width="1.6" />
+          </button>
+          <input
+            ref="basicIconInputRef"
+            class="basic-icon-input"
+            type="file"
+            accept="image/*"
+            @change="handleBasicIconUpload"
+          />
+          <span class="upload-hint">{{ basicInfoDraft.iconDataUrl ? '更换图标' : '上传图标' }}</span>
+        </div>
 
-              <label class="publish-field publish-name-field">
-                <span>技能名称</span>
-                <input v-model="publishSettings.name" type="text" maxlength="48" />
-              </label>
-            </div>
-
-            <label class="publish-author-info-group">
-              <span class="publish-control-label">使用作者信息</span>
-              <div class="publish-author-card">
-                <div class="profile-identity-preview">
-                  <span class="profile-identity-avatar" :style="profileIdentityPreviewStyle">
-                    <span v-if="!profileIdentityPreviewHasImage">{{ profileIdentityPreviewText }}</span>
-                  </span>
-                  <span>
-                    <strong>{{ profileIdentityPreviewName }}</strong>
-                    <small>{{ profileIdentityPreviewSource }}</small>
-                  </span>
-                </div>
-                <span class="publish-switch-slot">
-                  <input v-model="publishSettings.useProfileIdentity" type="checkbox" />
-                </span>
-              </div>
-            </label>
-          </div>
-
-          <label class="publish-field">
-            <span>技能描述</span>
-            <textarea v-model="publishSettings.description" rows="4" maxlength="360"></textarea>
+        <div class="basic-form-fields">
+          <label class="basic-field">
+            <span class="field-label">技能名称</span>
+            <input v-model="basicInfoDraft.name" type="text" maxlength="40" />
           </label>
-        </div>
 
-        <div class="publish-section">
-          <div class="publish-section-header">
-            <strong>发布范围</strong>
-            <span>{{ publishVisibilityDescription }}</span>
-          </div>
-          <div class="publish-scope-list" role="group" aria-label="发布范围">
-            <div
-              v-for="option in publishVisibilityOptions"
-              :key="option.id"
-              class="publish-scope-option"
-              :class="{ active: isPublishVisibilitySelected(option.id) }"
-              role="checkbox"
-              tabindex="0"
-              :aria-checked="isPublishVisibilitySelected(option.id)"
-              @click="togglePublishVisibility(option.id)"
-              @keydown.enter.prevent="togglePublishVisibility(option.id)"
-              @keydown.space.prevent="togglePublishVisibility(option.id)"
-            >
-              <div class="publish-scope-head">
-                <span class="publish-scope-check">
-                  <Check v-if="isPublishVisibilitySelected(option.id)" :size="14" />
-                </span>
-                <span class="publish-scope-copy">
-                  <strong>{{ option.label }}</strong>
-                  <small>{{ option.description }}</small>
-                </span>
-              </div>
-
-              <div
-                v-if="isShareablePublishVisibility(option.id)"
-                class="publish-scope-permissions"
-                :class="{ disabled: !isScopePermissionEnabled(option.id) }"
-                @click.stop
-              >
-                <label class="publish-inline-toggle">
-                  <span>查看详情</span>
-                  <input
-                    :checked="isScopePermissionAllowCopy(option.id)"
-                    :disabled="!isScopePermissionEnabled(option.id)"
-                    type="checkbox"
-                    @change="handleScopePermissionCopyChange(option.id, $event)"
-                  />
-                </label>
-                <label class="publish-inline-toggle">
-                  <span>自行编辑</span>
-                  <input
-                    :checked="isScopePermissionAllowRemix(option.id)"
-                    :disabled="!isScopePermissionEnabled(option.id) || !isScopePermissionAllowCopy(option.id)"
-                    type="checkbox"
-                    @change="handleScopePermissionRemixChange(option.id, $event)"
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="publish-footer">
-          <div class="publish-footer-summary">
-            <strong>{{ formatPublishDestinations(publishSettings.visibilities) }}</strong>
-            <span>{{ publishSettingsSummary }}</span>
-          </div>
-          <div class="publish-footer-actions">
-            <button
-              type="button"
-              class="publish-draft-btn"
-              :disabled="!canSavePublishSettings"
-              @click="saveSkillPublishSettings('draft')"
-            >
-              保存草稿
-            </button>
-            <button
-              type="button"
-              class="publish-primary-btn"
-              :disabled="!canSavePublishSettings"
-              @click="saveSkillPublishSettings('publish')"
-            >
-              发布
-            </button>
-          </div>
+          <label class="basic-field">
+            <span class="field-label">简要描述</span>
+            <textarea v-model="basicInfoDraft.description" rows="4" maxlength="200"></textarea>
+          </label>
+          <span class="description-count">{{ basicInfoDraft.description.length }}/200</span>
         </div>
       </div>
     </section>
@@ -1081,37 +668,32 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
+  color: var(--ink-700, var(--text-main));
+  font-family: var(--font-sans, 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif);
 }
 
 .skill-detail-panel.page-layout {
   flex: 1;
   min-height: 0;
-  gap: 12px;
 }
 
 .detail-header {
-  min-height: 72px;
+  min-height: 64px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 18px;
+  padding: 0 0 14px;
 }
 
 .modal-layout .detail-header {
-  padding: 0 58px 0 24px;
-}
-
-.page-layout .detail-header {
-  min-height: 70px;
-  align-items: flex-start;
-  padding: 2px 0 4px;
-  border-bottom: 0;
+  padding: 0 58px 14px 24px;
 }
 
 .detail-title-area {
   min-width: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
 }
 
@@ -1122,22 +704,39 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-top: 5px;
   border-radius: 8px;
-  color: var(--text-secondary);
-  background: var(--card-bg);
-  box-shadow: inset 0 0 0 1px var(--border-color);
+  color: var(--ink-500, var(--text-secondary));
+  background: transparent;
 }
 
 .detail-back-btn:hover {
-  color: var(--primary-color);
-  background: var(--primary-soft);
-  box-shadow: inset 0 0 0 1px var(--primary-border);
+  color: var(--ink-900, var(--text-strong));
+  background: var(--bg-soft, var(--surface-muted));
 }
 
 .back-chevron {
-  flex-shrink: 0;
   transform: rotate(180deg);
+}
+
+.detail-skill-icon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 11px;
+  background: var(--bg-soft, var(--surface-muted));
+  color: var(--ink-500, var(--text-secondary));
+}
+
+.detail-skill-icon img,
+.basic-icon-upload img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .detail-title-copy {
@@ -1155,9 +754,10 @@ onBeforeUnmount(() => {
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  color: var(--text-strong);
+  color: var(--ink-900, var(--text-strong));
+  font-family: var(--font-serif, 'Noto Serif SC', 'Songti SC', 'STSong', Georgia, serif);
   font-size: 20px;
-  font-weight: 760;
+  font-weight: 600;
   line-height: 1.25;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1167,282 +767,241 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   padding: 3px 7px;
   border-radius: 999px;
-  color: var(--primary-color);
-  background: var(--primary-soft);
+  color: var(--accent-700, var(--primary-hover));
+  background: var(--accent-tint, var(--primary-soft));
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
 }
 
 .skill-state-badge.closed {
-  color: var(--text-muted);
-  background: var(--surface-muted);
+  color: var(--ink-500, var(--text-muted));
+  background: var(--bg-soft, var(--surface-muted));
 }
 
 .detail-title-copy p {
-  max-width: 680px;
-  margin: 6px 0 0;
-  color: var(--text-secondary);
-  font-size: 13.5px;
+  max-width: 760px;
+  margin: 4px 0 0;
+  overflow: hidden;
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 12.5px;
   line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-shrink: 0;
-  padding-top: 5px;
+  padding-top: 3px;
 }
 
 .detail-status {
-  color: var(--primary-color);
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--accent-700, var(--primary-hover));
+  font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
-}
-
-.use-skill-btn {
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 16px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  color: var(--text-strong);
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.use-skill-btn:hover,
-.detail-icon-btn:hover {
-  background: var(--surface-soft);
-}
-
-.add-detail-btn {
-  color: var(--on-primary);
-  border-color: var(--primary-color);
-  background: var(--primary-color);
-}
-
-.add-detail-btn:hover {
-  background: var(--primary-hover);
 }
 
 .edit-cancel-btn,
 .edit-save-btn {
-  height: 34px;
-  padding: 0 14px;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 650;
-  line-height: 1;
-}
-
-.edit-cancel-btn {
-  border: 1px solid var(--border-color);
-  color: var(--text-main);
-  background: var(--card-bg);
-}
-
-.edit-cancel-btn:hover {
-  background: var(--surface-soft);
-}
-
-.edit-save-btn {
-  color: var(--on-primary);
-  background: var(--primary-color);
-}
-
-.edit-save-btn:hover {
-  background: var(--primary-hover);
-}
-
-.detail-icon-btn {
-  width: 34px;
-  height: 34px;
+  height: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  color: var(--text-strong);
-}
-
-.detail-view-switch {
-  height: 34px;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px;
-  border: 1px solid var(--border-color);
+  padding: 0 18px;
   border-radius: 10px;
-  background: var(--surface-muted);
-}
-
-.detail-view-switch button {
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 10px;
-  border-radius: 7px;
-  color: var(--text-secondary);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   white-space: nowrap;
 }
 
-.detail-view-switch button:hover,
-.detail-view-switch button.active {
-  color: var(--primary-color);
-  background: var(--card-bg);
-  box-shadow: 0 6px 16px color-mix(in srgb, var(--text-strong) 8%, transparent);
+.edit-cancel-btn {
+  border: 1px solid var(--line, var(--border-color));
+  color: var(--ink-900, var(--text-strong));
+  background: var(--bg-panel, var(--card-bg));
+}
+
+.edit-cancel-btn:hover {
+  background: var(--bg-soft, var(--surface-muted));
+}
+
+.edit-save-btn {
+  border: 1px solid var(--ink-900, var(--text-strong));
+  color: #fff;
+  background: var(--ink-900, var(--text-strong));
+}
+
+.edit-save-btn:hover {
+  background: #000;
+}
+
+.detail-tabs {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--line, var(--border-color));
+}
+
+.detail-tabs button {
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  margin-bottom: -1px;
+  color: var(--ink-500, var(--text-secondary));
+  background: transparent;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.detail-tabs button:hover,
+.detail-tabs button.active {
+  color: var(--ink-900, var(--text-strong));
+}
+
+.detail-tabs button.active {
+  border-bottom-color: var(--accent, var(--primary-color));
+  font-weight: 600;
 }
 
 .skill-detail-shell {
-  min-height: 520px;
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid var(--border-color);
-  background: var(--card-bg);
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 12px;
+  background: var(--bg-panel, var(--card-bg));
 }
 
 .modal-layout .skill-detail-shell {
-  height: calc(min(700px, 100vh - 40px) - 96px);
+  height: calc(min(700px, 100vh - 40px) - 118px);
   margin: 0 24px 24px;
   border-radius: 16px;
-}
-
-.page-layout .skill-detail-shell {
-  flex: 1;
-  height: auto;
-  min-height: 0;
-  margin: 0;
-  border-color: var(--border-color);
-  border-radius: 12px;
-}
-
-.skill-publish-shell {
-  min-height: 520px;
-  overflow: auto;
-  border: 1px solid var(--border-color);
-  border-radius: 12px;
-  background: var(--card-bg);
-}
-
-.modal-layout .skill-publish-shell {
-  height: calc(min(700px, 100vh - 40px) - 96px);
-  margin: 0 24px 24px;
-  border-radius: 16px;
-}
-
-.page-layout .skill-publish-shell {
-  flex: 1;
-  height: auto;
-  min-height: 0;
-  margin: 0;
 }
 
 .detail-tree {
   min-height: 0;
   overflow: auto;
-  padding: 18px 18px 24px;
-  border-right: 1px solid var(--border-color);
-  background: var(--card-bg);
+  padding: 14px 8px 14px 14px;
+  border-right: 1px solid var(--line, var(--border-color));
+  background: var(--bg-panel, var(--card-bg));
 }
 
 .tree-group + .tree-group {
-  margin-top: 16px;
+  margin-top: 4px;
+}
+
+.tree-heading-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 26px;
+  align-items: center;
+  gap: 4px;
 }
 
 .tree-heading,
 .tree-child,
 .tree-file {
   width: 100%;
+  min-width: 0;
+  min-height: 31px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 30px;
-  padding: 0 6px;
-  border-radius: 8px;
-  color: var(--text-main);
-  font-size: 15px;
-  line-height: 1;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink-700, var(--text-main));
+  background: transparent;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.3;
   text-align: left;
 }
 
-.tree-child,
-.tree-file {
-  width: calc(100% - 22px);
-  margin-left: 22px;
-  color: var(--text-secondary);
+.tree-heading {
+  font-weight: 500;
+}
+
+.tree-child {
+  padding-left: 20px;
+}
+
+.tree-file.root-file {
+  margin-bottom: 8px;
+}
+
+.tree-file.nested {
+  padding-left: 28px;
+}
+
+.tree-file.folder-file {
+  padding-left: 44px;
 }
 
 .tree-heading:hover,
 .tree-child:hover,
-.tree-file:hover {
-  background: var(--bg-color);
+.tree-file:hover,
+.tree-file.active {
+  background: var(--bg-soft, var(--surface-muted));
 }
 
 .tree-file.active {
-  background: var(--primary-soft);
-  color: var(--primary-color);
-  font-weight: 650;
+  color: var(--ink-900, var(--text-strong));
+  font-weight: 500;
 }
 
-.tree-heading em,
-.tree-child em,
-.tree-file em {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  min-width: 0;
-  margin-left: auto;
-  padding: 3px 6px;
-  border-radius: 999px;
-  color: var(--primary-color);
-  background: var(--primary-soft-strong);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 760;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.tree-file.root-file {
-  width: 100%;
-  margin: 0 0 16px;
-}
-
-.tree-file.nested {
-  width: calc(100% - 38px);
-  margin-left: 38px;
-}
-
-.tree-folder + .tree-folder,
-.tree-folder + .tree-file,
-.tree-file + .tree-folder {
-  margin-top: 2px;
-}
-
-.tree-file span,
-.tree-child span {
+.tree-heading span,
+.tree-child span,
+.tree-file span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.tree-file svg,
+.tree-heading svg,
 .tree-child svg,
-.tree-heading svg {
-  flex-shrink: 0;
-  color: var(--text-secondary);
+.tree-file svg {
+  flex: 0 0 auto;
+  color: var(--ink-500, var(--text-secondary));
+}
+
+.tree-heading em,
+.tree-child em,
+.tree-file em {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--ink-400, var(--text-muted));
+  font-size: 11.5px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.tree-add-btn {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink-400, var(--text-muted));
+  background: transparent;
+}
+
+.tree-add-btn:hover {
+  color: var(--ink-700, var(--text-main));
+  background: var(--bg-soft, var(--surface-muted));
 }
 
 .detail-doc {
@@ -1450,62 +1009,156 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: var(--card-bg);
+  background: var(--bg-panel, var(--card-bg));
 }
 
 .doc-header {
-  height: 54px;
+  height: 52px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 0 12px 0 18px;
-  border-bottom: 1px solid var(--border-color);
-  background: var(--card-bg);
+  gap: 14px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--line, var(--border-color));
+  background: var(--bg, var(--bg-color));
 }
 
 .doc-path {
   min-width: 0;
   display: flex;
   align-items: center;
-  flex: 1;
-  height: 34px;
-  padding: 0 10px;
+  gap: 8px;
   overflow: hidden;
-  color: var(--text-strong);
-  font-size: 17px;
-  font-weight: 600;
+  color: var(--ink-900, var(--text-strong));
+  font-size: 13.5px;
+  font-weight: 500;
   line-height: 1;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.doc-path-parent {
-  color: var(--text-muted);
-  font-weight: 500;
+.doc-path svg {
+  flex: 0 0 auto;
+  color: var(--ink-500, var(--text-secondary));
 }
 
 .doc-path-name {
   min-width: 0;
   overflow: hidden;
-  color: var(--text-strong);
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.doc-actions {
-  display: flex;
+.doc-path-parent {
+  overflow: hidden;
+  color: var(--ink-400, var(--text-muted));
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.doc-mode-switch {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--bg-soft, var(--surface-muted));
+}
+
+.doc-mode-switch button {
+  height: 30px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink-500, var(--text-secondary));
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.doc-mode-switch button.active {
+  color: var(--ink-900, var(--text-strong));
+  background: var(--bg-panel, var(--card-bg));
+  box-shadow: 0 1px 2px rgba(26, 22, 20, 0.05);
 }
 
 .doc-content {
   min-height: 0;
   flex: 1;
   overflow: auto;
-  padding: 0;
-  color: var(--text-strong);
-  background: var(--card-bg);
+  color: var(--ink-900, var(--text-strong));
+  background: var(--bg-panel, var(--card-bg));
+}
+
+.doc-rendered {
+  max-width: 720px;
+  padding: 30px 40px 60px;
+}
+
+.doc-rendered h1,
+.doc-rendered h2 {
+  margin: 0;
+  color: var(--ink-900, var(--text-strong));
+  font-family: var(--font-serif, 'Noto Serif SC', 'Songti SC', 'STSong', Georgia, serif);
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0;
+}
+
+.doc-rendered h1 {
+  font-size: 24px;
+  margin-bottom: 28px;
+}
+
+.doc-rendered h2 {
+  font-size: 20px;
+  margin-top: 34px;
+  margin-bottom: 12px;
+}
+
+.doc-rendered h3 {
+  margin: 24px 0 10px;
+  color: var(--ink-900, var(--text-strong));
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.doc-rendered p {
+  margin: 8px 0;
+  color: var(--ink-700, var(--text-main));
+  font-size: 13.5px;
+  line-height: 1.78;
+}
+
+.doc-rendered ol,
+.doc-rendered ul {
+  margin: 8px 0 0;
+  padding-left: 22px;
+  color: var(--ink-700, var(--text-main));
+  font-size: 13.5px;
+  line-height: 1.8;
+}
+
+.doc-rendered li + li {
+  margin-top: 2px;
+}
+
+.doc-rendered li.todo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: disc;
+}
+
+.doc-rendered li.todo input {
+  width: 14px;
+  height: 14px;
+  margin: 0 2px 0 0;
+  accent-color: var(--accent, var(--primary-color));
+}
+
+.doc-space {
+  height: 10px;
 }
 
 .doc-pre,
@@ -1513,668 +1166,190 @@ onBeforeUnmount(() => {
   width: 100%;
   min-height: 100%;
   margin: 0;
-  padding: 34px 28px 46px;
+  padding: 24px 28px 46px;
   border: 0;
   outline: none;
-  background: var(--card-bg);
-  color: var(--text-strong);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 14px;
-  line-height: 1.72;
+  background: var(--bg-panel, var(--card-bg));
+  color: var(--ink-900, var(--text-strong));
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+  font-size: 13px;
+  line-height: 1.7;
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.doc-pre.file-markdown {
-  font-family: inherit;
-  font-size: 15px;
-  line-height: 1.78;
 }
 
 .doc-editor {
   display: block;
   resize: none;
-  min-height: 520px;
-  border-radius: 0;
-  box-shadow: inset 0 0 0 2px var(--primary-soft-strong);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent, var(--primary-color)) 18%, transparent);
 }
 
-.skill-publish-panel {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 22px 24px 0;
+.basic-info-shell {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
-.publish-section {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.publish-identity-section {
-  gap: 14px;
-}
-
-.publish-identity-row {
+.basic-info-panel {
+  width: min(720px, 100%);
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
-  align-items: end;
-  gap: 34px;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 24px;
+  padding: 28px 32px 32px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 14px;
+  background: var(--bg-panel, var(--card-bg));
 }
 
-.publish-skill-info-group,
-.publish-author-info-group {
-  min-width: 0;
-  display: grid;
-  align-items: end;
-  gap: 12px;
-}
-
-.publish-skill-info-group {
-  grid-template-columns: 106px minmax(0, 1fr);
-}
-
-.publish-author-info-group {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 6px;
-  cursor: pointer;
-}
-
-.publish-avatar-control,
-.publish-profile-switch {
+.basic-icon-field {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.publish-control-label {
-  color: var(--text-strong);
-  font-size: 12px;
-  font-weight: 850;
-  line-height: 16px;
-}
-
-.publish-avatar-line {
-  height: 40px;
-  display: flex;
   align-items: center;
 }
 
-.publish-icon-preview {
-  position: relative;
-  width: 106px;
-  height: 40px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 3px 8px 3px 4px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--primary-border) 72%, var(--border-color));
-  border-radius: 9px;
-  color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-soft) 48%, var(--card-bg));
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.publish-icon-preview:hover {
-  border-color: var(--primary-border);
-  background: var(--primary-soft);
-}
-
-.publish-icon-thumb {
-  width: 32px;
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--primary-border) 72%, transparent);
-  border-radius: 8px;
-  background:
-    radial-gradient(circle at 34% 22%, rgba(255, 255, 255, 0.95), transparent 36%),
-    var(--primary-soft);
-  font-size: 17px;
-  font-weight: 900;
-  line-height: 1;
-}
-
-.publish-icon-change {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.publish-icon-thumb img {
+.field-label {
+  display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  margin-bottom: 8px;
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
-.publish-icon-input {
+.basic-icon-upload {
+  width: 72px;
+  height: 72px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+  border: 1.5px dashed var(--line-strong, var(--primary-border));
+  border-radius: 14px;
+  color: var(--ink-500, var(--text-secondary));
+  background: var(--bg-soft, var(--surface-muted));
+}
+
+.basic-icon-upload:hover {
+  color: var(--accent-700, var(--primary-hover));
+  border-color: var(--accent, var(--primary-color));
+  background: var(--accent-tint, var(--primary-soft));
+}
+
+.basic-icon-input {
   display: none;
 }
 
-.publish-draft-btn,
-.publish-primary-btn {
-  height: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.publish-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.publish-field small {
-  color: var(--text-secondary);
+.upload-hint {
+  margin-top: 8px;
+  color: var(--ink-400, var(--text-muted));
   font-size: 12px;
-  line-height: 1.45;
+  line-height: 1.3;
+  text-align: center;
 }
 
-.publish-author-card {
+.basic-form-fields {
+  min-width: 0;
+}
+
+.basic-field {
+  display: block;
+}
+
+.basic-field + .basic-field {
+  margin-top: 18px;
+}
+
+.basic-field input,
+.basic-field textarea {
   width: 100%;
-  height: 40px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 12px;
-  padding: 0 10px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--line, var(--border-color));
   border-radius: 9px;
-  background: var(--card-bg);
-}
-
-.profile-identity-preview {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  width: 100%;
-  height: 40px;
-}
-
-.profile-identity-avatar {
-  width: 26px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  overflow: hidden;
-  border-radius: 999px;
-  color: var(--on-primary);
-  background: var(--primary-color);
-  background-position: center;
-  background-size: cover;
-  font-size: 12px;
-  font-weight: 850;
-}
-
-.profile-identity-preview > span:last-child {
-  min-width: 0;
-  display: grid;
-  gap: 2px;
-}
-
-.profile-identity-preview strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-strong);
-  font-size: 13px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.profile-identity-preview small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-muted);
-  font-size: 11.5px;
-  line-height: 1.2;
-}
-
-.publish-field > span,
-.publish-section-header strong {
-  color: var(--text-strong);
-  font-size: 12px;
-  font-weight: 850;
-  line-height: 16px;
-}
-
-.publish-field input,
-.publish-field textarea {
-  width: 100%;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  color: var(--text-main);
-  background: var(--card-bg);
+  color: var(--ink-900, var(--text-strong));
+  background: var(--bg-panel, var(--card-bg));
   font-size: 14px;
   line-height: 1.55;
 }
 
-.publish-field input {
+.basic-field input {
   height: 40px;
-  padding: 0 11px;
+  padding: 0 14px;
 }
 
-.publish-field textarea {
-  min-height: 92px;
-  padding: 9px 11px;
+.basic-field textarea {
+  min-height: 112px;
+  padding: 12px 14px;
   resize: vertical;
 }
 
-.publish-field input:focus,
-.publish-field textarea:focus {
-  border-color: var(--primary-border);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 12%, transparent);
+.basic-field input:focus,
+.basic-field textarea:focus {
+  border-color: var(--ink-900, var(--text-strong));
+  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
 }
 
-.publish-field.compact {
-  margin-left: 0;
-}
-
-.publish-section-header {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.publish-section-header span,
-.publish-scope-option small,
-.publish-toggle small,
-.publish-footer-summary span {
-  color: var(--text-secondary);
+.description-count {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink-400, var(--text-muted));
   font-size: 12px;
-  line-height: 1.5;
-}
-
-.publish-scope-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.publish-scope-option {
-  min-height: 118px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  color: var(--text-main);
-  background: var(--card-bg);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
-}
-
-.publish-scope-option:hover,
-.publish-scope-option.active {
-  border-color: var(--primary-border);
-  background: color-mix(in srgb, var(--primary-soft) 40%, var(--card-bg));
-}
-
-.publish-scope-option.active {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-border) 54%, transparent);
-}
-
-.publish-scope-head {
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-}
-
-.publish-scope-check {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 1px;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  color: #fff;
-  background: var(--card-bg);
-}
-
-.publish-scope-option.active .publish-scope-check {
-  border-color: var(--primary-color);
-  background: var(--primary-color);
-}
-
-.publish-scope-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.publish-scope-permissions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 10px;
-  border-top: 1px solid var(--border-soft);
-}
-
-.publish-scope-permissions.disabled {
-  opacity: 0.46;
-}
-
-.publish-inline-toggle {
-  min-width: 0;
-  height: 32px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 0 8px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-muted) 70%, var(--card-bg));
-  cursor: pointer;
-}
-
-.publish-scope-permissions.disabled .publish-inline-toggle {
-  cursor: not-allowed;
-}
-
-.publish-inline-toggle > span {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 760;
   line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.publish-scope-option strong,
-.publish-toggle strong,
-.publish-footer-summary strong {
-  color: var(--text-strong);
-  font-size: 14px;
-  font-weight: 850;
-  line-height: 1.35;
-}
-
-.publish-toggle {
-  min-height: 42px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  background: var(--surface-muted);
-}
-
-.publish-toggle.disabled {
-  opacity: 0.58;
-}
-
-.publish-toggle > span {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.identity-toggle small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.publish-switch-slot {
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.publish-author-card input,
-.publish-toggle input,
-.publish-inline-toggle input {
-  width: 40px;
-  height: 23px;
-  position: relative;
-  appearance: none;
-  border: 1px solid var(--border-color);
-  border-radius: 999px;
-  background: var(--border-color);
-  cursor: pointer;
-  transition: background-color 0.16s ease, border-color 0.16s ease;
-}
-
-.publish-author-card input::after,
-.publish-toggle input::after,
-.publish-inline-toggle input::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18);
-  transition: transform 0.16s ease;
-}
-
-.publish-author-card input:checked,
-.publish-toggle input:checked,
-.publish-inline-toggle input:checked {
-  border-color: var(--primary-color);
-  background: var(--primary-color);
-}
-
-.publish-author-card input:checked::after,
-.publish-toggle input:checked::after,
-.publish-inline-toggle input:checked::after {
-  transform: translateX(17px);
-}
-
-.publish-author-card input:disabled,
-.publish-toggle input:disabled,
-.publish-inline-toggle input:disabled {
-  cursor: not-allowed;
-}
-
-.publish-footer {
-  position: sticky;
-  bottom: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 14px;
-  margin-top: auto;
-  padding: 14px 0 16px;
-  border-top: 1px solid var(--border-color);
-  background: color-mix(in srgb, var(--card-bg) 94%, transparent);
-  backdrop-filter: blur(10px);
-}
-
-.publish-footer-summary {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.publish-footer-summary span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.publish-footer-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.publish-draft-btn {
-  padding: 0 13px;
-  border: 1px solid var(--border-color);
-  color: var(--text-secondary);
-  background: var(--card-bg);
-}
-
-.publish-primary-btn {
-  padding: 0 16px;
-  color: #fff;
-  background: var(--primary-color);
-}
-
-.publish-draft-btn:hover:not(:disabled) {
-  color: var(--primary-color);
-  border-color: var(--primary-border);
-  background: var(--primary-soft);
-}
-
-.publish-primary-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--primary-color) 88%, #000);
-}
-
-.publish-draft-btn:disabled,
-.publish-primary-btn:disabled {
-  cursor: not-allowed;
-  opacity: 0.52;
+  text-align: right;
 }
 
 .detail-back-btn:focus-visible,
-.use-skill-btn:focus-visible,
 .edit-cancel-btn:focus-visible,
 .edit-save-btn:focus-visible,
-.detail-icon-btn:focus-visible,
-.detail-view-switch button:focus-visible,
+.detail-tabs button:focus-visible,
 .tree-heading:focus-visible,
 .tree-child:focus-visible,
 .tree-file:focus-visible,
-.publish-icon-preview:focus-visible,
-.publish-scope-option:focus-visible,
-.publish-author-card input:focus-visible,
-.publish-inline-toggle input:focus-visible,
-.publish-toggle input:focus-visible,
-.publish-draft-btn:focus-visible,
-.publish-primary-btn:focus-visible {
-  outline: 2px solid var(--focus-ring);
+.tree-add-btn:focus-visible,
+.doc-mode-switch button:focus-visible,
+.basic-icon-upload:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--accent, var(--primary-color)));
   outline-offset: 2px;
 }
 
 @media (max-width: 900px) {
-  .skill-detail-shell,
-  .page-layout .skill-detail-shell {
-    grid-template-columns: 180px minmax(0, 1fr);
+  .skill-detail-shell {
+    grid-template-columns: 220px minmax(0, 1fr);
   }
 
-  .publish-identity-row {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .publish-skill-info-group,
-  .publish-author-info-group {
-    grid-template-columns: 106px minmax(0, 1fr);
-  }
-
-  .publish-scope-list {
-    grid-template-columns: 1fr;
+  .doc-rendered {
+    padding: 26px 30px 52px;
   }
 }
 
-@media (max-width: 640px) {
-  .detail-header,
-  .page-layout .detail-header {
-    height: auto;
-    align-items: flex-start;
+@media (max-width: 720px) {
+  .detail-header {
     flex-direction: column;
-    gap: 12px;
-  }
-
-  .detail-title-copy h2 {
-    white-space: normal;
+    align-items: stretch;
   }
 
   .detail-actions {
-    flex-wrap: wrap;
-    padding-top: 0;
+    justify-content: flex-end;
   }
 
-  .skill-detail-shell,
-  .page-layout .skill-detail-shell {
-    height: auto;
+  .skill-detail-shell {
     grid-template-columns: 1fr;
+    overflow: auto;
   }
 
   .detail-tree {
     max-height: 220px;
     border-right: 0;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--line, var(--border-color));
   }
 
-  .doc-pre,
-  .doc-editor {
-    min-height: 460px;
-    padding: 24px 18px 34px;
-  }
-
-  .skill-publish-panel {
-    padding: 18px 16px 0;
-  }
-
-  .publish-identity-row {
+  .basic-info-panel {
     grid-template-columns: 1fr;
   }
 
-  .publish-skill-info-group,
-  .publish-author-info-group {
-    grid-template-columns: 1fr;
-  }
-
-  .publish-footer {
-    grid-template-columns: 1fr;
-  }
-
-  .publish-footer-actions {
-    width: 100%;
-  }
-
-  .publish-draft-btn,
-  .publish-primary-btn {
-    flex: 1;
+  .basic-icon-field {
+    align-items: flex-start;
   }
 }
 </style>

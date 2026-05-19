@@ -6,13 +6,11 @@ import {
   Camera,
   Check,
   LogOut,
-  Palette,
   ShieldCheck,
   Star,
-  Store,
   UserRound,
 } from 'lucide-vue-next';
-import { AUTH_FLOW_ENABLED, useOrgSession } from '../stores/orgSession';
+import { useOrgSession } from '../stores/orgSession';
 import { useTheme } from '../stores/theme';
 import { themeOptions, type ThemeId } from '../data/themes';
 
@@ -32,6 +30,7 @@ const {
   currentOrganizationId,
   currentUser,
   logout,
+  organizations,
   selectOrganization,
   updateUserProfile,
 } = useOrgSession();
@@ -48,7 +47,9 @@ const expertiseDraft = ref<string[]>(['跨境投融资', '并购重组', '私募
 const isEditingProfile = ref(false);
 const avatarInputRef = ref<HTMLInputElement | null>(null);
 const statusMessage = ref('');
-const showOrganizationAccessControls = AUTH_FLOW_ENABLED;
+const showOrganizationAccessControls = true;
+const isOrganizationDialogOpen = ref(false);
+const isLogoutConfirmOpen = ref(false);
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
 const zhExpertiseOptions = [
@@ -115,21 +116,16 @@ const copy = computed(() => {
       years: '执业年限',
       qualification: '资质 / 头衔',
       bio: '个人简介',
-      bioHint: '用于市场橱窗，向购买者展示你的专业背景与代表项目',
+      bioHint: '填写你的专业背景、代表项目与业务能力',
       expertise: '执业领域',
-      expertiseHint: '至多选择 5 个，用于技能 / 模板的市场分类',
-      profileBar: '律师 IP · 市场橱窗',
-      profileBarSub: '当你将技能或模板发布到市场，以下信息将作为"店铺简介"展示给采购方',
+      expertiseHint: '至多选择 5 个，用于展示你的专业方向',
+      identityCard: '身份信息',
       beta: '内测',
-      previewCard: '橱窗预览',
       statsSkills: '已发布技能',
       statsTemplates: '已发布模板',
       statsUses: '累计调用',
       statsRating: '平均评分',
-      storefrontPublished: '已发布',
-      storefrontUses: '调用',
-      storefrontRating: '评分',
-      storefrontBioFallback: '在这里写下专业方向、代表项目、跨境业务能力等，让采购方对你建立信任 …',
+      profileBioFallback: '填写专业方向、代表项目与跨境业务能力等信息',
       preferences: '界面偏好',
       orgSub: '组织切换与界面偏好',
       language: '界面语言',
@@ -142,11 +138,20 @@ const copy = computed(() => {
       signinHint: '手机号密码登录 · 首次密码为手机号后六位',
       active: '已启用',
       organization: '当前组织',
-      manageOrganization: '管理组织',
+      switchOrganization: '切换组织',
+      switchOrganizationTitle: '切换组织',
+      switchOrganizationSub: '选择当前工作空间，切换后会更新会话上下文。',
+      noOrganizations: '暂无可切换组织',
+      current: '当前',
       teamManagement: '团队管理',
+      teamManagementOpened: '已打开团队管理认证窗口',
+      popupBlocked: '新窗口被浏览器拦截',
       signOut: '退出登录',
       signOutHint: '结束当前会话',
       confirmLogout: '退出登录',
+      logoutTitle: '确认退出登录？',
+      logoutDescription: '退出后需要重新登录才能继续使用当前账号。',
+      cancel: '取消',
       saved: '个人资料已保存',
       uploadError: '请上传图片文件',
       notSignedIn: '请先登录账号',
@@ -166,21 +171,16 @@ const copy = computed(() => {
     years: 'Years in practice',
     qualification: 'Qualifications',
     bio: 'Bio',
-    bioHint: 'Shown on your marketplace storefront when others browse your skills / templates.',
+    bioHint: 'Describe your practice background, representative work, and capabilities.',
     expertise: 'Practice areas',
-    expertiseHint: 'Pick up to 5. Used to classify your published skills / templates.',
-    profileBar: 'Lawyer IP · Marketplace storefront',
-    profileBarSub: 'When you publish skills or templates, this profile is shown to buyers as your storefront.',
+    expertiseHint: 'Pick up to 5 areas for your professional profile.',
+    identityCard: 'Identity',
     beta: 'Beta',
-    previewCard: 'Storefront preview',
     statsSkills: 'Skills published',
     statsTemplates: 'Templates published',
     statsUses: 'Total invocations',
     statsRating: 'Avg. rating',
-    storefrontPublished: 'Published',
-    storefrontUses: 'Invocations',
-    storefrontRating: 'Rating',
-    storefrontBioFallback: 'Describe your practice, signature deals and cross-border capability so buyers can trust you...',
+    profileBioFallback: 'Describe your practice, signature matters, and cross-border capability.',
     preferences: 'Preferences',
     orgSub: 'Switch organisation & interface preferences',
     language: 'Language',
@@ -193,11 +193,20 @@ const copy = computed(() => {
     signinHint: 'Phone password · first password is the last six digits',
     active: 'Active',
     organization: 'Current organisation',
-    manageOrganization: 'Manage',
+    switchOrganization: 'Switch organisation',
+    switchOrganizationTitle: 'Switch organisation',
+    switchOrganizationSub: 'Choose the workspace used for this session.',
+    noOrganizations: 'No organisations available',
+    current: 'Current',
     teamManagement: 'Team management',
+    teamManagementOpened: 'Team management auth opened',
+    popupBlocked: 'Popup blocked',
     signOut: 'Sign out',
     signOutHint: 'End current session',
     confirmLogout: 'Sign out',
+    logoutTitle: 'Sign out?',
+    logoutDescription: 'You will need to sign in again to continue using this account.',
+    cancel: 'Cancel',
     saved: 'Profile saved',
     uploadError: 'Upload an image file',
     notSignedIn: 'Sign in first',
@@ -320,17 +329,18 @@ const toggleExpertise = (tag: string) => {
 };
 
 const handleOrganizationSelect = (organizationId: string) => {
-  if (organizationId === currentOrganizationId.value) return;
+  if (organizationId === currentOrganizationId.value) {
+    isOrganizationDialogOpen.value = false;
+    return;
+  }
   if (selectOrganization(organizationId)) {
+    isOrganizationDialogOpen.value = false;
     showStatus(copy.value.organizationChanged);
   }
 };
 
 const openOrganizationManager = () => {
-  void router.push({
-    name: 'org-select',
-    query: { switch: '1' },
-  });
+  isOrganizationDialogOpen.value = true;
 };
 
 const openTeamManagement = () => {
@@ -338,6 +348,7 @@ const openTeamManagement = () => {
 };
 
 const handleLogout = () => {
+  isLogoutConfirmOpen.value = false;
   logout();
   void router.replace({ name: 'login' });
 };
@@ -384,188 +395,117 @@ onBeforeUnmount(() => {
               <UserRound v-else :size="14" />
               <span>{{ isEditingProfile ? copy.save : copy.edit }}</span>
             </button>
-            <button class="btn btn-ghost btn-sm danger-button" type="button" @click="handleLogout">
-              <LogOut :size="14" />
-              <span>{{ copy.signOut }}</span>
-            </button>
           </div>
         </div>
 
-        <section class="profile-hero" aria-label="个人资料">
-          <button
-            class="profile-avatar-slot"
-            :class="{ 'has-img': avatarDraftDataUrl }"
-            type="button"
-            :title="avatarDraftDataUrl ? copy.replaceAvatar : copy.uploadAvatar"
-            @click="chooseAvatar"
-          >
-            <img v-if="avatarDraftDataUrl" :src="avatarDraftDataUrl" alt="" />
-            <span v-if="avatarDraftDataUrl" class="avatar-overlay">
-              <Camera :size="20" />
-              <span>{{ copy.replaceAvatar }}</span>
-            </span>
-            <span v-else class="avatar-empty">
-              <Camera :size="26" />
-              <span>{{ copy.uploadAvatar }}</span>
-              <small>JPG · PNG · ≤ 5MB</small>
-            </span>
-          </button>
-          <input
-            ref="avatarInputRef"
-            class="profile-avatar-input"
-            type="file"
-            accept="image/*"
-            @change="handleAvatarUpload"
-          />
-
-          <div class="hero-main">
-            <div class="profile-name-row">
-              <input
-                v-if="isEditingProfile"
-                v-model="displayNameDraft"
-                class="profile-name-input"
-                type="text"
-                maxlength="24"
-              />
-              <h2 v-else>{{ profileName }}</h2>
-              <span class="chip chip-outline">{{ yearsInPractice }}{{ isChinese ? '年执业' : ' yrs in practice' }}</span>
-              <span v-if="qualification" class="chip">{{ qualification }}</span>
-            </div>
-
-            <div class="profile-meta-row">
-              <span><Building2 :size="13" />{{ firmName }}</span>
-              <span><UserRound :size="13" />{{ copy.phone }} <span class="tabular">{{ profilePhone }}</span></span>
-              <span><ShieldCheck :size="13" />{{ profileUserId }}</span>
-            </div>
-
-            <div class="profile-stats">
-              <div>
-                <span>{{ copy.statsSkills }}</span>
-                <strong>6</strong>
-              </div>
-              <div>
-                <span>{{ copy.statsTemplates }}</span>
-                <strong>3</strong>
-              </div>
-              <div>
-                <span>{{ copy.statsUses }}</span>
-                <strong>1,284</strong>
-              </div>
-              <div>
-                <span>{{ copy.statsRating }}</span>
-                <strong>4.8 <Star :size="14" /></strong>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="card market-panel" aria-label="律师 IP 市场橱窗">
-          <header class="market-header">
-            <div class="market-title">
-              <span class="market-icon">
-                <Store :size="18" />
+        <section class="card identity-card" aria-label="用户身份信息">
+          <div class="identity-main">
+            <button
+              class="identity-avatar"
+              :class="{ 'has-img': avatarDraftDataUrl }"
+              type="button"
+              :title="avatarDraftDataUrl ? copy.replaceAvatar : copy.uploadAvatar"
+              @click="chooseAvatar"
+            >
+              <img v-if="avatarDraftDataUrl" :src="avatarDraftDataUrl" alt="" />
+              <span v-if="avatarDraftDataUrl" class="avatar-overlay">
+                <Camera :size="18" />
+                <span>{{ copy.replaceAvatar }}</span>
               </span>
-              <span>
-                <strong>{{ copy.profileBar }}</strong>
-                <small>{{ copy.profileBarSub }}</small>
-              </span>
-            </div>
-            <span class="chip chip-accent">{{ copy.beta }}</span>
-          </header>
+              <span v-else>{{ avatarText }}</span>
+            </button>
+            <input
+              ref="avatarInputRef"
+              class="profile-avatar-input"
+              type="file"
+              accept="image/*"
+              @change="handleAvatarUpload"
+            />
 
-          <div class="market-grid">
-            <div class="market-form">
-              <label class="field-block">
-                <span>{{ copy.firm }}</span>
-                <input v-model="firmDraft" :disabled="!isEditingProfile" type="text" />
-              </label>
-
-              <div class="field-row">
-                <label class="field-block">
+            <div class="identity-copy">
+              <div class="identity-title-row">
+                <input
+                  v-if="isEditingProfile"
+                  v-model="displayNameDraft"
+                  class="profile-name-input"
+                  type="text"
+                  maxlength="24"
+                />
+                <h2 v-else>{{ profileName }}</h2>
+                <label v-if="isEditingProfile" class="inline-field compact">
                   <span>{{ copy.years }}</span>
-                  <input v-model="yearsDraft" :disabled="!isEditingProfile" class="tabular" type="text" />
+                  <input v-model="yearsDraft" class="tabular" type="text" />
                 </label>
-                <label class="field-block">
+                <span v-else class="chip chip-outline">{{ yearsInPractice }}{{ isChinese ? '年执业' : ' yrs in practice' }}</span>
+                <label v-if="isEditingProfile" class="inline-field compact">
                   <span>{{ copy.qualification }}</span>
                   <input
                     v-model="qualificationDraft"
-                    :disabled="!isEditingProfile"
                     type="text"
                     :placeholder="isChinese ? '例：合伙人 / Partner' : 'e.g. Partner'"
                   />
                 </label>
+                <span v-else-if="qualification" class="chip">{{ qualification }}</span>
               </div>
 
-              <label class="field-block">
-                <span>{{ copy.bio }}</span>
-                <textarea
-                  v-model="profileBioDraft"
-                  :disabled="!isEditingProfile"
-                  rows="5"
-                  maxlength="200"
-                  :placeholder="copy.bioHint"
-                ></textarea>
-              </label>
-              <p class="field-hint">{{ copy.bioHint }}</p>
+              <div class="identity-meta-row">
+                <label v-if="isEditingProfile" class="inline-field firm-field">
+                  <span><Building2 :size="13" />{{ copy.firm }}</span>
+                  <input v-model="firmDraft" type="text" />
+                </label>
+                <span v-else><Building2 :size="13" />{{ firmName }}</span>
+                <span><UserRound :size="13" />{{ copy.phone }} <span class="tabular">{{ profilePhone }}</span></span>
+                <span><ShieldCheck :size="13" />{{ profileUserId }}</span>
+              </div>
 
-              <div class="field-block">
-                <span>{{ copy.expertise }}</span>
-                <div class="expertise-list">
-                  <button
-                    v-for="tag in expertiseOptions"
-                    :key="tag"
-                    class="chip expertise-chip"
-                    :class="{ selected: selectedExpertise.includes(tag) }"
-                    type="button"
-                    @click="toggleExpertise(tag)"
-                  >
-                    <Check v-if="selectedExpertise.includes(tag)" :size="11" />
-                    <span>{{ tag }}</span>
-                  </button>
-                </div>
-                <p class="field-hint">{{ copy.expertiseHint }}</p>
+              <textarea
+                v-if="isEditingProfile"
+                v-model="profileBioDraft"
+                class="identity-bio-input"
+                rows="4"
+                maxlength="200"
+                :placeholder="copy.bioHint"
+              ></textarea>
+              <p v-else class="identity-bio" :class="{ empty: !bioText }">
+                {{ bioText || copy.profileBioFallback }}
+              </p>
+
+              <div v-if="isEditingProfile" class="expertise-list inline-expertise">
+                <button
+                  v-for="tag in expertiseOptions"
+                  :key="tag"
+                  class="chip expertise-chip"
+                  :class="{ selected: selectedExpertise.includes(tag) }"
+                  type="button"
+                  @click="toggleExpertise(tag)"
+                >
+                  <Check v-if="selectedExpertise.includes(tag)" :size="11" />
+                  <span>{{ tag }}</span>
+                </button>
+              </div>
+              <div v-else class="preview-tags">
+                <span v-for="tag in selectedExpertise" :key="tag" class="chip chip-outline">{{ tag }}</span>
               </div>
             </div>
+          </div>
 
-            <aside class="storefront-column" aria-label="橱窗预览">
-              <div class="preview-label">{{ copy.previewCard }}</div>
-              <article class="storefront-preview">
-                <span class="preview-badge">{{ copy.previewCard }}</span>
-                <div class="preview-head">
-                  <span class="preview-avatar">
-                    <img v-if="avatarDraftDataUrl" :src="avatarDraftDataUrl" alt="" />
-                    <span v-else>{{ avatarText }}</span>
-                  </span>
-                  <span class="preview-title-copy">
-                    <strong>{{ profileName }}</strong>
-                    <small>{{ qualification }} · {{ firmName }}</small>
-                  </span>
-                </div>
-
-                <p class="preview-bio" :class="{ empty: !bioText }">
-                  "{{ bioText || copy.storefrontBioFallback }}"
-                </p>
-
-                <div class="preview-tags">
-                  <span v-for="tag in selectedExpertise" :key="tag" class="chip chip-outline">{{ tag }}</span>
-                </div>
-
-                <div class="preview-stats">
-                  <div>
-                    <span>{{ copy.storefrontPublished }}</span>
-                    <strong>9</strong>
-                  </div>
-                  <div>
-                    <span>{{ copy.storefrontUses }}</span>
-                    <strong>1.2K</strong>
-                  </div>
-                  <div>
-                    <span>{{ copy.storefrontRating }}</span>
-                    <strong>4.8 <Star :size="12" /></strong>
-                  </div>
-                </div>
-              </article>
-            </aside>
+          <div class="identity-stats">
+            <div>
+              <span>{{ copy.statsSkills }}</span>
+              <strong>6</strong>
+            </div>
+            <div>
+              <span>{{ copy.statsTemplates }}</span>
+              <strong>3</strong>
+            </div>
+            <div>
+              <span>{{ copy.statsUses }}</span>
+              <strong>1,284</strong>
+            </div>
+            <div>
+              <span>{{ copy.statsRating }}</span>
+              <strong>4.8 <Star :size="14" /></strong>
+            </div>
           </div>
         </section>
 
@@ -635,7 +575,21 @@ onBeforeUnmount(() => {
                 type="button"
                 @click="openOrganizationManager"
               >
-                {{ copy.manageOrganization }}
+                {{ copy.switchOrganization }}
+              </button>
+            </div>
+
+            <div class="settings-row">
+              <span>
+                <strong><LogOut :size="14" />{{ copy.signOut }}</strong>
+                <small>{{ copy.signOutHint }}</small>
+              </span>
+              <button
+                class="btn btn-ghost btn-sm danger-button"
+                type="button"
+                @click="isLogoutConfirmOpen = true"
+              >
+                {{ copy.signOut }}
               </button>
             </div>
 
@@ -643,6 +597,56 @@ onBeforeUnmount(() => {
         </section>
       </div>
     </main>
+
+    <div v-if="isOrganizationDialogOpen" class="modal-backdrop" @click.self="isOrganizationDialogOpen = false">
+      <section class="modal-panel org-dialog" role="dialog" aria-modal="true" :aria-label="copy.switchOrganizationTitle">
+        <header class="modal-header">
+          <span>
+            <strong>{{ copy.switchOrganizationTitle }}</strong>
+            <small>{{ copy.switchOrganizationSub }}</small>
+          </span>
+          <button class="modal-close" type="button" :aria-label="copy.cancel" @click="isOrganizationDialogOpen = false">×</button>
+        </header>
+
+        <div v-if="organizations.length" class="org-list">
+          <button
+            v-for="organization in organizations"
+            :key="organization.id"
+            class="org-option"
+            :class="{ active: organization.id === currentOrganizationId }"
+            type="button"
+            @click="handleOrganizationSelect(organization.id)"
+          >
+            <span>
+              <strong>{{ organization.name }}</strong>
+              <small>{{ organization.role }} · {{ organization.planName }}</small>
+            </span>
+            <span v-if="organization.id === currentOrganizationId" class="chip">{{ copy.current }}</span>
+          </button>
+        </div>
+        <p v-else class="empty-dialog-text">{{ copy.noOrganizations }}</p>
+      </section>
+    </div>
+
+    <div v-if="isLogoutConfirmOpen" class="modal-backdrop" @click.self="isLogoutConfirmOpen = false">
+      <section class="modal-panel confirm-dialog" role="dialog" aria-modal="true" :aria-label="copy.logoutTitle">
+        <header class="modal-header">
+          <span>
+            <strong>{{ copy.logoutTitle }}</strong>
+            <small>{{ copy.logoutDescription }}</small>
+          </span>
+        </header>
+
+        <div class="confirm-actions">
+          <button class="btn btn-ghost btn-sm" type="button" @click="isLogoutConfirmOpen = false">
+            {{ copy.cancel }}
+          </button>
+          <button class="btn btn-sm danger-solid-button" type="button" @click="handleLogout">
+            {{ copy.confirmLogout }}
+          </button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -780,52 +784,6 @@ onBeforeUnmount(() => {
   font-size: 12.5px;
 }
 
-.profile-hero {
-  display: flex;
-  align-items: flex-start;
-  gap: 28px;
-  min-height: 240px;
-  margin-bottom: 18px;
-  padding: 32px;
-  border: 1px solid var(--profile-line);
-  border-radius: 14px;
-  background: var(--profile-panel);
-}
-
-.profile-avatar-slot {
-  position: relative;
-  width: 132px;
-  height: 132px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  border: 2px dashed var(--profile-line-strong);
-  border-radius: 999px;
-  background: var(--profile-soft);
-  color: var(--profile-muted);
-  text-align: center;
-  cursor: pointer;
-}
-
-.profile-avatar-slot:hover {
-  border-color: var(--profile-accent);
-  background: var(--profile-accent-tint);
-  color: var(--profile-accent);
-}
-
-.profile-avatar-slot.has-img {
-  border-style: solid;
-  border-color: var(--profile-ink);
-}
-
-.profile-avatar-slot img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
 .avatar-overlay {
   position: absolute;
   inset: 0;
@@ -840,51 +798,12 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 
-.profile-avatar-slot.has-img:hover .avatar-overlay {
-  opacity: 1;
-}
-
-.avatar-empty {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.avatar-empty small {
-  color: var(--profile-muted-light);
-  font-size: 10px;
-}
-
 .profile-avatar-input {
   display: none;
 }
 
-.hero-main {
-  flex: 1;
-  min-width: 0;
-}
-
-.profile-name-row {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.profile-name-row h2 {
-  margin: 0;
-  color: var(--profile-ink);
-  font-family: var(--profile-serif);
-  font-size: 24px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-
 .profile-name-input {
-  width: min(280px, 100%);
+  width: min(260px, 100%);
   height: 40px;
   padding: 0 14px;
   border: 1px solid var(--profile-line);
@@ -896,46 +815,58 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
-.profile-meta-row {
-  display: flex;
+.inline-field {
+  min-width: 0;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 10px;
+  gap: 6px;
   color: var(--profile-muted);
-  font-size: 13px;
+  font-size: 12px;
 }
 
-.profile-meta-row span {
+.inline-field > span {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
 }
 
-.profile-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 20px;
-  overflow: hidden;
+.inline-field input,
+.identity-bio-input {
   border: 1px solid var(--profile-line);
   border-radius: 10px;
-  background: var(--profile-bg);
+  background: var(--profile-panel);
+  color: var(--profile-ink);
+  font: inherit;
 }
 
-.profile-stats div {
-  min-width: 0;
-  padding: 14px 16px;
-  border-left: 1px solid var(--profile-line);
+.inline-field input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
 }
 
-.profile-stats div:first-child {
-  border-left: 0;
+.inline-field.compact {
+  width: 150px;
 }
 
-.profile-stats span,
-.preview-stats span,
+.firm-field {
+  width: min(260px, 100%);
+}
+
+.identity-bio-input {
+  width: min(760px, 100%);
+  min-height: 96px;
+  margin: 14px 0 12px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.identity-stats span,
 .field-hint,
-.preview-label,
 .settings-card > p {
   display: block;
   color: var(--profile-muted);
@@ -943,8 +874,7 @@ onBeforeUnmount(() => {
   line-height: 1.5;
 }
 
-.profile-stats strong,
-.preview-stats strong {
+.identity-stats strong {
   display: flex;
   align-items: baseline;
   gap: 4px;
@@ -957,8 +887,7 @@ onBeforeUnmount(() => {
   font-variant-numeric: tabular-nums;
 }
 
-.profile-stats svg,
-.preview-stats svg {
+.identity-stats svg {
   color: var(--profile-accent);
 }
 
@@ -968,38 +897,122 @@ onBeforeUnmount(() => {
   background: var(--profile-panel);
 }
 
-.market-panel {
+.identity-card {
   margin-bottom: 18px;
-  padding: 28px;
+  padding: 26px;
 }
 
-.market-header {
+.identity-main {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 18px;
+  align-items: flex-start;
+  gap: 18px;
 }
 
-.market-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.market-icon {
-  width: 36px;
-  height: 36px;
+.identity-avatar {
+  position: relative;
+  width: 74px;
+  height: 74px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
-  background: var(--profile-accent-tint);
-  color: var(--profile-accent);
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 3px solid var(--profile-bg);
+  border-radius: 999px;
+  background: linear-gradient(150deg, var(--profile-ink-800), var(--profile-ink));
+  box-shadow: 0 0 0 1px var(--profile-line-strong);
+  color: #f6efe0;
+  font-family: var(--profile-serif);
+  font-size: 28px;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.market-title strong,
+.identity-avatar:hover {
+  box-shadow:
+    0 0 0 1px var(--profile-accent),
+    0 8px 22px rgba(26, 22, 20, 0.1);
+}
+
+.identity-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.identity-avatar.has-img:hover .avatar-overlay {
+  opacity: 1;
+}
+
+.identity-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.identity-title-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.identity-title-row h2 {
+  margin: 0;
+  color: var(--profile-ink);
+  font-family: var(--profile-serif);
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.identity-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  color: var(--profile-muted);
+  font-size: 13px;
+}
+
+.identity-meta-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.identity-bio {
+  max-width: 760px;
+  margin: 14px 0 12px;
+  color: var(--profile-ink-700);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.identity-bio.empty {
+  color: var(--profile-muted);
+}
+
+.identity-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 22px;
+  overflow: hidden;
+  border: 1px solid var(--profile-line);
+  border-radius: 10px;
+  background: var(--profile-bg);
+}
+
+.identity-stats div {
+  min-width: 0;
+  padding: 13px 16px;
+  border-left: 1px solid var(--profile-line);
+}
+
+.identity-stats div:first-child {
+  border-left: 0;
+}
+
 .settings-card h2 {
   display: block;
   margin: 0 0 2px;
@@ -1007,25 +1020,6 @@ onBeforeUnmount(() => {
   font-size: 15px;
   font-weight: 600;
   line-height: 1.45;
-}
-
-.market-title small {
-  display: block;
-  color: var(--profile-muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.market-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 22px;
-}
-
-.market-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
 }
 
 .field-row {
@@ -1078,7 +1072,9 @@ onBeforeUnmount(() => {
 
 .field-block input:focus,
 .field-block textarea:focus,
-.profile-name-input:focus {
+.profile-name-input:focus,
+.inline-field input:focus,
+.identity-bio-input:focus {
   outline: 0;
   border-color: var(--profile-ink);
   box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
@@ -1122,8 +1118,7 @@ onBeforeUnmount(() => {
   background: transparent;
 }
 
-.chip-accent,
-.preview-badge {
+.chip-accent {
   background: var(--profile-accent-tint);
   color: var(--profile-accent-700);
 }
@@ -1140,119 +1135,14 @@ onBeforeUnmount(() => {
   color: #ffffff;
 }
 
-.storefront-column {
-  min-width: 0;
-}
-
-.preview-label {
-  margin-bottom: 10px;
-}
-
-.storefront-preview {
-  position: relative;
-  min-height: 280px;
-  overflow: hidden;
-  padding: 24px;
-  border: 1px solid var(--profile-line);
-  border-radius: 14px;
-  background: linear-gradient(180deg, var(--profile-bg) 0%, var(--profile-panel) 100%);
-}
-
-.preview-badge {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.03em;
-}
-
-.preview-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.preview-avatar {
-  width: 56px;
-  height: 56px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  border: 3px solid var(--profile-bg);
-  border-radius: 999px;
-  background: linear-gradient(150deg, var(--profile-ink-800), var(--profile-ink));
-  box-shadow: 0 0 0 1px var(--profile-line-strong);
-  color: #f6efe0;
-  font-family: var(--profile-serif);
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.preview-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.preview-title-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-}
-
-.preview-title-copy strong {
-  color: var(--profile-ink);
-  font-family: var(--profile-serif);
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.preview-title-copy small {
-  overflow: hidden;
-  color: var(--profile-muted);
-  font-size: 13px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.preview-bio {
-  margin: 0 0 14px;
-  color: var(--profile-ink-700);
-  font-size: 13px;
-  font-style: normal;
-  line-height: 1.65;
-}
-
-.preview-bio.empty {
-  font-style: italic;
-  opacity: 0.55;
-}
-
 .preview-tags {
   min-height: 24px;
   margin-bottom: 14px;
 }
 
-.preview-stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0;
-  padding-top: 14px;
-  border-top: 1px solid var(--profile-line);
-}
-
-.preview-stats strong {
-  font-size: 18px;
+.inline-expertise {
+  max-width: 760px;
+  margin-bottom: 14px;
 }
 
 .settings-grid {
@@ -1379,6 +1269,148 @@ onBeforeUnmount(() => {
   border-color: rgba(178, 58, 58, 0.3);
 }
 
+.danger-solid-button {
+  background: var(--profile-danger);
+  color: #ffffff;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(26, 22, 20, 0.24);
+}
+
+.modal-panel {
+  width: min(520px, 100%);
+  max-height: min(680px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid var(--profile-line);
+  border-radius: 14px;
+  background: var(--profile-panel);
+  box-shadow: 0 24px 70px rgba(26, 22, 20, 0.18);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 22px 16px;
+  border-bottom: 1px solid var(--profile-line);
+}
+
+.modal-header span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.modal-header strong {
+  color: var(--profile-ink);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.modal-header small,
+.empty-dialog-text {
+  color: var(--profile-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.modal-close {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--profile-line);
+  border-radius: 8px;
+  background: var(--profile-bg);
+  color: var(--profile-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: var(--profile-ink);
+  background: var(--profile-soft);
+}
+
+.org-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 22px 22px;
+}
+
+.org-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--profile-line);
+  border-radius: 10px;
+  background: var(--profile-panel);
+  color: var(--profile-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.org-option:hover,
+.org-option.active {
+  border-color: var(--profile-line-strong);
+  background: var(--profile-bg);
+}
+
+.org-option > span:first-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.org-option strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.org-option small {
+  color: var(--profile-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.empty-dialog-text {
+  margin: 0;
+  padding: 22px;
+}
+
+.confirm-dialog {
+  width: min(420px, 100%);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 18px 22px 22px;
+}
+
 .tabular {
   font-variant-numeric: tabular-nums;
 }
@@ -1397,24 +1429,28 @@ textarea:focus-visible {
 }
 
 @media (max-width: 940px) {
-  .profile-hero,
-  .market-grid,
   .settings-grid {
     grid-template-columns: 1fr;
   }
 
-  .market-grid,
   .settings-grid {
     display: grid;
   }
 
-  .profile-hero {
+  .identity-main {
     flex-direction: column;
   }
 
-  .profile-avatar-slot {
-    width: 112px;
-    height: 112px;
+  .identity-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .identity-stats div:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .identity-stats div:nth-child(n + 3) {
+    border-top: 1px solid var(--profile-line);
   }
 }
 
@@ -1433,21 +1469,20 @@ textarea:focus-visible {
     font-size: 26px;
   }
 
-  .profile-hero,
-  .market-panel,
+  .identity-card,
   .settings-card {
     padding: 20px;
   }
 
-  .profile-stats {
+  .identity-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .profile-stats div:nth-child(odd) {
+  .identity-stats div:nth-child(odd) {
     border-left: 0;
   }
 
-  .profile-stats div:nth-child(n + 3) {
+  .identity-stats div:nth-child(n + 3) {
     border-top: 1px solid var(--profile-line);
   }
 
@@ -1455,8 +1490,15 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .storefront-preview {
-    padding: 20px;
+  .inline-field.compact,
+  .firm-field {
+    width: 100%;
+  }
+
+  .identity-avatar {
+    width: 64px;
+    height: 64px;
+    font-size: 24px;
   }
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import {
   ChevronRight,
   Copy,
@@ -14,7 +14,15 @@ import {
   type TemplateDocumentSection,
 } from '../data/legalAssets';
 import { getMockSkillAuthor } from '../data/mockSkillAuthors';
-import { hasTemplatePublishDestination } from '../data/templateCatalog';
+import {
+  customTemplateAssets,
+  extractionMessageByTemplateId,
+  extractionStateByTemplateId,
+  hasTemplatePublishDestination,
+  loadCustomTemplates,
+  originalFilesByTemplateId,
+  upsertCustomTemplate,
+} from '../data/templateCatalog';
 import { sendDeepSeekMessage } from '../services/deepseekChat';
 import LibraryTypeDropdown from './LibraryTypeDropdown.vue';
 import TemplateCreateModal from './TemplateCreateModal.vue';
@@ -34,20 +42,10 @@ type AiExtractedTemplatePayload = {
   tags?: unknown;
   sections?: unknown;
 };
-type UploadedOriginalTemplate = {
-  fileName: string;
-  fileSize: number;
-  fileType: string;
-  originalText: string;
-};
 type SourceFilter = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
 type TemplateSectionId = string;
 
 const selectedTemplate = ref<TemplateAsset | null>(null);
-const customTemplateAssets = ref<TemplateAsset[]>([]);
-const originalFilesByTemplateId = ref<Record<string, UploadedOriginalTemplate>>({});
-const extractionStateByTemplateId = ref<Record<string, ExtractionState>>({});
-const extractionMessageByTemplateId = ref<Record<string, string>>({});
 const activeSectionId = ref<TemplateSectionId>('section-0');
 const statusMessage = ref('');
 const searchKeyword = ref('');
@@ -466,18 +464,16 @@ const analyzeUploadedTemplate = async (file: File) => {
     const templateId = `uploaded-template-${Date.now()}`;
     const placeholderTemplate = createUploadedTemplateAsset(file, originalText, null, templateId, 'generating');
 
-    customTemplateAssets.value = [
-      placeholderTemplate,
-      ...customTemplateAssets.value.filter((item) => item.name !== placeholderTemplate.name),
-    ];
-    originalFilesByTemplateId.value[templateId] = {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      originalText,
-    };
-    extractionStateByTemplateId.value[templateId] = 'analyzing';
-    extractionMessageByTemplateId.value[templateId] = '生成模板中...';
+    upsertCustomTemplate(placeholderTemplate, {
+      originalFile: {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        originalText,
+      },
+      extractionState: 'analyzing',
+      extractionMessage: '生成模板中...',
+    });
     selectedCategory.value = '全部';
     selectedSource.value = 'personal';
     selectedTemplate.value = placeholderTemplate;
@@ -494,14 +490,14 @@ const analyzeUploadedTemplate = async (file: File) => {
     }
 
     const template = createUploadedTemplateAsset(file, originalText, payload, templateId, 'done');
-    customTemplateAssets.value = customTemplateAssets.value.map((item) =>
-      item.id === templateId ? template : item
-    );
+    upsertCustomTemplate(template, {
+      originalFile: originalFilesByTemplateId.value[templateId],
+      extractionState: 'done',
+      extractionMessage: extractionNote.value,
+    });
     if (selectedTemplate.value?.id === templateId) {
       selectedTemplate.value = template;
     }
-    extractionStateByTemplateId.value[templateId] = 'done';
-    extractionMessageByTemplateId.value[templateId] = extractionNote.value;
     extractionState.value = 'done';
   } catch (error) {
     extractionError.value = error instanceof Error ? error.message : '模板读取失败，请重新上传。';
@@ -647,6 +643,10 @@ const scrollToSection = (sectionId: TemplateSectionId) => {
 const createTemplate = () => {
   openCreateModal();
 };
+
+onMounted(() => {
+  void loadCustomTemplates();
+});
 
 onBeforeUnmount(() => {
   if (statusTimer) {

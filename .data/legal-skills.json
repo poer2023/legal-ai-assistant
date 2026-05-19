@@ -1,5 +1,52 @@
 [
   {
+    "id": "org-yongjian-law:class-cases-analysis-report",
+    "slug": "org-yongjian-law:class-cases-analysis-report",
+    "name": "类案检索分析报告",
+    "description": "Generate an initial draft of a precedent-search analysis report based on user-provided case facts and disputed issues. Suitable for advisory scenarios.",
+    "category": "法律检索与分析",
+    "route_name": "chat",
+    "tags": [
+      "类案检索",
+      "分析报告",
+      "咨询意见"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "active",
+    "files": [
+      {
+        "id": "class-cases-analysis-report-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: class-cases-analysis-report\ndescription: \"Generate an initial draft of a precedent-search analysis report based on user-provided case facts and disputed issues. Suitable for advisory scenarios.\"\n---\n\n# 类案检索分析报告\n\n## 使用场景\n- 用户需要基于案件事实和争议焦点快速生成类案检索分析报告初稿\n- 用户已掌握基本事实但希望获得结构化报告框架\n- 咨询意见场景中需要引用类案支撑观点\n\n## 输入要求\n- 纯文字描述规则\n\n## 工作流\n1. 接收用户输入的纯文字描述\n2. 对照 references/checklist.md 检查输入完整性，识别缺失字段\n3. 按 references/output-patterns.md 构建报告骨架\n4. 将用户输入填充到对应章节\n5. 对需要人工检索的内容（具体案例、裁判观点）标注 {{待补充}}\n6. 输出完整 markdown 文本\n\n## 输出要求\n- Word 文书初稿\n\n## 质量检查\n- 输入是否涵盖 checklist 中所有必填字段？若否，输出待确认提示\n- 报告中的案情章节是否准确反映用户输入，无事实歪曲\n- 占位符是否清晰标记，没有错误填充不存在的内容\n- 争议焦点是否与用户描述完全对应\n\n## 边界规则\n- 不得编造任何具体案例、法院观点、裁判文书文号或法律条文\n- 输出仅限草稿框架，不具法律效力\n- 用户未提供检索结果时不得生成虚假案例摘要\n- 不得在输出中索要用户个人信息或案件机密\n\n## 需要时读取\n\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。"
+      },
+      {
+        "id": "class-cases-analysis-report-references-checklist-md",
+        "name": "checklist.md",
+        "path": "references/checklist.md",
+        "type": "markdown",
+        "content": "# 类案检索分析报告检查清单\n\n## 输入核验\n- 纯文字描述规则\n\n## 执行步骤\n1. 接收用户输入的纯文字描述\n2. 对照 references/checklist.md 检查输入完整性，识别缺失字段\n3. 按 references/output-patterns.md 构建报告骨架\n4. 将用户输入填充到对应章节\n5. 对需要人工检索的内容（具体案例、裁判观点）标注 {{待补充}}\n6. 输出完整 markdown 文本\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 输入是否涵盖 checklist 中所有必填字段？若否，输出待确认提示\n- 报告中的案情章节是否准确反映用户输入，无事实歪曲\n- 占位符是否清晰标记，没有错误填充不存在的内容\n- 争议焦点是否与用户描述完全对应\n\n## 边界\n- 不得编造任何具体案例、法院观点、裁判文书文号或法律条文\n- 输出仅限草稿框架，不具法律效力\n- 用户未提供检索结果时不得生成虚假案例摘要\n- 不得在输出中索要用户个人信息或案件机密"
+      },
+      {
+        "id": "class-cases-analysis-report-references-output-patterns-md",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# 类案检索分析报告输出模式\n\n## 推荐输出结构\n- Word 文书初稿\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
+      }
+    ],
+    "usage_count": 2,
+    "last_used_at": "2026-05-19T00:29:46.782+00:00",
+    "created_at": "2026-05-15T18:12:05.697+00:00",
+    "updated_at": "2026-05-19T00:29:46.785+00:00",
+    "icon_data_url": null,
+    "publisher_name": null,
+    "publisher_avatar_url": null,
+    "use_profile_identity": true
+  },
+  {
     "id": "org-yongjian-law:custom-spa-mpb45rgs",
     "slug": "org-yongjian-law:custom-spa-mpb45rgs",
     "name": "spa",
@@ -347,53 +394,6 @@
     "publisher_name": "周知行",
     "publisher_avatar_url": "/mock-skill-authors/author-03.webp",
     "use_profile_identity": false
-  },
-  {
-    "id": "org-yongjian-law:class-cases-analysis-report",
-    "slug": "org-yongjian-law:class-cases-analysis-report",
-    "name": "类案检索分析报告",
-    "description": "Generate an initial draft of a precedent-search analysis report based on user-provided case facts and disputed issues. Suitable for advisory scenarios.",
-    "category": "法律检索与分析",
-    "route_name": "chat",
-    "tags": [
-      "类案检索",
-      "分析报告",
-      "咨询意见"
-    ],
-    "scope": "personal",
-    "source": "custom",
-    "status": "draft",
-    "files": [
-      {
-        "id": "class-cases-analysis-report-SKILL-md",
-        "name": "SKILL.md",
-        "path": "SKILL.md",
-        "type": "markdown",
-        "content": "---\nname: class-cases-analysis-report\ndescription: \"Generate an initial draft of a precedent-search analysis report based on user-provided case facts and disputed issues. Suitable for advisory scenarios.\"\n---\n\n# 类案检索分析报告\n\n## 使用场景\n- 用户需要基于案件事实和争议焦点快速生成类案检索分析报告初稿\n- 用户已掌握基本事实但希望获得结构化报告框架\n- 咨询意见场景中需要引用类案支撑观点\n\n## 输入要求\n- 纯文字描述规则\n\n## 工作流\n1. 接收用户输入的纯文字描述\n2. 对照 references/checklist.md 检查输入完整性，识别缺失字段\n3. 按 references/output-patterns.md 构建报告骨架\n4. 将用户输入填充到对应章节\n5. 对需要人工检索的内容（具体案例、裁判观点）标注 {{待补充}}\n6. 输出完整 markdown 文本\n\n## 输出要求\n- Word 文书初稿\n\n## 质量检查\n- 输入是否涵盖 checklist 中所有必填字段？若否，输出待确认提示\n- 报告中的案情章节是否准确反映用户输入，无事实歪曲\n- 占位符是否清晰标记，没有错误填充不存在的内容\n- 争议焦点是否与用户描述完全对应\n\n## 边界规则\n- 不得编造任何具体案例、法院观点、裁判文书文号或法律条文\n- 输出仅限草稿框架，不具法律效力\n- 用户未提供检索结果时不得生成虚假案例摘要\n- 不得在输出中索要用户个人信息或案件机密\n\n## 需要时读取\n\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。"
-      },
-      {
-        "id": "class-cases-analysis-report-references-checklist-md",
-        "name": "checklist.md",
-        "path": "references/checklist.md",
-        "type": "markdown",
-        "content": "# 类案检索分析报告检查清单\n\n## 输入核验\n- 纯文字描述规则\n\n## 执行步骤\n1. 接收用户输入的纯文字描述\n2. 对照 references/checklist.md 检查输入完整性，识别缺失字段\n3. 按 references/output-patterns.md 构建报告骨架\n4. 将用户输入填充到对应章节\n5. 对需要人工检索的内容（具体案例、裁判观点）标注 {{待补充}}\n6. 输出完整 markdown 文本\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 输入是否涵盖 checklist 中所有必填字段？若否，输出待确认提示\n- 报告中的案情章节是否准确反映用户输入，无事实歪曲\n- 占位符是否清晰标记，没有错误填充不存在的内容\n- 争议焦点是否与用户描述完全对应\n\n## 边界\n- 不得编造任何具体案例、法院观点、裁判文书文号或法律条文\n- 输出仅限草稿框架，不具法律效力\n- 用户未提供检索结果时不得生成虚假案例摘要\n- 不得在输出中索要用户个人信息或案件机密"
-      },
-      {
-        "id": "class-cases-analysis-report-references-output-patterns-md",
-        "name": "output-patterns.md",
-        "path": "references/output-patterns.md",
-        "type": "markdown",
-        "content": "# 类案检索分析报告输出模式\n\n## 推荐输出结构\n- Word 文书初稿\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
-      }
-    ],
-    "usage_count": 0,
-    "last_used_at": null,
-    "created_at": "2026-05-15T18:12:05.697Z",
-    "updated_at": "2026-05-15T18:12:05.872Z",
-    "icon_data_url": null,
-    "publisher_name": null,
-    "publisher_avatar_url": null,
-    "use_profile_identity": true
   },
   {
     "id": "org-yongjian-law:test-skill",

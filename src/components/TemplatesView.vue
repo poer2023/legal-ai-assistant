@@ -1,20 +1,39 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import type { Component } from 'vue';
 import {
   Building2,
+  Check,
+  Download,
   FileText,
   MoreHorizontal,
+  Pencil,
   Plus,
   Search,
   ShieldCheck,
   Store,
+  Trash2,
   User,
   Users,
+  UsersRound,
+  X,
 } from 'lucide-vue-next';
 import { templateAssets, type TemplateAsset, type TemplateDocumentSection } from '../data/legalAssets';
 import { getMockSkillAuthor } from '../data/mockSkillAuthors';
-import { hasTemplatePublishDestination } from '../data/templateCatalog';
+import {
+  customTemplateAssets,
+  deleteCustomTemplate,
+  extractionMessageByTemplateId,
+  extractionStateByTemplateId,
+  hasTemplatePublishDestination,
+  loadCustomTemplates,
+  originalFilesByTemplateId,
+  publishTemplateToMarket,
+  upsertCustomTemplate,
+  type TemplatePublishDestination,
+} from '../data/templateCatalog';
 import { sendDeepSeekMessage } from '../services/deepseekChat';
+import { useToast } from '../stores/toast';
 import TemplateCreateModal from './TemplateCreateModal.vue';
 import TemplateDetailPanel from './TemplateDetailPanel.vue';
 
@@ -29,29 +48,19 @@ type AiExtractedTemplatePayload = {
   sections?: unknown;
 };
 
-type UploadedOriginalTemplate = {
-  fileName: string;
-  fileSize: number;
-  fileType: string;
-  originalText: string;
-};
-
 type SourceFilter = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
 
 const searchKeyword = ref('');
 const selectedSource = ref<SourceFilter>('personal');
 const selectedTemplate = ref<TemplateAsset | null>(null);
-const customTemplateAssets = ref<TemplateAsset[]>([]);
-const originalFilesByTemplateId = ref<Record<string, UploadedOriginalTemplate>>({});
-const extractionStateByTemplateId = ref<Record<string, ExtractionState>>({});
-const extractionMessageByTemplateId = ref<Record<string, string>>({});
-const enabledTemplateIds = ref<Record<string, boolean>>({});
+const openTemplateMenuId = ref<string | null>(null);
 const showCreateModal = ref(false);
 const uploadedTemplateFile = ref<File | null>(null);
 const extractionState = ref<ExtractionState>('idle');
 const extractionError = ref('');
 const extractionNote = ref('');
 const isTemplateDragActive = ref(false);
+const { showToast } = useToast();
 
 const combinedTemplates = computed(() => [...customTemplateAssets.value, ...templateAssets]);
 const templateFilePath = (template: TemplateAsset) => {
@@ -200,22 +209,8 @@ const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
   return getTemplateStaticSourceKind(template);
 };
 
-const isTemplateEnabledByDefault = (template: TemplateAsset) => getStableHash(template.id) % 5 !== 2;
-
-const isTemplateEnabled = (template: TemplateAsset) =>
-  enabledTemplateIds.value[template.id] ?? isTemplateEnabledByDefault(template);
-
-const getTemplateStatusLabel = (template: TemplateAsset) => (isTemplateEnabled(template) ? '已启用' : '未启用');
-
 const handleTemplatePrimaryAction = (template: TemplateAsset) => {
-  if (!isTemplateEnabled(template)) {
-    enabledTemplateIds.value = {
-      ...enabledTemplateIds.value,
-      [template.id]: true,
-    };
-    return;
-  }
-
+  openTemplateMenuId.value = null;
   openTemplate(template);
 };
 
@@ -236,8 +231,7 @@ const filteredTemplates = computed(() => {
       .join(' ')
       .toLowerCase();
 
-    const matchesSource =
-      selectedSource.value === 'personal' || isTemplateVisibleInSource(template, selectedSource.value);
+    const matchesSource = isTemplateVisibleInSource(template, selectedSource.value);
 
     return matchesSource && (!keyword || searchable.includes(keyword));
   });
@@ -245,9 +239,11 @@ const filteredTemplates = computed(() => {
 
 const setSource = (source: SourceFilter) => {
   selectedSource.value = source;
+  openTemplateMenuId.value = null;
 };
 
 const openTemplate = (template: TemplateAsset) => {
+  openTemplateMenuId.value = null;
   selectedTemplate.value = template;
 };
 
@@ -269,6 +265,217 @@ const openCreateModal = () => {
 
 const closeCreateModal = () => {
   showCreateModal.value = false;
+};
+
+const toggleTemplateMenu = (templateId: string) => {
+  openTemplateMenuId.value = openTemplateMenuId.value === templateId ? null : templateId;
+};
+
+const closeTemplateMenuOnOutsideClick = (event: MouseEvent) => {
+  if (!openTemplateMenuId.value) return;
+  const target = event.target;
+  if (target instanceof Element && target.closest('.template-card-action-menu, .template-more-btn')) return;
+  openTemplateMenuId.value = null;
+};
+
+const publishDialogTemplate = ref<TemplateAsset | null>(null);
+const publishDialogDestination = ref<TemplatePublishDestination>('group');
+const defaultPublishGroupIds = ['business'];
+const publishDialogGroupIds = ref<string[]>([...defaultPublishGroupIds]);
+const publishDialogPricing = ref<'free' | 'paid'>('free');
+const publishDialogPrice = ref('99');
+const publishDialogTags = ref<string[]>([]);
+
+const publishDestinationLabels: Record<TemplatePublishDestination, string> = {
+  group: '小组',
+  team: '团队',
+  public: '市场',
+};
+
+const publishDestinationOptions: Array<{
+  id: TemplatePublishDestination;
+  label: string;
+  description: string;
+  icon: Component;
+}> = [
+  { id: 'group', label: '小组', description: '小组成员可在自己的「个人」中订阅使用，免费', icon: User },
+  { id: 'team', label: '团队', description: '本律所成员可订阅使用，免费', icon: Building2 },
+  { id: 'public', label: '市场', description: '公开发布，全平台律师与企业法务可发现并订阅', icon: Store },
+];
+
+const publishGroupOptions = [
+  { id: 'business', label: '公司业务组' },
+  { id: 'dispute', label: '争议解决组' },
+  { id: 'compliance', label: '合规风控组' },
+  { id: 'labor', label: '劳动用工组' },
+];
+
+const publishMarketTagOptions = [
+  '投融资 / 并购',
+  '合同审查',
+  '尽职调查',
+  '合规',
+  '数据隐私',
+  '劳动用工',
+  '知识产权',
+  '商事争议',
+  '刑事合规',
+  '公司治理',
+  '税务',
+  '跨境',
+];
+
+const createFallbackDocumentSections = (template: TemplateAsset): TemplateDocumentSection[] => [
+  {
+    title: '模板说明',
+    paragraphs: [template.preview],
+  },
+  {
+    title: '填写字段',
+    table: {
+      headers: ['序号', '字段名称', '填写状态'],
+      rows: template.requiredFields.map((field, index) => [
+        `${index + 1}`,
+        field,
+        '待填写',
+      ]),
+    },
+  },
+  {
+    title: '适用能力',
+    items: template.applicableSkills,
+  },
+  {
+    title: '标签约束',
+    items: template.tags,
+  },
+];
+
+const stringifyTemplateSection = (section: TemplateDocumentSection) => {
+  const tableRows = section.table
+    ? [
+        section.table.headers.join(' | '),
+        ...section.table.rows.map((row) => row.join(' | ')),
+      ]
+    : [];
+
+  return [
+    section.title,
+    ...(section.paragraphs ?? []),
+    ...(section.items ?? []).map((item) => `- ${item}`),
+    ...tableRows,
+  ].join('\n');
+};
+
+const createTemplateDocumentText = (template: TemplateAsset) => {
+  const sections = template.documentSections ?? createFallbackDocumentSections(template);
+  return [
+    template.name,
+    '',
+    `文档类型：${template.docType}`,
+    `来源：${template.source}`,
+    `关联能力：${template.agent}`,
+    `更新时间：${template.updatedAt}`,
+    ...sections.flatMap((section) => ['', stringifyTemplateSection(section)]),
+  ].join('\n');
+};
+
+const downloadText = (filename: string, content: string) => {
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast(`${filename} 已下载`);
+};
+
+const editTemplate = (template: TemplateAsset) => {
+  openTemplate(template);
+};
+
+const downloadTemplate = (template: TemplateAsset) => {
+  openTemplateMenuId.value = null;
+  downloadText(`${template.name}-template.md`, createTemplateDocumentText(template));
+};
+
+const openTemplatePublishDialog = (template: TemplateAsset) => {
+  openTemplateMenuId.value = null;
+  publishDialogTemplate.value = template;
+  publishDialogDestination.value = 'group';
+  publishDialogGroupIds.value = [...defaultPublishGroupIds];
+  publishDialogPricing.value = 'free';
+  publishDialogPrice.value = '99';
+  publishDialogTags.value = [];
+};
+
+const closeTemplatePublishDialog = () => {
+  publishDialogTemplate.value = null;
+};
+
+const selectPublishDialogDestination = (destination: TemplatePublishDestination) => {
+  publishDialogDestination.value = destination;
+  if (destination === 'group' && !publishDialogGroupIds.value.length) {
+    publishDialogGroupIds.value = [...defaultPublishGroupIds];
+  }
+};
+
+const togglePublishDialogGroup = (groupId: string) => {
+  publishDialogGroupIds.value = publishDialogGroupIds.value.includes(groupId)
+    ? publishDialogGroupIds.value.filter((item) => item !== groupId)
+    : [...publishDialogGroupIds.value, groupId];
+};
+
+const togglePublishDialogTag = (tag: string) => {
+  if (publishDialogTags.value.includes(tag)) {
+    publishDialogTags.value = publishDialogTags.value.filter((item) => item !== tag);
+    return;
+  }
+  if (publishDialogTags.value.length >= 3) return;
+  publishDialogTags.value = [...publishDialogTags.value, tag];
+};
+
+const updatePublishDialogPrice = (event: Event) => {
+  const target = event.target as HTMLInputElement | null;
+  publishDialogPrice.value = (target?.value || '').replace(/\D/g, '');
+};
+
+const confirmTemplatePublishDialog = () => {
+  const template = publishDialogTemplate.value;
+  if (!template) return;
+  if (publishDialogDestination.value === 'group' && !publishDialogGroupIds.value.length) {
+    showToast('请选择至少一个小组', { tone: 'warning' });
+    return;
+  }
+  if (publishDialogDestination.value === 'public' && publishDialogPricing.value === 'paid' && !publishDialogPrice.value) {
+    showToast('请填写市场定价', { tone: 'warning' });
+    return;
+  }
+
+  const didPublish = publishTemplateToMarket(template.id, {
+    destination: publishDialogDestination.value,
+    groupIds: publishDialogGroupIds.value,
+    pricing: publishDialogPricing.value,
+    price: publishDialogPrice.value,
+    tags: publishDialogTags.value,
+  });
+  const label = publishDestinationLabels[publishDialogDestination.value];
+  closeTemplatePublishDialog();
+  showToast(didPublish ? `${template.name} 已发布到${label}` : `${template.name} 已在${label}中`);
+};
+
+const deleteTemplate = (template: TemplateAsset) => {
+  const isCustomTemplate = customTemplateAssets.value.some((item) => item.id === template.id);
+  openTemplateMenuId.value = null;
+  if (!isCustomTemplate) {
+    showToast('默认模板不可删除', { tone: 'warning' });
+    return;
+  }
+
+  if (deleteCustomTemplate(template.id)) {
+    showToast(`${template.name} 已删除`);
+  }
 };
 
 const formatFileSize = (size: number) => {
@@ -495,18 +702,22 @@ const analyzeUploadedTemplate = async (file: File) => {
     const templateId = `uploaded-template-${Date.now()}`;
     const placeholderTemplate = createUploadedTemplateAsset(file, originalText, null, templateId, 'generating');
 
-    customTemplateAssets.value = [
-      placeholderTemplate,
-      ...customTemplateAssets.value.filter((item) => item.name !== placeholderTemplate.name),
-    ];
+    upsertCustomTemplate(placeholderTemplate, {
+      originalFile: {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        originalText,
+      },
+      extractionState: 'analyzing',
+      extractionMessage: '生成模板中...',
+    });
     originalFilesByTemplateId.value[templateId] = {
       fileName: file.name,
       fileSize: file.size,
       fileType: file.type,
       originalText,
     };
-    extractionStateByTemplateId.value[templateId] = 'analyzing';
-    extractionMessageByTemplateId.value[templateId] = '生成模板中...';
     selectedTemplate.value = placeholderTemplate;
     closeCreateModal();
 
@@ -521,14 +732,14 @@ const analyzeUploadedTemplate = async (file: File) => {
     }
 
     const template = createUploadedTemplateAsset(file, originalText, payload, templateId, 'done');
-    customTemplateAssets.value = customTemplateAssets.value.map((item) =>
-      item.id === templateId ? template : item
-    );
+    upsertCustomTemplate(template, {
+      originalFile: originalFilesByTemplateId.value[templateId],
+      extractionState: 'done',
+      extractionMessage: extractionNote.value,
+    });
     if (selectedTemplate.value?.id === templateId) {
       selectedTemplate.value = template;
     }
-    extractionStateByTemplateId.value[templateId] = 'done';
-    extractionMessageByTemplateId.value[templateId] = extractionNote.value;
     extractionState.value = 'done';
   } catch (error) {
     extractionError.value = error instanceof Error ? error.message : '模板读取失败，请重新上传。';
@@ -552,6 +763,15 @@ const handleTemplateDrop = (event: DragEvent) => {
 
   void analyzeUploadedTemplate(file);
 };
+
+onMounted(() => {
+  void loadCustomTemplates();
+  document.addEventListener('click', closeTemplateMenuOnOutsideClick);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeTemplateMenuOnOutsideClick);
+});
 </script>
 
 <template>
@@ -590,7 +810,7 @@ const handleTemplateDrop = (event: DragEvent) => {
             v-for="tab in sourceTabs"
             :key="tab.key"
             class="template-source-tab"
-            :data-active="selectedSource === tab.key"
+            :class="{ active: selectedSource === tab.key }"
             type="button"
             @click="setSource(tab.key)"
           >
@@ -605,11 +825,31 @@ const handleTemplateDrop = (event: DragEvent) => {
                 v-for="template in filteredTemplates"
                 :key="template.id"
                 class="template-market-card"
+                :class="{ 'menu-open': openTemplateMenuId === template.id }"
                 :title="`${template.name}\n${templateFilePath(template)}`"
                 tabindex="0"
                 @click="openTemplate(template)"
                 @keydown.enter.prevent="openTemplate(template)"
               >
+                <div v-if="openTemplateMenuId === template.id" class="template-card-action-menu" @click.stop>
+                  <button class="template-menu-action" type="button" @click="editTemplate(template)">
+                    <Pencil :size="15" />
+                    <span>编辑</span>
+                  </button>
+                  <button class="template-menu-action" type="button" @click="downloadTemplate(template)">
+                    <Download :size="15" />
+                    <span>下载</span>
+                  </button>
+                  <button class="template-menu-action" type="button" @click="openTemplatePublishDialog(template)">
+                    <UsersRound :size="15" />
+                    <span>发布</span>
+                  </button>
+                  <button class="template-menu-action danger" type="button" @click="deleteTemplate(template)">
+                    <Trash2 :size="15" />
+                    <span>删除</span>
+                  </button>
+                </div>
+
                 <div class="template-card-main">
                   <div class="template-icon-block" aria-hidden="true">
                     <FileText :size="34" />
@@ -618,12 +858,6 @@ const handleTemplateDrop = (event: DragEvent) => {
                   <div class="template-card-copy">
                     <div class="template-title-row">
                       <h2>{{ template.name }}</h2>
-                      <span
-                        class="template-status-badge"
-                        :data-status="isTemplateEnabled(template) ? 'enabled' : 'disabled'"
-                      >
-                        {{ getTemplateStatusLabel(template) }}
-                      </span>
                     </div>
 
                     <p>{{ template.preview }}</p>
@@ -655,13 +889,17 @@ const handleTemplateDrop = (event: DragEvent) => {
                   <div class="template-card-actions" @click.stop>
                     <button
                       class="template-primary-action"
-                      :data-enabled="isTemplateEnabled(template)"
                       type="button"
                       @click="handleTemplatePrimaryAction(template)"
                     >
-                      {{ isTemplateEnabled(template) ? '使用' : '启用' }}
+                      使用模板
                     </button>
-                    <button class="template-more-btn" type="button" aria-label="更多模板操作">
+                    <button
+                      class="template-more-btn"
+                      type="button"
+                      :aria-label="`${template.name} 更多操作`"
+                      @click.stop="toggleTemplateMenu(template.id)"
+                    >
                       <MoreHorizontal :size="17" />
                     </button>
                   </div>
@@ -677,6 +915,131 @@ const handleTemplateDrop = (event: DragEvent) => {
             </div>
           </section>
         </section>
+
+        <div v-if="publishDialogTemplate" class="publish-dialog-backdrop" @click.self="closeTemplatePublishDialog">
+          <section class="publish-dialog" role="dialog" aria-modal="true" aria-labelledby="template-publish-dialog-title">
+            <header class="publish-dialog-header">
+              <div class="publish-dialog-title-row">
+                <h2 id="template-publish-dialog-title">发布模板</h2>
+                <span>{{ publishDialogTemplate.name }}</span>
+              </div>
+              <button class="publish-dialog-close" type="button" aria-label="关闭发布弹窗" @click="closeTemplatePublishDialog">
+                <X :size="22" />
+              </button>
+            </header>
+
+            <main class="publish-dialog-body">
+              <div class="publish-dialog-section-title">分享目的地</div>
+              <div class="publish-dialog-destination-grid" role="radiogroup" aria-label="分享目的地">
+                <button
+                  v-for="option in publishDestinationOptions"
+                  :key="option.id"
+                  class="publish-dialog-destination-card"
+                  :class="{ active: publishDialogDestination === option.id }"
+                  type="button"
+                  role="radio"
+                  :aria-checked="publishDialogDestination === option.id"
+                  @click="selectPublishDialogDestination(option.id)"
+                >
+                  <span class="publish-dialog-card-title">
+                    <span class="publish-dialog-card-icon">
+                      <component :is="option.icon" :size="18" />
+                    </span>
+                    <strong>{{ option.label }}</strong>
+                  </span>
+                  <p>{{ option.description }}</p>
+                </button>
+              </div>
+
+              <section v-if="publishDialogDestination === 'group'" class="publish-dialog-groups">
+                <div class="publish-dialog-section-title">选择小组（可多选）</div>
+                <div class="publish-dialog-chip-list" role="group" aria-label="选择小组">
+                  <button
+                    v-for="group in publishGroupOptions"
+                    :key="group.id"
+                    class="publish-dialog-chip"
+                    :class="{ active: publishDialogGroupIds.includes(group.id) }"
+                    type="button"
+                    :aria-pressed="publishDialogGroupIds.includes(group.id)"
+                    @click="togglePublishDialogGroup(group.id)"
+                  >
+                    <Check v-if="publishDialogGroupIds.includes(group.id)" :size="11" />
+                    <span>{{ group.label }}</span>
+                  </button>
+                </div>
+              </section>
+
+              <section v-else-if="publishDialogDestination === 'team'" class="publish-dialog-team-card">
+                <Building2 :size="18" />
+                <div>
+                  <strong>金杜律师事务所 ・ 涌见律师演示组织</strong>
+                  <span>21 名成员将能在「团队」分类下安装此能力</span>
+                </div>
+              </section>
+
+              <section v-else class="publish-dialog-market">
+                <div class="publish-dialog-market-block">
+                  <div class="publish-dialog-section-title">定价</div>
+                  <div class="publish-dialog-pricing-row">
+                    <button
+                      class="publish-dialog-price-option"
+                      :class="{ active: publishDialogPricing === 'free' }"
+                      type="button"
+                      @click="publishDialogPricing = 'free'"
+                    >
+                      免费
+                    </button>
+                    <button
+                      class="publish-dialog-price-option"
+                      :class="{ active: publishDialogPricing === 'paid' }"
+                      type="button"
+                      @click="publishDialogPricing = 'paid'"
+                    >
+                      付费
+                    </button>
+                    <label v-if="publishDialogPricing === 'paid'" class="publish-dialog-price-input">
+                      <span>¥</span>
+                      <input
+                        class="tabular"
+                        :value="publishDialogPrice"
+                        inputmode="numeric"
+                        placeholder="价格"
+                        @input="updatePublishDialogPrice"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div class="publish-dialog-market-block">
+                  <div class="publish-dialog-section-title">分类标签</div>
+                  <div class="publish-dialog-chip-list" role="group" aria-label="分类标签">
+                    <button
+                      v-for="tag in publishMarketTagOptions"
+                      :key="tag"
+                      class="publish-dialog-chip"
+                      :class="{
+                        active: publishDialogTags.includes(tag),
+                        disabled: publishDialogTags.length >= 3 && !publishDialogTags.includes(tag),
+                      }"
+                      type="button"
+                      :aria-pressed="publishDialogTags.includes(tag)"
+                      @click="togglePublishDialogTag(tag)"
+                    >
+                      <Check v-if="publishDialogTags.includes(tag)" :size="11" />
+                      <span>{{ tag }}</span>
+                    </button>
+                  </div>
+                  <p>至多选 3 个，用于市场分类与搜索</p>
+                </div>
+              </section>
+            </main>
+
+            <footer class="publish-dialog-footer">
+              <button class="publish-dialog-cancel" type="button" @click="closeTemplatePublishDialog">取消</button>
+              <button class="publish-dialog-confirm" type="button" @click="confirmTemplatePublishDialog">确认发布</button>
+            </footer>
+          </section>
+        </div>
 
         <TemplateCreateModal
           v-if="showCreateModal"
@@ -1990,11 +2353,21 @@ const handleTemplateDrop = (event: DragEvent) => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
+  overflow: visible;
+  padding: 0;
   margin-bottom: 18px;
+  background: transparent;
+  border: 0;
+  scrollbar-width: none;
+}
+
+.template-source-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .template-source-tab {
-  height: 32px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2012,13 +2385,16 @@ const handleTemplateDrop = (event: DragEvent) => {
 }
 
 .template-source-tab:hover {
-  color: var(--tpl-accent-700);
+  color: var(--tpl-ink-900);
+  background: color-mix(in srgb, var(--tpl-soft) 74%, transparent);
 }
 
-.template-source-tab[data-active='true'] {
-  border-color: rgba(200, 85, 46, 0.15);
+.template-source-tab.active {
+  padding: 0 16px;
+  border-color: color-mix(in srgb, var(--tpl-accent) 15%, var(--tpl-line));
   background: var(--tpl-accent-tint);
   color: var(--tpl-accent-700);
+  box-shadow: none;
 }
 
 .content-section,
@@ -2034,6 +2410,7 @@ const handleTemplateDrop = (event: DragEvent) => {
 }
 
 .template-market-card {
+  position: relative;
   min-width: 0;
   min-height: 188px;
   display: flex;
@@ -2062,6 +2439,12 @@ const handleTemplateDrop = (event: DragEvent) => {
 .template-source-tab:focus-visible,
 .template-primary-action:focus-visible,
 .template-more-btn:focus-visible,
+.template-card-action-menu button:focus-visible,
+.publish-dialog-close:focus-visible,
+.publish-dialog-destination-card:focus-visible,
+.publish-dialog-chip:focus-visible,
+.publish-dialog-cancel:focus-visible,
+.publish-dialog-confirm:focus-visible,
 .create-template-btn:focus-visible,
 .reset-btn:focus-visible {
   outline: 2px solid var(--tpl-ink-900);
@@ -2117,25 +2500,6 @@ const handleTemplateDrop = (event: DragEvent) => {
   line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.template-status-badge {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  padding: 2px 8px;
-  border-radius: 5px;
-  background: var(--tpl-soft);
-  color: var(--tpl-ink-500);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  line-height: 1.4;
-}
-
-.template-status-badge[data-status='enabled'] {
-  background: var(--tpl-accent-tint);
-  color: var(--tpl-accent-700);
 }
 
 .template-card-copy p {
@@ -2250,10 +2614,6 @@ const handleTemplateDrop = (event: DragEvent) => {
   cursor: pointer;
 }
 
-.template-primary-action[data-enabled='true'] {
-  background: var(--tpl-ink-900);
-}
-
 .template-primary-action:hover {
   filter: brightness(0.94);
 }
@@ -2275,6 +2635,387 @@ const handleTemplateDrop = (event: DragEvent) => {
 .template-more-btn:hover {
   background: var(--tpl-soft);
   color: var(--tpl-ink-900);
+}
+
+.template-card-action-menu {
+  position: absolute;
+  top: 58px;
+  right: 14px;
+  z-index: 40;
+  min-width: 176px;
+  padding: 8px;
+  border: 1px solid var(--tpl-line);
+  border-radius: 14px;
+  background: var(--tpl-panel);
+  box-shadow: 0 16px 38px rgba(26, 22, 20, 0.16);
+}
+
+.template-card-action-menu button {
+  width: 100%;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 10px;
+  border-radius: 10px;
+  color: var(--tpl-ink-700);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.template-card-action-menu button svg {
+  flex-shrink: 0;
+  color: var(--tpl-ink-500);
+}
+
+.template-card-action-menu button:hover {
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-900);
+}
+
+.template-card-action-menu button.danger {
+  color: #a33a2a;
+}
+
+.template-card-action-menu button.danger svg {
+  color: #a33a2a;
+}
+
+.template-card-action-menu button.danger:hover {
+  background: #fff0ed;
+}
+
+.publish-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(26, 22, 20, 0.42);
+  backdrop-filter: blur(4px);
+}
+
+.publish-dialog {
+  width: min(720px, calc(100vw - 48px));
+  max-height: min(720px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--bg-panel, var(--card-bg));
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+}
+
+.publish-dialog-header {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line, var(--border-color));
+}
+
+.publish-dialog-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.publish-dialog-title-row h2 {
+  margin: 0;
+  color: var(--ink-900, var(--text-strong));
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.publish-dialog-title-row span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publish-dialog-close {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--ink-700, var(--text-main));
+}
+
+.publish-dialog-close:hover {
+  background: var(--bg-soft, var(--surface-soft));
+}
+
+.publish-dialog-body {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  padding: 28px;
+}
+
+.publish-dialog-section-title {
+  margin-bottom: 6px;
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+.publish-dialog-destination-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.publish-dialog-destination-card {
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 12px;
+  color: var(--ink-700, var(--text-main));
+  background: var(--bg-panel, var(--card-bg));
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.publish-dialog-destination-card:hover,
+.publish-dialog-destination-card.active {
+  border-color: var(--accent, var(--primary-border));
+  background: var(--accent-tint, var(--primary-soft));
+}
+
+.publish-dialog-destination-card.active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, var(--primary-border)) 54%, transparent);
+}
+
+.publish-dialog-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink-900, var(--text-strong));
+}
+
+.publish-dialog-card-icon {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  color: var(--ink-700, var(--text-strong));
+  background: var(--bg-soft, var(--surface-muted));
+}
+
+.publish-dialog-destination-card.active .publish-dialog-card-icon {
+  color: #fff;
+  background: var(--accent, var(--primary-color));
+}
+
+.publish-dialog-card-title strong {
+  color: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.publish-dialog-destination-card.active .publish-dialog-card-title {
+  color: var(--accent-700, var(--primary-hover));
+}
+
+.publish-dialog-destination-card p {
+  margin: 0;
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.publish-dialog-groups {
+  display: grid;
+  gap: 0;
+  margin-bottom: 22px;
+}
+
+.publish-dialog-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.publish-dialog-chip {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: var(--ink-700, var(--text-main));
+  background: var(--bg-soft, var(--surface-muted));
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.publish-dialog-chip.active {
+  color: #fff;
+  background: var(--ink-900, var(--text-strong));
+}
+
+.publish-dialog-chip.disabled {
+  opacity: 0.5;
+}
+
+.publish-dialog-team-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 14px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 14px;
+  color: var(--ink-500, var(--text-secondary));
+  background: var(--bg, var(--surface-soft));
+}
+
+.publish-dialog-team-card div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.publish-dialog-team-card strong {
+  color: var(--ink-900, var(--text-strong));
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.publish-dialog-team-card span,
+.publish-dialog-market p {
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.publish-dialog-market {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.publish-dialog-market-block {
+  min-width: 0;
+}
+
+.publish-dialog-pricing-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.publish-dialog-price-option {
+  min-height: 40px;
+  padding: 10px 16px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 10px;
+  color: var(--ink-700, var(--text-main));
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.publish-dialog-price-option.active {
+  border-color: var(--accent, var(--primary-border));
+  color: var(--accent-700, var(--primary-hover));
+  background: var(--accent-tint, var(--primary-soft));
+}
+
+.publish-dialog-price-input {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 10px;
+  background: var(--bg-panel, var(--card-bg));
+}
+
+.publish-dialog-price-input span {
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 13px;
+}
+
+.publish-dialog-price-input input {
+  width: 80px;
+  border: 0;
+  outline: 0;
+  color: var(--ink-900, var(--text-strong));
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+}
+
+.publish-dialog-market p {
+  margin: 6px 0 0;
+}
+
+.publish-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 28px;
+  border-top: 1px solid var(--line, var(--border-color));
+  background: var(--bg, var(--card-bg));
+}
+
+.publish-dialog-cancel,
+.publish-dialog-confirm {
+  min-width: 88px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.publish-dialog-cancel {
+  border: 1px solid var(--line, var(--border-color));
+  color: var(--ink-900, var(--text-strong));
+  background: var(--bg-panel, var(--card-bg));
+}
+
+.publish-dialog-confirm {
+  color: #fff;
+  background: var(--ink-900, var(--text-strong));
 }
 
 .empty-state {

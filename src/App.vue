@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar.vue'
 import AppToast from './components/AppToast.vue'
 import { syncHistoryForCurrentOrganization, useChatHistory } from './stores/chatHistory'
 import { loadCustomSkills, syncSkillCatalogForCurrentOrganization } from './data/skillCatalog'
+import { loadCustomTemplates, syncTemplateCatalogForCurrentOrganization } from './data/templateCatalog'
 import { useOrgSession } from './stores/orgSession'
 
 const route = useRoute()
@@ -17,8 +18,10 @@ watch(currentOrganizationId, () => {
 
   syncHistoryForCurrentOrganization()
   syncSkillCatalogForCurrentOrganization()
+  syncTemplateCatalogForCurrentOrganization()
   void loadHistory()
   void loadCustomSkills()
+  void loadCustomTemplates()
 }, {
   immediate: true,
 })

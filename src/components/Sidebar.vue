@@ -70,6 +70,7 @@ const isHistoryActive = (item: ChatHistoryItem) => {
 const isKnowledgeActive = computed(() => {
   return ['knowledge'].includes(String(route.name ?? ''));
 });
+const isHistoryPageActive = computed(() => route.name === 'history');
 const isProfileActive = computed(() => route.path.startsWith('/profile'));
 const isLawAgentsTheme = computed(() => currentThemeId.value === 'lawagents-standalone-v1');
 const profileDisplayName = computed(() => {
@@ -123,6 +124,11 @@ const handleHistoryClick = (item: ChatHistoryItem) => {
     name: 'chat',
     query,
   });
+};
+
+const handleHistoryPageClick = () => {
+  closeHistoryMenu();
+  void router.push({ name: 'history' });
 };
 
 const openHistoryMenu = (item: ChatHistoryItem, event: MouseEvent) => {
@@ -323,14 +329,17 @@ onBeforeUnmount(() => {
         </button>
 
         <section class="history-section" aria-label="历史会话">
-          <div
+          <button
+            type="button"
             class="nav-item history-group-label"
+            :class="{ active: isHistoryPageActive }"
             :title="isCollapsed ? '历史会话' : undefined"
+            @click="handleHistoryPageClick"
           >
             <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="history" :size="18" class="nav-icon" />
             <History v-else :size="18" class="nav-icon" />
-            <span class="nav-label">历史会话</span>
-          </div>
+            <span class="nav-label">历史记录</span>
+          </button>
           <div
             v-for="item in recentHistory"
             :key="item.id"
@@ -342,7 +351,7 @@ onBeforeUnmount(() => {
               v-model="historyRenameValue"
               class="history-rename-input"
               data-history-rename-input="true"
-              maxlength="18"
+              maxlength="38"
               aria-label="重命名历史会话"
               @click.stop
               @keydown.enter.prevent="submitHistoryRename(item)"
@@ -932,13 +941,13 @@ onBeforeUnmount(() => {
 }
 
 .history-group-label {
-  cursor: default;
+  cursor: pointer;
   margin-bottom: 4px;
 }
 
 .history-group-label:hover {
-  background: transparent;
-  color: var(--text-sidebar);
+  background: var(--sidebar-hover-bg);
+  color: var(--primary-color);
 }
 
 .history-row {

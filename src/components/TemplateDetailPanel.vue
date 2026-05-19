@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import {
+  Building2,
   Check,
   ChevronRight,
   Copy,
   FileText,
   Loader2,
+  Store,
+  UserRound,
 } from 'lucide-vue-next';
 import {
   type TemplateAsset,
@@ -44,6 +47,7 @@ type TemplatePublishSettings = {
   useProfileIdentity: boolean;
   description: string;
   visibilities: TemplatePublishVisibility[];
+  groupIds: string[];
   scopePermissions: Record<ShareableTemplatePublishVisibility, TemplatePublishPermissionSettings>;
 };
 
@@ -70,21 +74,29 @@ const emit = defineEmits<{
 
 const templatePublishSettingsStorageKey = 'legal-version-template-publish-settings';
 const { currentUser } = useOrgSession();
+const defaultPublishGroupIds = ['business'];
 
 const createDefaultTemplatePublishPermission = (): TemplatePublishPermissionSettings => ({
   allowCopy: false,
   allowRemix: false,
 });
 
-const publishVisibilityOptions: Array<{
-  id: TemplatePublishVisibility;
+const publishDestinationOptions: Array<{
+  id: ShareableTemplatePublishVisibility;
   label: string;
   description: string;
+  icon: typeof UserRound;
 }> = [
-  { id: 'personal', label: '仅自己', description: '只保存在个人模板区，可随时继续调整。' },
-  { id: 'group', label: '小组', description: '小组成员可以在模板库中查看和调用。' },
-  { id: 'team', label: '本团队', description: '本团队成员可以在模板库中查看和调用。' },
-  { id: 'public', label: '推荐', description: '公开后可进入推荐，更多用户可以发现和安装。' },
+  { id: 'group', label: '小组', description: '小组成员可在自己的「个人」中订阅使用，免费', icon: UserRound },
+  { id: 'team', label: '团队', description: '本律所成员可订阅使用，免费', icon: Building2 },
+  { id: 'public', label: '市场', description: '公开发布，全平台律师与企业法务可发现并订阅', icon: Store },
+];
+
+const publishGroupOptions = [
+  { id: 'business', label: '公司业务组' },
+  { id: 'dispute', label: '争议解决组' },
+  { id: 'compliance', label: '合规风控组' },
+  { id: 'labor', label: '劳动用工组' },
 ];
 
 const activeSectionId = ref<TemplateSectionId>('section-0');
@@ -94,7 +106,8 @@ const publishSettings = ref<TemplatePublishSettings>({
   name: '',
   useProfileIdentity: true,
   description: '',
-  visibilities: ['personal'],
+  visibilities: ['group'],
+  groupIds: defaultPublishGroupIds,
   scopePermissions: {
     group: createDefaultTemplatePublishPermission(),
     team: createDefaultTemplatePublishPermission(),
@@ -193,8 +206,11 @@ const createPublishSettingsForTemplate = (template: TemplateAsset): TemplatePubl
       ? stored.description
       : template.preview,
     visibilities: normalizePublishVisibilities(
-      Array.isArray(stored.visibilities) ? stored.visibilities : stored.visibility,
+      Array.isArray(stored.visibilities) ? stored.visibilities : stored.visibility ?? 'group',
     ),
+    groupIds: Array.isArray(stored.groupIds)
+      ? stored.groupIds.filter((groupId): groupId is string => typeof groupId === 'string')
+      : defaultPublishGroupIds,
     scopePermissions: {
       group: createPermissionForVisibility('group'),
       team: createPermissionForVisibility('team'),
@@ -204,20 +220,17 @@ const createPublishSettingsForTemplate = (template: TemplateAsset): TemplatePubl
 };
 
 const selectedPublishVisibilityOptions = computed(() =>
-  publishVisibilityOptions.filter((option) => publishSettings.value.visibilities.includes(option.id))
+  publishDestinationOptions.filter((option) => publishSettings.value.visibilities.includes(option.id))
 );
 
 const selectedShareablePublishOptions = computed(() =>
-  selectedPublishVisibilityOptions.value.filter(
-    (option): option is typeof option & { id: ShareableTemplatePublishVisibility } =>
-      isShareablePublishVisibility(option.id),
-  )
+  publishDestinationOptions.filter((option) => publishSettings.value.visibilities.includes(option.id))
 );
 
 const publishVisibilityDescription = computed(() =>
   selectedPublishVisibilityOptions.value.length
-    ? `已选择 ${selectedPublishVisibilityOptions.value.map((option) => option.label).join('、')}，可同时发布到多个范围。`
-    : '请选择至少一个发布范围。'
+    ? `已选择 ${selectedPublishVisibilityOptions.value.map((option) => option.label).join('、')}。`
+    : '请选择一个发布目的地。'
 );
 
 const templateFallbackAuthor = computed(() => getMockSkillAuthor(props.template.id, 9));
@@ -374,6 +387,10 @@ const selectTemplate = () => {
 const isPublishVisibilitySelected = (visibility: TemplatePublishVisibility) =>
   publishSettings.value.visibilities.includes(visibility);
 
+const selectedPublishDestination = computed<ShareableTemplatePublishVisibility>(() =>
+  publishSettings.value.visibilities.find(isShareablePublishVisibility) ?? 'group'
+);
+
 const isScopePermissionEnabled = (visibility: TemplatePublishVisibility) =>
   isShareablePublishVisibility(visibility) && isPublishVisibilitySelected(visibility);
 
@@ -438,12 +455,37 @@ const togglePublishVisibility = (visibility: TemplatePublishVisibility) => {
   };
 };
 
+const selectPublishDestination = (visibility: ShareableTemplatePublishVisibility) => {
+  publishSettings.value = {
+    ...publishSettings.value,
+    visibilities: [visibility],
+    groupIds: visibility === 'group' && !publishSettings.value.groupIds.length
+      ? defaultPublishGroupIds
+      : publishSettings.value.groupIds,
+  };
+};
+
+const togglePublishGroup = (groupId: string) => {
+  const current = publishSettings.value.groupIds;
+  const next = current.includes(groupId)
+    ? current.filter((item) => item !== groupId)
+    : [...current, groupId];
+
+  publishSettings.value = {
+    ...publishSettings.value,
+    groupIds: next,
+  };
+};
+
 const normalizePublishSettings = (settings: TemplatePublishSettings): TemplatePublishSettings => ({
   ...settings,
   name: settings.name.trim(),
   description: settings.description.trim(),
   useProfileIdentity: Boolean(settings.useProfileIdentity),
-  visibilities: normalizePublishVisibilities(settings.visibilities),
+  visibilities: normalizePublishVisibilities(settings.visibilities)
+    .filter(isShareablePublishVisibility)
+    .slice(0, 1),
+  groupIds: settings.groupIds.length ? settings.groupIds : defaultPublishGroupIds,
   scopePermissions: {
     group: normalizeTemplatePublishPermission(settings.scopePermissions.group),
     team: normalizeTemplatePublishPermission(settings.scopePermissions.team),
@@ -452,7 +494,7 @@ const normalizePublishSettings = (settings: TemplatePublishSettings): TemplatePu
 });
 
 const formatPublishDestinations = (visibilities: TemplatePublishVisibility[]) => {
-  const labels = publishVisibilityOptions
+  const labels = publishDestinationOptions
     .filter((option) => visibilities.includes(option.id))
     .map((option) => option.label);
   return labels.length ? labels.join('、') : '未选择范围';
@@ -466,12 +508,22 @@ const saveTemplatePublishSettings = (mode: 'draft' | 'publish') => {
     return;
   }
 
+  if (mode === 'publish' && settings.visibilities.includes('group') && !settings.groupIds.length) {
+    setStatus('请选择至少一个小组');
+    return;
+  }
+
   publishSettings.value = settings;
   writeStoredPublishSettings(props.template.id, settings);
   if (mode === 'publish') {
     const destinations = settings.visibilities.filter(isShareablePublishVisibility);
     if (destinations.length) {
-      publishTemplateToMarket(props.template.id, destinations);
+      publishTemplateToMarket(props.template.id, {
+        destinations,
+        groupIds: settings.groupIds,
+        pricing: 'free',
+        tags: props.template.tags.slice(0, 3),
+      });
     }
   }
   setStatus(
@@ -753,57 +805,45 @@ onBeforeUnmount(() => {
 
         <div class="publish-section">
           <div class="publish-section-header">
-            <strong>发布范围</strong>
+            <strong>分享目的地</strong>
             <span>{{ publishVisibilityDescription }}</span>
           </div>
-          <div class="publish-scope-list" role="group" aria-label="发布范围">
-            <div
-              v-for="option in publishVisibilityOptions"
+          <div class="publish-destination-grid" role="radiogroup" aria-label="分享目的地">
+            <button
+              v-for="option in publishDestinationOptions"
               :key="option.id"
-              class="publish-scope-option"
-              :class="{ active: isPublishVisibilitySelected(option.id) }"
-              role="checkbox"
-              tabindex="0"
-              :aria-checked="isPublishVisibilitySelected(option.id)"
-              @click="togglePublishVisibility(option.id)"
-              @keydown.enter.prevent="togglePublishVisibility(option.id)"
-              @keydown.space.prevent="togglePublishVisibility(option.id)"
+              class="publish-destination-card"
+              :class="{ active: selectedPublishDestination === option.id }"
+              type="button"
+              role="radio"
+              :aria-checked="selectedPublishDestination === option.id"
+              @click="selectPublishDestination(option.id)"
             >
-              <div class="publish-scope-head">
-                <span class="publish-scope-check">
-                  <Check v-if="isPublishVisibilitySelected(option.id)" :size="14" />
+              <div class="publish-destination-title">
+                <span class="publish-destination-icon">
+                  <component :is="option.icon" :size="18" />
                 </span>
-                <span class="publish-scope-copy">
-                  <strong>{{ option.label }}</strong>
-                  <small>{{ option.description }}</small>
-                </span>
+                <strong>{{ option.label }}</strong>
               </div>
+              <p>{{ option.description }}</p>
+            </button>
+          </div>
 
-              <div
-                v-if="isShareablePublishVisibility(option.id)"
-                class="publish-scope-permissions"
-                :class="{ disabled: !isScopePermissionEnabled(option.id) }"
-                @click.stop
+          <div v-if="selectedPublishDestination === 'group'" class="publish-group-picker">
+            <strong>选择小组（可多选）</strong>
+            <div class="publish-group-chip-list" role="group" aria-label="选择小组">
+              <button
+                v-for="group in publishGroupOptions"
+                :key="group.id"
+                class="publish-group-chip"
+                :class="{ active: publishSettings.groupIds.includes(group.id) }"
+                type="button"
+                :aria-pressed="publishSettings.groupIds.includes(group.id)"
+                @click="togglePublishGroup(group.id)"
               >
-                <label class="publish-inline-toggle">
-                  <span>查看详情</span>
-                  <input
-                    :checked="isScopePermissionAllowCopy(option.id)"
-                    :disabled="!isScopePermissionEnabled(option.id)"
-                    type="checkbox"
-                    @change="handleScopePermissionCopyChange(option.id, $event)"
-                  />
-                </label>
-                <label class="publish-inline-toggle">
-                  <span>自行编辑</span>
-                  <input
-                    :checked="isScopePermissionAllowRemix(option.id)"
-                    :disabled="!isScopePermissionEnabled(option.id) || !isScopePermissionAllowCopy(option.id)"
-                    type="checkbox"
-                    @change="handleScopePermissionRemixChange(option.id, $event)"
-                  />
-                </label>
-              </div>
+                <Check v-if="publishSettings.groupIds.includes(group.id)" :size="14" />
+                <span>{{ group.label }}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1263,6 +1303,116 @@ onBeforeUnmount(() => {
   color: var(--text-secondary);
   font-size: 12px;
   line-height: 1.5;
+}
+
+.publish-destination-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.publish-destination-card {
+  min-height: 138px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 13px;
+  padding: 22px 28px;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  color: var(--text-main);
+  background: var(--card-bg);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.publish-destination-card:hover,
+.publish-destination-card.active {
+  border-color: var(--primary-border);
+  background: color-mix(in srgb, var(--primary-soft) 40%, var(--card-bg));
+}
+
+.publish-destination-card.active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-border) 54%, transparent);
+}
+
+.publish-destination-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--text-strong);
+}
+
+.publish-destination-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  color: var(--text-strong);
+  background: var(--surface-muted);
+}
+
+.publish-destination-card.active .publish-destination-icon {
+  color: #fff;
+  background: var(--primary-color);
+}
+
+.publish-destination-card strong {
+  color: var(--text-strong);
+  font-size: 20px;
+  font-weight: 850;
+  line-height: 1.25;
+}
+
+.publish-destination-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.publish-group-picker {
+  display: grid;
+  gap: 12px;
+}
+
+.publish-group-picker > strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 16px;
+}
+
+.publish-group-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.publish-group-chip {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text-main);
+  background: var(--surface-muted);
+  font-size: 16px;
+  font-weight: 760;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.publish-group-chip.active {
+  color: #fff;
+  background: var(--text-strong);
 }
 
 .publish-scope-list {
@@ -1836,6 +1986,10 @@ onBeforeUnmount(() => {
 
   .publish-identity-row,
   .publish-scope-list {
+    grid-template-columns: 1fr;
+  }
+
+  .publish-destination-grid {
     grid-template-columns: 1fr;
   }
 

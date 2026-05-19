@@ -21,3 +21,11 @@ create index if not exists legal_skills_updated_at_idx
 
 create index if not exists legal_skills_scope_idx
   on public.legal_skills (scope);
+
+alter table public.legal_skills
+  add column if not exists icon_data_url text,
+  add column if not exists publisher_name text,
+  add column if not exists publisher_avatar_url text,
+  add column if not exists use_profile_identity boolean not null default true,
+  add column if not exists publish_destinations jsonb not null default '["team"]'::jsonb,
+  add column if not exists publish_settings jsonb;

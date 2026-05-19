@@ -22,6 +22,24 @@ export type SkillStatus = 'draft' | 'active';
 export type SkillPublishDestination = 'group' | 'team' | 'public';
 type SkillPublishDestinationInput = SkillPublishDestination | SkillPublishDestination[];
 
+export type SkillPublishSettings = {
+  destinations: SkillPublishDestination[];
+  groupIds: string[];
+  pricing: 'free' | 'paid';
+  price: string;
+  tags: string[];
+  publishedAt: string;
+};
+
+export type SkillPublishOptions = {
+  destination?: SkillPublishDestination;
+  destinations?: SkillPublishDestinationInput;
+  groupIds?: string[];
+  pricing?: 'free' | 'paid';
+  price?: string;
+  tags?: string[];
+};
+
 export type SkillCatalogItem = {
   id: string;
   name: string;
@@ -37,6 +55,8 @@ export type SkillCatalogItem = {
   publisherName?: string;
   publisherAvatarUrl?: string;
   useProfileIdentity?: boolean;
+  publishDestinations?: SkillPublishDestination[];
+  publishSettings?: SkillPublishSettings;
   createdAt?: string;
   updatedAt?: string;
   lastUsedAt?: string;
@@ -166,6 +186,7 @@ const customSkillStorageKey = 'legal-version-custom-skills';
 const skillUsageStatsStorageKey = 'legal-version-skill-usage-stats';
 const disabledSkillIdsStorageKey = 'legal-version-disabled-skill-ids';
 const skillPublishDestinationsStorageKey = 'legal-version-skill-publish-destinations';
+const skillPublishSettingsStorageKey = 'legal-version-skill-publish-settings';
 const recommendedSkillIds = new Set(recommendedSkills.map((skill) => skill.id));
 const defaultSkillIds = new Set(defaultSkills.map((skill) => skill.id));
 const allSkillIds = new Set(allSkills.map((skill) => skill.id));
@@ -220,6 +241,56 @@ const normalizeSkillPublishDestinationList = (destinations: unknown): SkillPubli
   return Array.from(new Set(normalized.length ? normalized : ['team']));
 };
 
+const normalizeStringList = (value: unknown, limit = 20) => {
+  if (!Array.isArray(value)) return [];
+
+  return Array.from(new Set(
+    value
+      .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      .map((item) => item.trim()),
+  )).slice(0, limit);
+};
+
+const normalizePublishSettings = (
+  value: unknown,
+  fallbackDestinations: unknown = ['team'],
+): SkillPublishSettings | undefined => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const item = value as Partial<SkillPublishSettings>;
+  const pricing = item.pricing === 'paid' ? 'paid' : 'free';
+  const publishedAt = typeof item.publishedAt === 'string' && !Number.isNaN(Date.parse(item.publishedAt))
+    ? new Date(item.publishedAt).toISOString()
+    : new Date().toISOString();
+
+  return {
+    destinations: normalizeSkillPublishDestinationList(item.destinations ?? fallbackDestinations),
+    groupIds: normalizeStringList(item.groupIds),
+    pricing,
+    price: pricing === 'paid' && typeof item.price === 'string' ? item.price.replace(/[^\d.]/g, '') : '',
+    tags: normalizeStringList(item.tags, 3),
+    publishedAt,
+  };
+};
+
+const createPublishSettings = (
+  input: SkillPublishDestinationInput | SkillPublishOptions,
+): SkillPublishSettings => {
+  const options = typeof input === 'object' && !Array.isArray(input)
+    ? input as SkillPublishOptions
+    : { destinations: input as SkillPublishDestinationInput };
+  const destinations = normalizeSkillPublishDestinationList(options.destinations ?? options.destination ?? 'team');
+  const pricing = options.pricing === 'paid' ? 'paid' : 'free';
+
+  return {
+    destinations,
+    groupIds: destinations.includes('group') ? normalizeStringList(options.groupIds) : [],
+    pricing,
+    price: pricing === 'paid' && typeof options.price === 'string' ? options.price.replace(/[^\d.]/g, '') : '',
+    tags: normalizeStringList(options.tags, 3),
+    publishedAt: new Date().toISOString(),
+  };
+};
+
 const normalizeCustomSkill = (skill: unknown): SkillCatalogItem | null => {
   if (!skill || typeof skill !== 'object') return null;
   const item = skill as Partial<SkillCatalogItem>;
@@ -271,6 +342,8 @@ const normalizeCustomSkill = (skill: unknown): SkillCatalogItem | null => {
     publisherName: typeof item.publisherName === 'string' ? item.publisherName : undefined,
     publisherAvatarUrl: typeof item.publisherAvatarUrl === 'string' ? item.publisherAvatarUrl : undefined,
     useProfileIdentity: typeof item.useProfileIdentity === 'boolean' ? item.useProfileIdentity : true,
+    publishDestinations: normalizeSkillPublishDestinationList(item.publishDestinations),
+    publishSettings: normalizePublishSettings(item.publishSettings, item.publishDestinations),
     createdAt: typeof item.createdAt === 'string' ? item.createdAt : undefined,
     updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : undefined,
     lastUsedAt: typeof item.lastUsedAt === 'string' ? item.lastUsedAt : undefined,
@@ -351,6 +424,36 @@ const writeStoredSkillPublishDestinations = (destinations: Record<string, SkillP
   window.localStorage.setItem(getOrganizationScopedStorageKey(skillPublishDestinationsStorageKey), JSON.stringify(destinations));
 };
 
+const normalizeStoredPublishSettings = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, SkillPublishSettings>>(
+    (settings, [skillId, item]) => {
+      const normalized = normalizePublishSettings(item);
+      if (skillId && normalized) {
+        settings[skillId] = normalized;
+      }
+      return settings;
+    },
+    {},
+  );
+};
+
+const readStoredSkillPublishSettings = () => {
+  if (typeof window === 'undefined') return {};
+
+  try {
+    return normalizeStoredPublishSettings(JSON.parse(window.localStorage.getItem(getOrganizationScopedStorageKey(skillPublishSettingsStorageKey)) || '{}'));
+  } catch {
+    return {};
+  }
+};
+
+const writeStoredSkillPublishSettings = (settings: Record<string, SkillPublishSettings>) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(getOrganizationScopedStorageKey(skillPublishSettingsStorageKey), JSON.stringify(settings));
+};
+
 type SkillUsageStat = {
   usageCount: number;
   lastUsedAt: string;
@@ -403,6 +506,7 @@ const customSkills = ref<SkillCatalogItem[]>(readStoredCustomSkills());
 const skillUsageStats = ref<Record<string, SkillUsageStat>>(readStoredSkillUsageStats());
 const disabledSkillIds = ref<string[]>(readStoredDisabledSkillIds());
 const skillPublishDestinations = ref<Record<string, SkillPublishDestination[]>>(readStoredSkillPublishDestinations());
+const skillPublishSettings = ref<Record<string, SkillPublishSettings>>(readStoredSkillPublishSettings());
 const loadedRemoteCustomSkillOrganizationIds = new Set<string>();
 const remoteCustomSkillLoadPromises = new Map<string, Promise<void>>();
 
@@ -472,10 +576,17 @@ export const teamMarketSkills = computed<SkillCatalogItem[]>(() =>
 );
 
 export const getSkillPublishDestination = (skillId: string): SkillPublishDestination =>
-  skillPublishDestinations.value[skillId]?.[0] ?? 'team';
+  getSkillPublishDestinations(skillId)[0] ?? 'team';
 
-export const getSkillPublishDestinations = (skillId: string): SkillPublishDestination[] =>
-  skillPublishDestinations.value[skillId] ?? ['team'];
+export const getSkillPublishDestinations = (skillId: string): SkillPublishDestination[] => {
+  const storedDestinations = skillPublishDestinations.value[skillId];
+  if (storedDestinations?.length) return storedDestinations;
+  const skillDestinations = getCatalogSkillById(skillId)?.publishDestinations;
+  return skillDestinations?.length ? skillDestinations : ['team'];
+};
+
+export const getSkillPublishSettings = (skillId: string): SkillPublishSettings | undefined =>
+  skillPublishSettings.value[skillId] ?? getCatalogSkillById(skillId)?.publishSettings;
 
 const hasSkillPublishDestination = (skillId: string, destination: SkillPublishDestination) =>
   getSkillPublishDestinations(skillId).includes(destination);
@@ -554,9 +665,10 @@ export const removePersonalSkill = (skillId: string) => {
 
 export const publishSkillToTeamMarket = (
   skillId: string,
-  destination: SkillPublishDestinationInput = 'team',
+  destination: SkillPublishDestinationInput | SkillPublishOptions = 'team',
 ) => {
-  const publishDestinations = normalizeSkillPublishDestinationList(destination);
+  const publishSettings = createPublishSettings(destination);
+  const publishDestinations = publishSettings.destinations;
   const customSkill = customSkills.value.find((skill) => skill.id === skillId);
   if (!customSkill && !allSkillIds.has(skillId)) return false;
 
@@ -566,11 +678,22 @@ export const publishSkillToTeamMarket = (
     ...skillPublishDestinations.value,
     [skillId]: publishDestinations,
   };
+  skillPublishSettings.value = {
+    ...skillPublishSettings.value,
+    [skillId]: publishSettings,
+  };
   writeStoredSkillPublishDestinations(skillPublishDestinations.value);
+  writeStoredSkillPublishSettings(skillPublishSettings.value);
   setSkillDisabled(skillId, false);
 
   if (customSkill) {
-    upsertCustomSkill({ ...customSkill, scope: 'team', status: 'active' });
+    upsertCustomSkill({
+      ...customSkill,
+      scope: 'team',
+      status: 'active',
+      publishDestinations,
+      publishSettings,
+    });
     return true;
   }
 
@@ -656,6 +779,7 @@ export const syncSkillCatalogForCurrentOrganization = () => {
   skillUsageStats.value = readStoredSkillUsageStats();
   disabledSkillIds.value = readStoredDisabledSkillIds();
   skillPublishDestinations.value = readStoredSkillPublishDestinations();
+  skillPublishSettings.value = readStoredSkillPublishSettings();
 };
 
 export const loadCustomSkills = async () => {

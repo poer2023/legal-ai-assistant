@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   BookOpen,
   BriefcaseBusiness,
+  Building2,
   Check,
   ChevronRight,
   ClipboardCheck,
@@ -25,9 +26,11 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
+  Store,
   Trash2,
   UserRound,
   UsersRound,
+  X,
   Zap,
 } from 'lucide-vue-next';
 import {
@@ -59,7 +62,7 @@ import SkillCreateModal from './SkillCreateModal.vue';
 import SkillDetailPanel from './SkillDetailPanel.vue';
 import { useToast } from '../stores/toast';
 
-type SkillMode = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
+type SkillMode = 'personal' | 'group-shared' | 'team-shared' | 'official' | 'market' | 'public-hub' | 'recommended';
 type SkillStatusFilter = 'all' | 'inactive' | 'enabled';
 type RecommendedSortFilter = 'latest' | 'popular' | 'rated';
 type StandaloneSourceKey = 'mine' | 'group' | 'team' | 'official' | 'market';
@@ -104,8 +107,8 @@ const standaloneSourceLabels: Record<StandaloneSourceKey, string> = {
   mine: '个人',
   group: '小组',
   team: '团队',
-  official: '推荐',
-  market: '推荐',
+  official: '官方',
+  market: '市场',
 };
 
 const standaloneSkillPresentations: StandaloneSkillPresentation[] = [
@@ -298,15 +301,25 @@ const sourceModeCopy: Record<SkillMode, {
     emptyTitle: '暂无团队共享技能',
     emptyDescription: '发布到团队的技能会在这里展示，团队成员可以安装到自己的技能库。',
   },
+  official: {
+    name: '官方',
+    emptyTitle: '暂无官方技能',
+    emptyDescription: '官方维护的技能会展示在这里。',
+  },
+  market: {
+    name: '市场',
+    emptyTitle: '暂无市场技能',
+    emptyDescription: '公开发布后的技能会进入市场，所有使用者都可以发现和安装。',
+  },
   'public-hub': {
-    name: '推荐',
-    emptyTitle: '暂无推荐技能',
-    emptyDescription: '公开发布后的技能会进入推荐，所有使用者都可以发现和安装。',
+    name: '市场',
+    emptyTitle: '暂无市场技能',
+    emptyDescription: '公开发布后的技能会进入市场，所有使用者都可以发现和安装。',
   },
   recommended: {
-    name: '推荐',
-    emptyTitle: '暂无推荐技能',
-    emptyDescription: '推荐技能会按类型展示在这里。',
+    name: '官方',
+    emptyTitle: '暂无官方技能',
+    emptyDescription: '官方维护的技能会展示在这里。',
   },
 };
 
@@ -325,6 +338,24 @@ const recommendedSkills = computed(() =>
   ]),
 );
 
+const standaloneSourceSkillPool = computed(() =>
+  dedupeSkillsById([
+    ...personalSkills.value,
+    ...catalogGroupSharedSkills.value,
+    ...teamSharedSkills.value,
+    ...officialRecommendedSkills,
+    ...catalogPublicHubSkills.value,
+  ]),
+);
+
+const officialSkills = computed(() =>
+  standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'official'),
+);
+
+const marketSkills = computed(() =>
+  standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'market'),
+);
+
 const activeSkills = computed(() =>
   sortSkillsForLibrary(
     {
@@ -336,8 +367,10 @@ const activeSkills = computed(() =>
       ]),
       'group-shared': catalogGroupSharedSkills.value,
       'team-shared': teamSharedSkills.value,
-      'public-hub': recommendedSkills.value,
-      recommended: recommendedSkills.value,
+      official: officialSkills.value,
+      market: marketSkills.value,
+      'public-hub': marketSkills.value,
+      recommended: officialSkills.value,
     }[skillMode.value],
   ),
 );
@@ -346,7 +379,8 @@ const sourceTabs = computed(() => [
   { key: 'personal' as const, name: sourceModeCopy.personal.name, count: personalSkills.value.length },
   { key: 'group-shared' as const, name: sourceModeCopy['group-shared'].name, count: catalogGroupSharedSkills.value.length },
   { key: 'team-shared' as const, name: sourceModeCopy['team-shared'].name, count: teamSharedSkills.value.length },
-  { key: 'recommended' as const, name: sourceModeCopy.recommended.name, count: recommendedSkills.value.length },
+  { key: 'official' as const, name: sourceModeCopy.official.name, count: officialSkills.value.length },
+  { key: 'market' as const, name: sourceModeCopy.market.name, count: marketSkills.value.length },
 ]);
 
 const activeModeCopy = computed(() => sourceModeCopy[skillMode.value]);
@@ -422,7 +456,9 @@ const visibleSkills = computed(() => {
   });
 
   const collapsedSkills = collapseStandaloneDuplicates(filteredSkills);
-  if (skillMode.value === 'recommended') return sortRecommendedSkills(collapsedSkills);
+  if (skillMode.value === 'official' || skillMode.value === 'market' || skillMode.value === 'recommended' || skillMode.value === 'public-hub') {
+    return sortRecommendedSkills(collapsedSkills);
+  }
   return sortSkillsForDisplay(collapsedSkills);
 });
 
@@ -485,7 +521,14 @@ const selectSkill = (skill: SkillCatalogItem) => {
   });
 };
 
-const shouldBlockSkillDetail = () => skillMode.value === 'recommended' || skillMode.value === 'public-hub';
+const isMarketplaceMode = computed(() =>
+  skillMode.value === 'official'
+  || skillMode.value === 'market'
+  || skillMode.value === 'recommended'
+  || skillMode.value === 'public-hub'
+);
+
+const shouldBlockSkillDetail = () => isMarketplaceMode.value;
 
 const openSkill = (skill: SkillCatalogItem) => {
   if (shouldBlockSkillDetail()) return;
@@ -519,7 +562,7 @@ const addSkill = (skill: SkillCatalogItem) => {
 };
 
 const installSharedSkill = (skill: SkillCatalogItem) => {
-  if (skillMode.value === 'recommended' || skillMode.value === 'public-hub') {
+  if (isMarketplaceMode.value) {
     addSkill(skill);
     return;
   }
@@ -547,12 +590,12 @@ const handlePersonalSkillAction = (skill: SkillCatalogItem) => {
 
 const getPrimarySkillActionLabel = (skill: SkillCatalogItem) => {
   if (skillMode.value === 'personal') return isSkillDisplayEnabled(skill) ? '使用' : '启用';
-  if ((skillMode.value === 'recommended' || skillMode.value === 'public-hub') && isSkillAdded(skill)) return '已安装';
+  if (isMarketplaceMode.value && isSkillAdded(skill)) return '已安装';
   return '安装';
 };
 
 const isPrimarySkillActionDisabled = (skill: SkillCatalogItem) =>
-  (skillMode.value === 'recommended' || skillMode.value === 'public-hub') && isSkillAdded(skill);
+  isMarketplaceMode.value && isSkillAdded(skill);
 
 const setSkillOpen = (skill: SkillCatalogItem, enabled: boolean) => {
   const updatedSkill = setSkillEnabled(skill.id, enabled);
@@ -566,13 +609,112 @@ const setSkillOpen = (skill: SkillCatalogItem, enabled: boolean) => {
 const publishDestinationLabels: Record<SkillPublishDestination, string> = {
   group: '小组',
   team: '团队',
-  public: '推荐',
+  public: '市场',
 };
 
-const publishSkill = (skill: SkillCatalogItem, destination: SkillPublishDestination) => {
-  const didPublish = publishSkillToTeamMarket(skill.id, destination);
+const publishDialogSkill = ref<SkillCatalogItem | null>(null);
+const publishDialogDestination = ref<SkillPublishDestination>('group');
+const defaultPublishGroupIds = ['business'];
+const publishDialogGroupIds = ref<string[]>([...defaultPublishGroupIds]);
+const publishDialogPricing = ref<'free' | 'paid'>('free');
+const publishDialogPrice = ref('99');
+const publishDialogTags = ref<string[]>([]);
+
+const publishDestinationOptions: Array<{
+  id: SkillPublishDestination;
+  label: string;
+  description: string;
+  icon: Component;
+}> = [
+  { id: 'group', label: '小组', description: '小组成员可在自己的「个人」中订阅使用，免费', icon: UserRound },
+  { id: 'team', label: '团队', description: '本律所成员可订阅使用，免费', icon: Building2 },
+  { id: 'public', label: '市场', description: '公开发布，全平台律师与企业法务可发现并订阅', icon: Store },
+];
+
+const publishGroupOptions = [
+  { id: 'business', label: '公司业务组' },
+  { id: 'dispute', label: '争议解决组' },
+  { id: 'compliance', label: '合规风控组' },
+  { id: 'labor', label: '劳动用工组' },
+];
+
+const publishMarketTagOptions = [
+  '投融资 / 并购',
+  '合同审查',
+  '尽职调查',
+  '合规',
+  '数据隐私',
+  '劳动用工',
+  '知识产权',
+  '商事争议',
+  '刑事合规',
+  '公司治理',
+  '税务',
+  '跨境',
+];
+
+const openPublishDialog = (skill: SkillCatalogItem) => {
   openCardMenuId.value = null;
-  const label = publishDestinationLabels[destination];
+  publishDialogSkill.value = skill;
+  publishDialogDestination.value = 'group';
+  publishDialogGroupIds.value = [...defaultPublishGroupIds];
+  publishDialogPricing.value = 'free';
+  publishDialogPrice.value = '99';
+  publishDialogTags.value = [];
+};
+
+const closePublishDialog = () => {
+  publishDialogSkill.value = null;
+};
+
+const selectPublishDialogDestination = (destination: SkillPublishDestination) => {
+  publishDialogDestination.value = destination;
+  if (destination === 'group' && !publishDialogGroupIds.value.length) {
+    publishDialogGroupIds.value = [...defaultPublishGroupIds];
+  }
+};
+
+const togglePublishDialogGroup = (groupId: string) => {
+  publishDialogGroupIds.value = publishDialogGroupIds.value.includes(groupId)
+    ? publishDialogGroupIds.value.filter((item) => item !== groupId)
+    : [...publishDialogGroupIds.value, groupId];
+};
+
+const togglePublishDialogTag = (tag: string) => {
+  if (publishDialogTags.value.includes(tag)) {
+    publishDialogTags.value = publishDialogTags.value.filter((item) => item !== tag);
+    return;
+  }
+  if (publishDialogTags.value.length >= 3) return;
+  publishDialogTags.value = [...publishDialogTags.value, tag];
+};
+
+const updatePublishDialogPrice = (event: Event) => {
+  const target = event.target as HTMLInputElement | null;
+  publishDialogPrice.value = (target?.value || '').replace(/\D/g, '');
+};
+
+const confirmPublishDialog = () => {
+  const skill = publishDialogSkill.value;
+  if (!skill) return;
+  if (publishDialogDestination.value === 'group' && !publishDialogGroupIds.value.length) {
+    showToast('请选择至少一个小组', { tone: 'warning' });
+    return;
+  }
+  if (publishDialogDestination.value === 'public' && publishDialogPricing.value === 'paid' && !publishDialogPrice.value) {
+    showToast('请填写市场定价', { tone: 'warning' });
+    return;
+  }
+
+  const didPublish = publishSkillToTeamMarket(skill.id, {
+    destination: publishDialogDestination.value,
+    groupIds: publishDialogGroupIds.value,
+    pricing: publishDialogPricing.value,
+    price: publishDialogPrice.value,
+    tags: publishDialogTags.value,
+  });
+  const label = publishDestinationLabels[publishDialogDestination.value];
+  closePublishDialog();
   showToast(didPublish ? `${skill.name} 已发布到${label}` : `${skill.name} 已在${label}中`);
 };
 
@@ -725,7 +867,9 @@ const getSkillIcon = (skill: SkillCatalogItem) => {
 const getSkillToneClass = (_skill: SkillCatalogItem) => 'tone-neutral';
 
 const getSkillSourceLabel = (skill: SkillCatalogItem) => {
-  if (skillMode.value === 'recommended' || skillMode.value === 'public-hub') return '来自 推荐';
+  if (skillMode.value === 'official') return '来自 官方';
+  if (skillMode.value === 'market' || skillMode.value === 'public-hub') return '来自 市场';
+  if (skillMode.value === 'recommended') return '来自 官方';
 
   const presentation = getStandalonePresentation(skill);
   if (presentation) return `来自 ${standaloneSourceLabels[presentation.source]}`;
@@ -733,23 +877,26 @@ const getSkillSourceLabel = (skill: SkillCatalogItem) => {
   if (skillMode.value === 'personal') return '来自 个人';
   if (skillMode.value === 'group-shared') return '来自 小组';
   if (skillMode.value === 'team-shared') return '来自 团队';
-  if (skillMode.value === 'recommended' || skillMode.value === 'public-hub' || skill.source === 'recommended') return '来自 推荐';
-  return '来自 推荐';
+  if (skill.source === 'recommended') return '来自 官方';
+  return '来自 官方';
 };
 
 const getSkillSourceClass = (skill: SkillCatalogItem) => {
-  if (skillMode.value === 'recommended' || skillMode.value === 'public-hub') return 'source-recommended';
+  if (skillMode.value === 'official' || skillMode.value === 'recommended') return 'source-official';
+  if (skillMode.value === 'market' || skillMode.value === 'public-hub') return 'source-market';
 
   const presentation = getStandalonePresentation(skill);
   if (presentation?.source === 'mine') return 'source-personal';
   if (presentation?.source === 'group') return 'source-group-shared';
   if (presentation?.source === 'team') return 'source-team-shared';
-  if (presentation?.source === 'official' || presentation?.source === 'market') return 'source-recommended';
+  if (presentation?.source === 'official') return 'source-official';
+  if (presentation?.source === 'market') return 'source-market';
   return `source-${skillMode.value}`;
 };
 
 const getSkillSourceIcon = (skill: SkillCatalogItem) => {
-  if (skillMode.value === 'recommended' || skillMode.value === 'public-hub') return ShieldCheck;
+  if (skillMode.value === 'official' || skillMode.value === 'recommended') return ShieldCheck;
+  if (skillMode.value === 'market' || skillMode.value === 'public-hub') return Store;
 
   const source = getStandalonePresentation(skill)?.source;
   if (source === 'mine' || (!source && skillMode.value === 'personal')) return UserRound;
@@ -766,8 +913,12 @@ const getSkillAuthorFirm = (skill: SkillCatalogItem) => {
     return currentUser.value?.firmShortName || currentOrganization.value?.shortName || '个人工作区';
   }
 
-  if (skillMode.value === 'recommended' || skillMode.value === 'public-hub' || skill.source === 'recommended') {
-    return '涌见推荐';
+  if (skillMode.value === 'official' || skillMode.value === 'recommended' || skill.source === 'recommended') {
+    return '涌见官方';
+  }
+
+  if (skillMode.value === 'market' || skillMode.value === 'public-hub') {
+    return '技能市场';
   }
 
   return firmOptions[getStableIndex(`${skill.id}:${skill.category}:firm`, firmOptions.length)] ?? '涌见律所';
@@ -822,12 +973,13 @@ const closeCardMenuOnOutsideClick = (event: MouseEvent) => {
 
 const normalizeSkillMode = (value: unknown): SkillMode | null => {
   if (value === 'team-market') return 'team-shared';
-  if (value === 'public-hub') return 'recommended';
+  if (value === 'public-hub') return 'market';
+  if (value === 'recommended') return 'official';
+  if (value === 'official' || value === 'market') return value;
   if (
     value === 'personal' ||
     value === 'group-shared' ||
-    value === 'team-shared' ||
-    value === 'recommended'
+    value === 'team-shared'
   ) return value;
   return null;
 };
@@ -850,7 +1002,7 @@ const openRouteSkill = () => {
   const skillId = typeof route.query.skillId === 'string' ? route.query.skillId : '';
   if (!skillId) return;
 
-  if (routeSkillMode === 'recommended' || routeSkillMode === 'public-hub') {
+  if (routeSkillMode === 'official' || routeSkillMode === 'market' || routeSkillMode === 'recommended' || routeSkillMode === 'public-hub') {
     clearDetail();
     openCardMenuId.value = null;
     return;
@@ -937,8 +1089,8 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <div v-else-if="skillMode === 'recommended'" class="recommended-sort-row">
-              <nav class="recommended-sort-tabs" aria-label="推荐排序">
+            <div v-else-if="skillMode === 'official' || skillMode === 'market'" class="recommended-sort-row">
+              <nav class="recommended-sort-tabs" aria-label="技能排序">
                 <button
                   v-for="option in recommendedSortOptions"
                   :key="option.key"
@@ -990,18 +1142,10 @@ onBeforeUnmount(() => {
                   <PowerOff v-else :size="15" />
                   <span>{{ isSkillEnabled(skill) ? '停用' : '启用' }}</span>
                 </button>
-                <div class="menu-submenu-item">
-                  <button class="menu-action submenu-trigger" type="button">
-                    <UsersRound :size="15" />
-                    <span>发布</span>
-                    <ChevronRight :size="14" class="submenu-chevron" />
-                  </button>
-                  <div class="publish-submenu" role="menu" aria-label="发布范围">
-                    <button type="button" @click="publishSkill(skill, 'group')">发布到小组</button>
-                    <button type="button" @click="publishSkill(skill, 'team')">发布到团队</button>
-                    <button type="button" @click="publishSkill(skill, 'public')">发布到推荐</button>
-                  </div>
-                </div>
+                <button class="menu-action" type="button" @click="openPublishDialog(skill)">
+                  <UsersRound :size="15" />
+                  <span>发布</span>
+                </button>
                 <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
                   <Trash2 :size="15" />
                   <span>删除</span>
@@ -1119,6 +1263,131 @@ onBeforeUnmount(() => {
       </section>
 
     </main>
+
+    <div v-if="publishDialogSkill" class="publish-dialog-backdrop" @click.self="closePublishDialog">
+      <section class="publish-dialog" role="dialog" aria-modal="true" aria-labelledby="publish-dialog-title">
+        <header class="publish-dialog-header">
+          <div class="publish-dialog-title-row">
+            <h2 id="publish-dialog-title">发布技能</h2>
+            <span>{{ publishDialogSkill.name }}</span>
+          </div>
+          <button class="publish-dialog-close" type="button" aria-label="关闭发布弹窗" @click="closePublishDialog">
+            <X :size="22" />
+          </button>
+        </header>
+
+        <main class="publish-dialog-body">
+          <div class="publish-dialog-section-title">分享目的地</div>
+          <div class="publish-dialog-destination-grid" role="radiogroup" aria-label="分享目的地">
+            <button
+              v-for="option in publishDestinationOptions"
+              :key="option.id"
+              class="publish-dialog-destination-card"
+              :class="{ active: publishDialogDestination === option.id }"
+              type="button"
+              role="radio"
+              :aria-checked="publishDialogDestination === option.id"
+              @click="selectPublishDialogDestination(option.id)"
+            >
+              <span class="publish-dialog-card-title">
+                <span class="publish-dialog-card-icon">
+                  <component :is="option.icon" :size="18" />
+                </span>
+                <strong>{{ option.label }}</strong>
+              </span>
+              <p>{{ option.description }}</p>
+            </button>
+          </div>
+
+          <section v-if="publishDialogDestination === 'group'" class="publish-dialog-groups">
+            <div class="publish-dialog-section-title">选择小组（可多选）</div>
+            <div class="publish-dialog-chip-list" role="group" aria-label="选择小组">
+              <button
+                v-for="group in publishGroupOptions"
+                :key="group.id"
+                class="publish-dialog-chip"
+                :class="{ active: publishDialogGroupIds.includes(group.id) }"
+                type="button"
+                :aria-pressed="publishDialogGroupIds.includes(group.id)"
+                @click="togglePublishDialogGroup(group.id)"
+              >
+                <Check v-if="publishDialogGroupIds.includes(group.id)" :size="11" />
+                <span>{{ group.label }}</span>
+              </button>
+            </div>
+          </section>
+
+          <section v-else-if="publishDialogDestination === 'team'" class="publish-dialog-team-card">
+            <Building2 :size="18" />
+            <div>
+              <strong>金杜律师事务所 ・ 涌见律师演示组织</strong>
+              <span>21 名成员将能在「团队」分类下安装此能力</span>
+            </div>
+          </section>
+
+          <section v-else class="publish-dialog-market">
+            <div class="publish-dialog-market-block">
+              <div class="publish-dialog-section-title">定价</div>
+              <div class="publish-dialog-pricing-row">
+                <button
+                  class="publish-dialog-price-option"
+                  :class="{ active: publishDialogPricing === 'free' }"
+                  type="button"
+                  @click="publishDialogPricing = 'free'"
+                >
+                  免费
+                </button>
+                <button
+                  class="publish-dialog-price-option"
+                  :class="{ active: publishDialogPricing === 'paid' }"
+                  type="button"
+                  @click="publishDialogPricing = 'paid'"
+                >
+                  付费
+                </button>
+                <label v-if="publishDialogPricing === 'paid'" class="publish-dialog-price-input">
+                  <span>¥</span>
+                  <input
+                    class="tabular"
+                    :value="publishDialogPrice"
+                    inputmode="numeric"
+                    placeholder="价格"
+                    @input="updatePublishDialogPrice"
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div class="publish-dialog-market-block">
+              <div class="publish-dialog-section-title">分类标签</div>
+              <div class="publish-dialog-chip-list" role="group" aria-label="分类标签">
+                <button
+                  v-for="tag in publishMarketTagOptions"
+                  :key="tag"
+                  class="publish-dialog-chip"
+                  :class="{
+                    active: publishDialogTags.includes(tag),
+                    disabled: publishDialogTags.length >= 3 && !publishDialogTags.includes(tag),
+                  }"
+                  type="button"
+                  :aria-pressed="publishDialogTags.includes(tag)"
+                  @click="togglePublishDialogTag(tag)"
+                >
+                  <Check v-if="publishDialogTags.includes(tag)" :size="11" />
+                  <span>{{ tag }}</span>
+                </button>
+              </div>
+              <p>至多选 3 个，用于市场分类与搜索</p>
+            </div>
+          </section>
+        </main>
+
+        <footer class="publish-dialog-footer">
+          <button class="publish-dialog-cancel" type="button" @click="closePublishDialog">取消</button>
+          <button class="publish-dialog-confirm" type="button" @click="confirmPublishDialog">确认发布</button>
+        </footer>
+      </section>
+    </div>
 
     <SkillCreateModal
       v-if="showSkillCreateModal"
@@ -1681,7 +1950,7 @@ onBeforeUnmount(() => {
 .card-actions {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   grid-column: 3;
   grid-row: 1;
   align-self: center;
@@ -1784,15 +2053,17 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border: 0;
   border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--primary-color) 18%, var(--border-color));
-  color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-color) 7%, var(--card-bg));
+  background: transparent;
+  color: var(--ink-500, var(--text-secondary));
+  cursor: pointer;
 }
 
 .card-more-btn:hover {
-  border-color: color-mix(in srgb, var(--primary-color) 32%, var(--border-color));
-  background: color-mix(in srgb, var(--primary-color) 11%, var(--card-bg));
+  background: var(--bg-soft, var(--surface-muted));
+  color: var(--ink-900, var(--text-strong));
 }
 
 .add-btn {
@@ -1859,6 +2130,338 @@ onBeforeUnmount(() => {
 
 .card-action-menu button:hover {
   background: var(--surface-soft);
+}
+
+.publish-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(26, 22, 20, 0.42);
+  backdrop-filter: blur(4px);
+}
+
+.publish-dialog {
+  width: min(720px, calc(100vw - 48px));
+  max-height: min(720px, calc(100vh - 48px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  background: var(--bg-panel, var(--card-bg));
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.24);
+}
+
+.publish-dialog-header {
+  min-height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line, var(--border-color));
+}
+
+.publish-dialog-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.publish-dialog-title-row h2 {
+  margin: 0;
+  color: var(--ink-900, var(--text-strong));
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.publish-dialog-title-row span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.publish-dialog-close {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--ink-700, var(--text-main));
+}
+
+.publish-dialog-close:hover {
+  background: var(--bg-soft, var(--surface-soft));
+}
+
+.publish-dialog-body {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  padding: 28px;
+}
+
+.publish-dialog-section-title {
+  margin-bottom: 6px;
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+}
+
+.publish-dialog-destination-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.publish-dialog-destination-card {
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 12px;
+  color: var(--ink-700, var(--text-main));
+  background: var(--bg-panel, var(--card-bg));
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.publish-dialog-destination-card:hover,
+.publish-dialog-destination-card.active {
+  border-color: var(--accent, var(--primary-border));
+  background: var(--accent-tint, var(--primary-soft));
+}
+
+.publish-dialog-destination-card.active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, var(--primary-border)) 54%, transparent);
+}
+
+.publish-dialog-card-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--ink-900, var(--text-strong));
+}
+
+.publish-dialog-card-icon {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  color: var(--ink-700, var(--text-strong));
+  background: var(--bg-soft, var(--surface-muted));
+}
+
+.publish-dialog-destination-card.active .publish-dialog-card-icon {
+  color: #fff;
+  background: var(--accent, var(--primary-color));
+}
+
+.publish-dialog-card-title strong {
+  color: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.publish-dialog-destination-card.active .publish-dialog-card-title {
+  color: var(--accent-700, var(--primary-hover));
+}
+
+.publish-dialog-destination-card p {
+  margin: 0;
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.publish-dialog-groups {
+  display: grid;
+  gap: 0;
+  margin-bottom: 22px;
+}
+
+.publish-dialog-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.publish-dialog-chip {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: var(--ink-700, var(--text-main));
+  background: var(--bg-soft, var(--surface-muted));
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.publish-dialog-chip.active {
+  color: #fff;
+  background: var(--ink-900, var(--text-strong));
+}
+
+.publish-dialog-chip.disabled {
+  opacity: 0.5;
+}
+
+.publish-dialog-team-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 14px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 14px;
+  color: var(--ink-500, var(--text-secondary));
+  background: var(--bg, var(--surface-soft));
+}
+
+.publish-dialog-team-card div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.publish-dialog-team-card strong {
+  color: var(--ink-900, var(--text-strong));
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.publish-dialog-team-card span,
+.publish-dialog-market p {
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.publish-dialog-market {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.publish-dialog-market-block {
+  min-width: 0;
+}
+
+.publish-dialog-pricing-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.publish-dialog-price-option {
+  min-height: 40px;
+  padding: 10px 16px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 10px;
+  color: var(--ink-700, var(--text-main));
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.publish-dialog-price-option.active {
+  border-color: var(--accent, var(--primary-border));
+  color: var(--accent-700, var(--primary-hover));
+  background: var(--accent-tint, var(--primary-soft));
+}
+
+.publish-dialog-price-input {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 10px;
+  background: var(--bg-panel, var(--card-bg));
+}
+
+.publish-dialog-price-input span {
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 13px;
+}
+
+.publish-dialog-price-input input {
+  width: 80px;
+  border: 0;
+  outline: 0;
+  color: var(--ink-900, var(--text-strong));
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+}
+
+.publish-dialog-market p {
+  margin: 6px 0 0;
+}
+
+.publish-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 28px;
+  border-top: 1px solid var(--line, var(--border-color));
+  background: var(--bg, var(--card-bg));
+}
+
+.publish-dialog-cancel,
+.publish-dialog-confirm {
+  min-width: 88px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.publish-dialog-cancel {
+  border: 1px solid var(--line, var(--border-color));
+  color: var(--ink-900, var(--text-strong));
+  background: var(--bg-panel, var(--card-bg));
+}
+
+.publish-dialog-confirm {
+  color: #fff;
+  background: var(--ink-900, var(--text-strong));
 }
 
 .menu-submenu-item {
@@ -2525,12 +3128,14 @@ onBeforeUnmount(() => {
   color: color-mix(in srgb, var(--diff-added) 72%, var(--text-strong));
 }
 
-.source-recommended {
+.source-recommended,
+.source-official {
   background: color-mix(in srgb, var(--diff-removed) 9%, var(--surface-muted));
   color: color-mix(in srgb, var(--diff-removed) 76%, var(--text-strong));
 }
 
-.source-public-hub {
+.source-public-hub,
+.source-market {
   background: color-mix(in srgb, var(--warning-color) 10%, var(--surface-muted));
   color: color-mix(in srgb, var(--warning-color) 78%, var(--text-strong));
 }
@@ -2538,7 +3143,7 @@ onBeforeUnmount(() => {
 .card-actions {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -2583,19 +3188,23 @@ onBeforeUnmount(() => {
 }
 
 .card-more-btn {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   flex-shrink: 0;
+  border: 0;
   border-radius: 8px;
-  color: var(--text-secondary);
+  background: transparent;
+  color: var(--ink-500, var(--text-secondary));
+  cursor: pointer;
 }
 
 .card-more-btn:hover {
-  background: var(--surface-muted);
-  color: var(--text-strong);
+  background: var(--bg-soft, var(--surface-muted));
+  color: var(--ink-900, var(--text-strong));
 }
 
 .card-action-menu {
@@ -3185,6 +3794,8 @@ onBeforeUnmount(() => {
 .source-personal,
 .source-group-shared,
 .source-team-shared,
+.source-official,
+.source-market,
 .source-recommended,
 .source-public-hub {
   height: 25px;
@@ -3198,7 +3809,7 @@ onBeforeUnmount(() => {
 }
 
 .card-actions {
-  gap: 8px;
+  gap: 4px;
   margin-left: auto;
 }
 
@@ -3240,8 +3851,16 @@ onBeforeUnmount(() => {
 .card-more-btn {
   width: 30px;
   height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  border: 0;
   border-radius: 8px;
+  background: transparent;
   color: var(--skill-muted);
+  cursor: pointer;
 }
 
 .card-more-btn:hover {

@@ -6,6 +6,8 @@ import chatHistoryHandler from './api/chat-history.js'
 // @ts-expect-error - Vercel API handler is plain JS and reused by the Vite dev middleware.
 import skillsHandler from './api/skills.js'
 // @ts-expect-error - Vercel API handler is plain JS and reused by the Vite dev middleware.
+import templatesHandler from './api/templates.js'
+// @ts-expect-error - Vercel API handler is plain JS and reused by the Vite dev middleware.
 import skillCreatorHandler from './api/skill-creator.js'
 // @ts-expect-error - Vercel API handler is plain JS and reused by the Vite dev middleware.
 import skillCreatorGuideOptionsHandler from './api/skill-creator-guide-options.js'
@@ -323,6 +325,10 @@ const createDeepSeekChatDevPlugin = (env: Record<string, string>): Plugin => ({
 
     server.middlewares.use('/api/skills', async (request, response) => {
       await skillsHandler(request, response);
+    });
+
+    server.middlewares.use('/api/templates', async (request, response) => {
+      await templatesHandler(request, response);
     });
 
     server.middlewares.use('/api/skill-creator', async (request, response) => {
