@@ -1380,6 +1380,9 @@ const activeArtifact = computed(() =>
     ?? generatedArtifacts.value[0]
     ?? null
 );
+const isSkillArtifactWorkspace = computed(() =>
+  isSkillCreatorConversation.value && generatedArtifacts.value.length > 0
+);
 const hasPreviewPanel = computed(() => isDocxPreviewOpen.value || (isArtifactPreviewOpen.value && Boolean(activeArtifact.value)));
 const shouldShowAnswerActions = computed(() =>
   !isGeneratingAnswer.value
@@ -2614,10 +2617,10 @@ watch(generatedArtifacts, (artifacts) => {
   if (!artifacts.length) return;
 
   if (isSkillCreatorConversation.value) {
-    const latestArtifact = artifacts[artifacts.length - 1];
-    if (latestArtifact && latestArtifact.id !== lastAutoOpenedArtifactId.value) {
-      lastAutoOpenedArtifactId.value = latestArtifact.id;
-      openArtifactPreview(latestArtifact.id);
+    const preferredArtifact = artifacts.find((artifact) => /^SKILL\.md$/i.test(artifact.title)) ?? artifacts[0];
+    if (preferredArtifact && preferredArtifact.id !== lastAutoOpenedArtifactId.value) {
+      lastAutoOpenedArtifactId.value = preferredArtifact.id;
+      openArtifactPreview(preferredArtifact.id);
       scheduleLiveOutputScroll('answer', 'artifact');
     }
     return;
@@ -3056,6 +3059,35 @@ watch(
       </header>
 
       <div
+        v-if="isSkillArtifactWorkspace"
+        class="skill-artifact-workspace"
+        ref="artifactPreviewScrollRef"
+      >
+        <nav class="skill-artifact-tree" aria-label="技能文件目录">
+          <button
+            v-for="artifact in generatedArtifacts"
+            :key="artifact.id"
+            type="button"
+            class="skill-artifact-tree-item"
+            :class="{ active: activeArtifact.id === artifact.id }"
+            @click="openArtifactPreview(artifact.id)"
+          >
+            <span class="skill-tree-file-icon" :class="getSkillArtifactTypeMeta(artifact).className" aria-hidden="true">
+              {{ getSkillArtifactTypeMeta(artifact).label.slice(0, 1) }}
+            </span>
+            <span class="skill-tree-file-copy">
+              <strong>{{ artifact.title }}</strong>
+              <small>{{ getSkillArtifactTypeMeta(artifact).description }}</small>
+            </span>
+          </button>
+        </nav>
+        <section class="skill-artifact-source-pane" aria-label="技能文件原文">
+          <pre class="skill-artifact-source"><code>{{ activeArtifact.content }}</code></pre>
+        </section>
+      </div>
+
+      <div
+        v-else
         class="artifact-preview-scroll"
         ref="artifactPreviewScrollRef"
       >
@@ -5616,6 +5648,120 @@ watch(
 
 .artifact-preview-scroll {
   padding: 30px 38px;
+}
+
+.skill-artifact-workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(168px, 31%) minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.skill-artifact-tree {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 14px 10px;
+  border-right: 1px solid var(--border-color);
+  background: var(--surface-soft);
+}
+
+.skill-artifact-tree-item {
+  width: 100%;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-main);
+  text-align: left;
+}
+
+.skill-artifact-tree-item:hover {
+  background: var(--card-bg);
+}
+
+.skill-artifact-tree-item.active {
+  border-color: var(--primary-border);
+  background: var(--card-bg);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.skill-tree-file-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.skill-tree-file-icon.main {
+  color: var(--primary-color);
+  background: var(--primary-soft);
+}
+
+.skill-tree-file-icon.rule {
+  color: var(--diff-added);
+  background: var(--diff-added-soft);
+}
+
+.skill-tree-file-icon.template {
+  color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-soft) 72%, var(--card-bg));
+}
+
+.skill-tree-file-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.skill-tree-file-copy strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-tree-file-copy small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-artifact-source-pane {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-color);
+}
+
+.skill-artifact-source {
+  min-height: 100%;
+  margin: 0;
+  padding: 22px 24px;
+  color: var(--text-main);
+  background: var(--bg-color);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .artifact-preview-scroll.is-editing {

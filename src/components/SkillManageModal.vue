@@ -628,6 +628,11 @@ const createSkill = () => {
 };
 
 const handleCreateSkillAction = () => {
+  if (props.createBehavior === 'emit') {
+    emit('create');
+    return;
+  }
+
   createSkill();
 };
 
@@ -1167,6 +1172,10 @@ const generateDraft = async () => {
 onMounted(() => {
   document.addEventListener('click', closeCardMenuOnOutsideClick);
   if (props.startInCreate) {
+    if (props.createBehavior === 'emit') {
+      emit('create');
+      return;
+    }
     createSkill();
   }
 });

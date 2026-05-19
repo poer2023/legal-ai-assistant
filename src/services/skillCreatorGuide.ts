@@ -25,9 +25,25 @@ export type SkillCreatorGuideStep = {
   assetSlots?: SkillCreatorGuideAssetSlot[];
 };
 
+export type SkillCreatorGuideAnswer = {
+  field: SkillCreatorGuideField;
+  title: string;
+  label: string;
+  description?: string;
+  assets?: Array<{
+    name: string;
+    sourceLabel: string;
+    kind: string;
+  }>;
+};
+
 type SkillCreatorGuideResponse = {
   options?: SkillCreatorGuideOption[];
   steps?: SkillCreatorGuideStep[];
+  complete?: boolean;
+  analysis?: string;
+  missing?: string[];
+  nextStep?: SkillCreatorGuideStep | null;
   error?: string;
   fallbackUsed?: boolean;
   model?: string;
@@ -42,6 +58,16 @@ export type SkillCreatorRootOptionsResult = {
 
 export type SkillCreatorQuestionPlanResult = {
   steps: SkillCreatorGuideStep[];
+  fallbackUsed: boolean;
+  error?: string;
+  model?: string;
+};
+
+export type SkillCreatorIntakeEvaluationResult = {
+  complete: boolean;
+  analysis: string;
+  missing: string[];
+  nextStep: SkillCreatorGuideStep | null;
   fallbackUsed: boolean;
   error?: string;
   model?: string;
@@ -110,5 +136,41 @@ export const generateSkillCreatorQuestionPlan = async ({
     fallbackUsed: Boolean(data.fallbackUsed),
     error: data.error,
     model: data.model,
+  };
+};
+
+export const evaluateSkillCreatorIntake = async ({
+  currentText,
+  answers,
+}: {
+  currentText: string;
+  answers: SkillCreatorGuideAnswer[];
+}): Promise<SkillCreatorIntakeEvaluationResult> => {
+  const data = await postSkillCreatorGuide({
+    mode: 'intake-evaluation',
+    currentText,
+    answers,
+  });
+
+  const nextStep = data?.nextStep && data.nextStep.field && data.nextStep.title && Array.isArray(data.nextStep.options)
+    ? data.nextStep
+    : null;
+
+  if (data?.complete !== true && !nextStep) {
+    throw new Error(data?.error || '需求完整度评估没有返回下一步问题');
+  }
+
+  return {
+    complete: data?.complete === true,
+    analysis: typeof data?.analysis === 'string' && data.analysis.trim()
+      ? data.analysis.trim()
+      : '已根据当前输入和补充选项完成一次需求完整度判断。',
+    missing: Array.isArray(data?.missing)
+      ? data.missing.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).slice(0, 5)
+      : [],
+    nextStep,
+    fallbackUsed: Boolean(data?.fallbackUsed),
+    error: data?.error,
+    model: data?.model,
   };
 };

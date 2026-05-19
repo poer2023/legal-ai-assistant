@@ -318,6 +318,116 @@ const normalizePlanSteps = (value) => {
   return steps.length >= 2 ? steps : fallbackPlanSteps;
 };
 
+const normalizeText = (value, maxLength = 240) =>
+  typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
+
+const normalizeAnswer = (answer, index) => {
+  if (!answer || typeof answer !== 'object') return null;
+  const field = slugify(answer.field || answer.title || `answer-${index + 1}`, `answer-${index + 1}`);
+  const title = normalizeText(answer.title, 80);
+  const label = normalizeText(answer.label, 80);
+  const description = normalizeText(answer.description, 180);
+  const assets = Array.isArray(answer.assets)
+    ? answer.assets
+        .map((asset) => ({
+          name: normalizeText(asset?.name, 80),
+          sourceLabel: normalizeText(asset?.sourceLabel, 80),
+          kind: normalizeText(asset?.kind, 40),
+        }))
+        .filter((asset) => asset.name)
+        .slice(0, 6)
+    : [];
+
+  if (!title || !label) return null;
+  return { field, title, label, description, assets };
+};
+
+const normalizeAnswers = (answers) =>
+  (Array.isArray(answers) ? answers : [])
+    .map((answer, index) => normalizeAnswer(answer, index))
+    .filter(Boolean)
+    .slice(0, 12);
+
+const fallbackQualityStep = {
+  field: 'quality-boundaries',
+  title: '哪些情况必须被标记为失败或需要人工复核？',
+  options: [
+    {
+      id: 'missing-source',
+      label: '缺少材料或依据',
+      description: '缺少关键事实、原文、来源或团队规则时必须列为待确认。',
+      recommended: true,
+    },
+    {
+      id: 'high-risk-legal',
+      label: '高风险法律结论',
+      description: '涉及签署、诉讼、监管、处罚、交易核心权利时必须提示复核。',
+    },
+    {
+      id: 'format-failure',
+      label: '输出格式不合格',
+      description: '未按模板、表头、层级或交付对象要求输出时视为失败。',
+    },
+    {
+      id: 'custom',
+      label: '其他质量红线',
+      description: '用自己的话补充不能接受的结果或必须保留的边界。',
+    },
+  ],
+};
+
+const createFallbackIntakeStep = (answers = []) => {
+  const answeredFields = new Set(answers.map((answer) => answer.field));
+  if (!answeredFields.has('root-need')) {
+    return {
+      ...rootNeedOptions[0],
+      field: 'root-need',
+      title: '先确认你真正要固化成哪类技能？',
+      options: rootNeedOptions,
+    };
+  }
+
+  return fallbackPlanSteps.find((step) => !answeredFields.has(step.field)) || fallbackQualityStep;
+};
+
+const normalizeMissingList = (value) =>
+  (Array.isArray(value) ? value : [])
+    .filter((item) => typeof item === 'string' && item.trim())
+    .map((item) => item.trim().slice(0, 80))
+    .slice(0, 5);
+
+const normalizeIntakeEvaluation = (value, { currentText, answers }) => {
+  const complete = value?.complete === true;
+  const analysis = normalizeText(
+    value?.analysis,
+    260,
+  ) || (complete
+    ? '当前信息已经足够生成技能包。'
+    : '当前信息还不足以稳定生成可复用技能，需要继续补充一个关键问题。');
+  const missing = normalizeMissingList(value?.missing);
+
+  if (complete) {
+    return {
+      complete: true,
+      analysis,
+      missing,
+      nextStep: null,
+    };
+  }
+
+  const fallback = createFallbackIntakeStep(answers);
+  const nextStep = normalizeStep(value?.nextStep || fallback, answers.length) || normalizeStep(fallback, answers.length);
+
+  return {
+    complete: false,
+    analysis,
+    missing: missing.length ? missing : [
+      currentText ? '仍需确认一个会影响技能结构的关键选择。' : '需要先说明希望创建的技能目标。',
+    ],
+    nextStep,
+  };
+};
+
 const safeJsonObject = (content) => {
   const text = String(content || '').trim();
   if (!text) return null;
@@ -381,6 +491,35 @@ const buildFollowupPlanMessages = ({ currentText, rootNeed }) => [
   },
 ];
 
+const buildIntakeEvaluationMessages = ({ currentText, answers }) => [
+  {
+    role: 'system',
+    content: [
+      '你是“法律版”产品中 skill-creator 的需求完整度评估器。',
+      '你的任务不是创建技能，而是像 Claude 的 skill 创建流程一样，先判断当前信息是否足够生成一个高质量、可复用、可验证的技能包。',
+      '只有同时足够明确以下内容时才能 complete=true：技能目标/触发场景、运行时输入材料、处理工作流、稳定输出形式、质量检查、边界/禁止编造规则、是否需要 references/examples/scripts/assets、使用范围。',
+      '如果信息不足，返回 exactly one nextStep，作为 selector 组件的下一轮追问；这个问题必须是当前最能降低不确定性的一个问题，不要重复已回答内容。',
+      '如果信息已经足够，返回 complete=true，不要返回 nextStep；仍有小缺口时写入 missing，后续会作为技能待确认和 guardrails。',
+      'selector 选项必须具体可选，每个 nextStep 给 3 到 5 个 options，第一项 recommended=true。',
+      '如该问题适合补充典型底稿、知识库文件或输出模板，可返回 assetSlots；assetSlots 是非必填材料入口。',
+      '不要编造具体法规、案件事实、法院案号、内部制度或客户信息。',
+      '只返回 JSON object，不输出 Markdown。',
+      '格式：{"complete":false,"analysis":"中文一句判断","missing":["缺口"],"nextStep":{"field":"lowercase-hyphen","title":"中文问题","options":[{"id":"lowercase-hyphen","label":"中文短标签","description":"中文一句说明","recommended":true}],"assetSlots":[{"id":"runtime-drafts","type":"draft","title":"建议补充运行底稿","description":"中文一句说明","optional":true,"allowLocal":true,"allowKnowledge":true}]}}',
+      '或：{"complete":true,"analysis":"中文一句判断","missing":[],"nextStep":null}',
+    ].join('\n'),
+  },
+  {
+    role: 'user',
+    content: [
+      `主输入框内容：${currentText || '未输入'}`,
+      '已完成的 selector 回答：',
+      JSON.stringify(answers || [], null, 2),
+      '',
+      '请判断信息是否足够；不足时只问下一轮最关键问题。',
+    ].join('\n'),
+  },
+];
+
 const requestDeepSeekJson = async ({ apiKey, baseUrl, messages, maxTokens }) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
@@ -429,10 +568,23 @@ export default async function handler(request, response) {
 
   try {
     const body = await readJsonBody(request);
-    const mode = body?.mode === 'followup-plan' ? 'followup-plan' : 'root-options';
+    const mode = body?.mode === 'intake-evaluation'
+      ? 'intake-evaluation'
+      : body?.mode === 'followup-plan' ? 'followup-plan' : 'root-options';
     const currentText = typeof body?.currentText === 'string' ? body.currentText.trim().slice(0, 1200) : '';
+    const answers = normalizeAnswers(body?.answers);
 
     if (!apiKey) {
+      if (mode === 'intake-evaluation') {
+        sendJson(response, 200, {
+          model: DEFAULT_MODEL,
+          fallbackUsed: true,
+          ...normalizeIntakeEvaluation(null, { currentText, answers }),
+          error: '缺少 DEEPSEEK_API_KEY 环境变量，已使用本地兜底问题。',
+        });
+        return;
+      }
+
       sendJson(response, 200, {
         model: DEFAULT_MODEL,
         fallbackUsed: true,
@@ -440,6 +592,22 @@ export default async function handler(request, response) {
           ? { steps: fallbackPlanSteps }
           : { options: rootNeedOptions }),
         error: '缺少 DEEPSEEK_API_KEY 环境变量，已使用本地兜底选项。',
+      });
+      return;
+    }
+
+    if (mode === 'intake-evaluation') {
+      const { data, model } = await requestDeepSeekJson({
+        apiKey,
+        baseUrl,
+        messages: buildIntakeEvaluationMessages({ currentText, answers }),
+        maxTokens: 1700,
+      });
+
+      sendJson(response, 200, {
+        model,
+        fallbackUsed: !data,
+        ...normalizeIntakeEvaluation(data, { currentText, answers }),
       });
       return;
     }
@@ -481,6 +649,10 @@ export default async function handler(request, response) {
       fallbackUsed: true,
       options: rootNeedOptions,
       steps: fallbackPlanSteps,
+      complete: false,
+      analysis: '需求完整度评估失败，已切换为本地兜底追问。',
+      missing: ['需要继续补充技能目标、输入、输出或质量边界。'],
+      nextStep: normalizeStep(createFallbackIntakeStep([]), 0),
       error: error instanceof Error && error.name === 'AbortError'
         ? 'DeepSeek selector 生成超时，已使用本地兜底选项。'
         : error instanceof Error ? error.message : 'DeepSeek selector 生成失败，已使用本地兜底选项。',

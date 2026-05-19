@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import {
+  Building2,
   ChevronRight,
   Copy,
   FileText,
   Plus,
   Search,
+  ShieldCheck,
+  Store,
+  User,
+  Users,
   X,
 } from 'lucide-vue-next';
 import {
@@ -24,7 +29,6 @@ import {
   upsertCustomTemplate,
 } from '../data/templateCatalog';
 import { sendDeepSeekMessage } from '../services/deepseekChat';
-import LibraryTypeDropdown from './LibraryTypeDropdown.vue';
 import TemplateCreateModal from './TemplateCreateModal.vue';
 
 const emit = defineEmits<{
@@ -50,25 +54,12 @@ const activeSectionId = ref<TemplateSectionId>('section-0');
 const statusMessage = ref('');
 const searchKeyword = ref('');
 const selectedSource = ref<SourceFilter>('personal');
-const selectedCategory = ref('全部');
 const showCreateModal = ref(false);
 const uploadedTemplateFile = ref<File | null>(null);
 const extractionState = ref<ExtractionState>('idle');
 const extractionError = ref('');
 const extractionNote = ref('');
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
-
-const primaryTemplateCategories = [
-  '项目启动',
-  '尽职调查',
-  '咨询意见',
-  '交易文件',
-  '投资交易',
-  '资本市场',
-  '并购交易',
-  '基金业务',
-  '合规日常',
-];
 
 const sourceTabsKeys: SourceFilter[] = [
   'personal',
@@ -103,6 +94,14 @@ const templateListPageCopy: Record<SourceFilter, { name: string; emptyTitle: str
     emptyTitle: '暂无推荐模板',
     emptyDescription: '推荐模板会集中展示在这里。',
   },
+};
+
+const sourceChipCopy: Record<SourceFilter, string> = {
+  personal: '来自 个人',
+  'group-shared': '来自 小组',
+  'team-shared': '来自 团队',
+  recommended: '来自 推荐',
+  'public-hub': '来自 推荐',
 };
 
 const combinedTemplates = computed(() => [...customTemplateAssets.value, ...templateAssets]);
@@ -156,35 +155,15 @@ const sourceTabs = computed(() => {
 });
 
 const activeListCopy = computed(() => templateListPageCopy[selectedSource.value]);
-const isPersonalMode = computed(() => selectedSource.value === 'personal');
-const shouldShowCategoryFilter = computed(() => selectedSource.value === 'recommended');
 
 const sourceFilteredTemplates = computed(() => {
   return combinedTemplates.value.filter((template) => isTemplateVisibleInSource(template, selectedSource.value));
-});
-
-const categoryTabs = computed(() => {
-  const counts = new Map<string, number>();
-  sourceFilteredTemplates.value.forEach((template) => {
-    counts.set(template.docType, (counts.get(template.docType) ?? 0) + 1);
-  });
-
-  return [
-    { name: '全部', count: sourceFilteredTemplates.value.length },
-    ...primaryTemplateCategories
-      .map((name) => ({ name, count: counts.get(name) ?? 0 }))
-      .filter((tab) => tab.count > 0),
-  ];
 });
 
 const visibleTemplates = computed(() => {
   const keyword = searchKeyword.value.trim().toLowerCase();
 
   return sourceFilteredTemplates.value.filter((template) => {
-    const matchesCategory =
-      !shouldShowCategoryFilter.value ||
-      selectedCategory.value === '全部' ||
-      template.docType === selectedCategory.value;
     const searchable = [
       template.name,
       template.docType,
@@ -198,7 +177,7 @@ const visibleTemplates = computed(() => {
       .join(' ')
       .toLowerCase();
 
-    return matchesCategory && (!keyword || searchable.includes(keyword));
+    return !keyword || searchable.includes(keyword);
   });
 });
 
@@ -207,25 +186,31 @@ const templateFilePath = (template: TemplateAsset) => {
   return original ? `uploaded://${original.fileName}` : `assets/templates/${template.id}.md`;
 };
 const getTemplateAuthor = (template: TemplateAsset) => getMockSkillAuthor(template.id, 9);
-const getTemplateAuthorAvatarStyle = (template: TemplateAsset) => ({
-  backgroundImage: `url("${getTemplateAuthor(template).avatarUrl}")`,
-});
+const getTemplateAuthorInitial = (template: TemplateAsset) => getTemplateAuthor(template).name.slice(0, 1);
 
-const getTemplateDisplaySourceLabel = (template: TemplateAsset) => {
-  if (selectedSource.value === 'recommended') return '推荐';
+const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
+  if (selectedSource.value === 'group-shared' && hasTemplatePublishDestination(template.id, 'group')) {
+    return 'group-shared';
+  }
+  if (selectedSource.value === 'team-shared' && hasTemplatePublishDestination(template.id, 'team')) {
+    return 'team-shared';
+  }
+  if (selectedSource.value === 'recommended') {
+    const staticSource = getTemplateStaticSourceKind(template);
+    if (staticSource === 'recommended' || staticSource === 'public-hub' || hasTemplatePublishDestination(template.id, 'public')) {
+      return 'recommended';
+    }
+  }
   const staticSource = getTemplateStaticSourceKind(template);
-  if (staticSource === 'recommended' || staticSource === 'public-hub') return '推荐';
-  return template.source;
+  return staticSource === 'public-hub' ? 'recommended' : staticSource;
 };
 
 const setSource = (source: SourceFilter) => {
   selectedSource.value = source;
-  selectedCategory.value = '全部';
 };
 
 const resetFilters = () => {
   searchKeyword.value = '';
-  selectedCategory.value = '全部';
 };
 
 const openCreateModal = () => {
@@ -474,7 +459,6 @@ const analyzeUploadedTemplate = async (file: File) => {
       extractionState: 'analyzing',
       extractionMessage: '生成模板中...',
     });
-    selectedCategory.value = '全部';
     selectedSource.value = 'personal';
     selectedTemplate.value = placeholderTemplate;
     closeCreateModal();
@@ -670,7 +654,7 @@ onBeforeUnmount(() => {
 
       <header v-if="!selectedTemplate" class="modal-header">
         <div class="modal-title-row">
-          <h2 id="template-modal-title">模板库</h2>
+          <h2 id="template-modal-title">法律文书的标准模板，让每一次交付都专业一致</h2>
         </div>
 
         <div class="modal-command-bar">
@@ -695,75 +679,66 @@ onBeforeUnmount(() => {
               @click="setSource(tab.key)"
             >
               <span>{{ tab.name }}</span>
-              <strong>{{ tab.count }}</strong>
             </button>
           </nav>
         </div>
 
-        <div v-if="!isPersonalMode" class="modal-result-toolbar">
-          <div class="modal-result-title">
-            <strong>{{ activeListCopy.name }}</strong>
-            <span>{{ visibleTemplates.length }} 个模板</span>
-          </div>
-          <div class="modal-source-actions">
-            <LibraryTypeDropdown
-              v-if="shouldShowCategoryFilter"
-              v-model="selectedCategory"
-              :options="categoryTabs"
-              label="类型"
-            />
-
-            <div v-else class="modal-sort-segment" aria-label="排序">
-              <button class="active" type="button">最近更新</button>
-              <button type="button">使用量</button>
-            </div>
-          </div>
-        </div>
         <span v-if="statusMessage" class="modal-status">{{ statusMessage }}</span>
       </header>
 
       <section v-if="!selectedTemplate" class="template-section" aria-label="模板文件列表">
-        <div v-if="isPersonalMode && visibleTemplates.length" class="list-section-heading">
-          <strong>全部模板</strong>
-          <span>{{ visibleTemplates.length }} 个</span>
-        </div>
-
         <div v-if="visibleTemplates.length" class="template-grid">
           <article
             v-for="template in visibleTemplates"
             :key="template.id"
-            class="managed-template-card"
+            class="template-market-card"
             :title="`${template.name}\n${templateFilePath(template)}`"
             tabindex="0"
             @click="openTemplate(template)"
             @keydown.enter.prevent="openTemplate(template)"
           >
-            <div class="thumbnail-page" aria-hidden="true">
-              <div class="thumbnail-topline">
-                <FileText :size="12" />
-                <span>{{ template.docType }}</span>
+            <div class="template-card-main">
+              <div class="template-icon-block" aria-hidden="true">
+                <FileText :size="34" />
               </div>
-              <strong>{{ template.name }}</strong>
-              <span class="thumb-line wide"></span>
-              <span class="thumb-line"></span>
-              <span class="thumb-line short"></span>
-              <div class="thumbnail-table">
-                <span></span>
-                <span></span>
-                <span></span>
-                <span></span>
+
+              <div class="template-card-copy">
+                <div class="template-title-row">
+                  <h2>{{ template.name }}</h2>
+                </div>
+
+                <p>{{ template.preview }}</p>
+
+                <div class="template-author-row">
+                  <span class="template-author-avatar" aria-hidden="true">
+                    {{ getTemplateAuthorInitial(template) }}
+                  </span>
+                  <strong>{{ getTemplateAuthor(template).name }}</strong>
+                </div>
               </div>
             </div>
 
-            <div class="tile-caption">
-              <h2>{{ template.name }}</h2>
-              <div class="tile-author">
-                <span class="tile-author-avatar" :style="getTemplateAuthorAvatarStyle(template)" aria-hidden="true"></span>
-                <span>{{ getTemplateAuthor(template).name }}</span>
-              </div>
-              <div class="tile-meta">
-                <span>{{ getTemplateDisplaySourceLabel(template) }}</span>
-                <span>{{ template.updatedAt }}</span>
+            <div class="template-card-footer">
+              <span class="template-source-chip">
+                <User v-if="getTemplateDisplaySource(template) === 'personal'" :size="11" />
+                <Users v-else-if="getTemplateDisplaySource(template) === 'group-shared'" :size="11" />
+                <Building2 v-else-if="getTemplateDisplaySource(template) === 'team-shared'" :size="11" />
+                <ShieldCheck
+                  v-else-if="getTemplateDisplaySource(template) === 'recommended' || getTemplateDisplaySource(template) === 'public-hub'"
+                  :size="11"
+                />
+                <Store v-else :size="11" />
+                {{ sourceChipCopy[getTemplateDisplaySource(template)] }}
+              </span>
+
+              <div class="template-card-actions" @click.stop>
+                <button
+                  class="template-primary-action"
+                  type="button"
+                  @click="selectTemplate(template)"
+                >
+                  使用模板
+                </button>
               </div>
             </div>
           </article>
@@ -1799,6 +1774,527 @@ onBeforeUnmount(() => {
 
   .doc-meta-grid div:last-child {
     border-bottom: 0;
+  }
+}
+
+/* Compact copy of the standalone template marketplace list. */
+.template-modal:not(.detail-mode) {
+  --tpl-bg: #faf7f1;
+  --tpl-panel: #ffffff;
+  --tpl-soft: #f3eee3;
+  --tpl-line: #e8e1d4;
+  --tpl-line-strong: #d6cdbe;
+  --tpl-ink-900: #1a1614;
+  --tpl-ink-800: #2b2522;
+  --tpl-ink-700: #4a423d;
+  --tpl-ink-500: #837a72;
+  --tpl-ink-400: #a29a91;
+  --tpl-accent: #c8552e;
+  --tpl-accent-700: #a4441f;
+  --tpl-accent-tint: #fbf1e8;
+  --tpl-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif;
+  --tpl-sans: 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  --tpl-shadow-2: 0 2px 4px rgba(26, 22, 20, 0.04), 0 0 0 1px rgba(26, 22, 20, 0.04);
+  width: min(1120px, calc(100vw - 40px));
+  min-height: 560px;
+  padding: 32px 40px 36px;
+  border: 1px solid rgba(26, 22, 20, 0.06);
+  border-radius: 18px;
+  background: var(--tpl-bg);
+  color: var(--tpl-ink-700);
+  font-family: var(--tpl-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  box-shadow: 0 28px 80px rgba(26, 22, 20, 0.24);
+}
+
+.template-modal:not(.detail-mode) .modal-close-btn {
+  top: 24px;
+  right: 28px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--tpl-ink-700);
+}
+
+.template-modal:not(.detail-mode) .modal-close-btn:hover {
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-900);
+}
+
+.template-modal:not(.detail-mode) .modal-title-row {
+  min-height: 0;
+  margin: 0 0 18px;
+  padding-right: 52px;
+}
+
+.template-modal:not(.detail-mode) .modal-header h2 {
+  margin: 0;
+  color: var(--tpl-ink-900);
+  font-family: var(--tpl-serif);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
+.template-modal:not(.detail-mode) .modal-command-bar {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding-right: 0;
+}
+
+.template-modal:not(.detail-mode) .modal-search-control {
+  position: relative;
+  flex: 1;
+  max-width: 860px;
+  min-width: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--tpl-ink-400);
+  transition: none;
+}
+
+.template-modal:not(.detail-mode) .modal-search-control:focus-within {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.template-modal:not(.detail-mode) .modal-search-control svg {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  z-index: 1;
+  color: var(--tpl-ink-400);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.template-modal:not(.detail-mode) .modal-search-control input {
+  width: 100%;
+  height: 44px;
+  padding: 0 14px 0 38px;
+  border: 1px solid var(--tpl-line);
+  border-radius: 10px;
+  background: var(--tpl-panel);
+  color: var(--tpl-ink-900);
+  font-family: var(--tpl-sans);
+  font-size: 14px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.template-modal:not(.detail-mode) .modal-search-control input:hover {
+  border-color: var(--tpl-line-strong);
+}
+
+.template-modal:not(.detail-mode) .modal-search-control input:focus {
+  outline: 0;
+  border-color: var(--tpl-ink-900);
+  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+}
+
+.template-modal:not(.detail-mode) .modal-search-control input::placeholder {
+  color: var(--tpl-ink-400);
+}
+
+.template-modal:not(.detail-mode) .modal-create-btn {
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 18px;
+  border: 1px solid var(--tpl-ink-900);
+  border-radius: 10px;
+  background: var(--tpl-ink-900);
+  color: #ffffff;
+  font-family: var(--tpl-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.template-modal:not(.detail-mode) .modal-create-btn:hover {
+  background: var(--tpl-ink-800);
+  border-color: var(--tpl-ink-800);
+  box-shadow: none;
+  transform: translateY(-1px);
+}
+
+.template-modal:not(.detail-mode) .modal-source-switcher {
+  justify-content: flex-start;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.template-modal:not(.detail-mode) .modal-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow: visible;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.template-modal:not(.detail-mode) .modal-tab {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--tpl-ink-700);
+  font-family: var(--tpl-sans);
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.template-modal:not(.detail-mode) .modal-tab:hover {
+  color: var(--tpl-ink-900);
+  background: color-mix(in srgb, var(--tpl-soft) 74%, transparent);
+}
+
+.template-modal:not(.detail-mode) .modal-tab.active {
+  padding: 0 16px;
+  border-color: color-mix(in srgb, var(--tpl-accent) 15%, var(--tpl-line));
+  background: var(--tpl-accent-tint);
+  color: var(--tpl-accent-700);
+  box-shadow: none;
+}
+
+.template-modal:not(.detail-mode) .template-section {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  margin-top: 0;
+  overflow: auto;
+  padding-right: 4px;
+  overscroll-behavior: contain;
+}
+
+.template-modal:not(.detail-mode) .template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  justify-content: stretch;
+  gap: 14px;
+}
+
+.template-market-card {
+  position: relative;
+  min-width: 0;
+  min-height: 188px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px;
+  border: 1px solid var(--tpl-line);
+  border-radius: 14px;
+  background: var(--tpl-panel);
+  color: var(--tpl-ink-700);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.template-market-card:hover {
+  border-color: var(--tpl-line-strong);
+  box-shadow: var(--tpl-shadow-2);
+  transform: translateY(-1px);
+}
+
+.template-market-card:focus {
+  outline: none;
+}
+
+.template-market-card:focus-visible,
+.template-modal:not(.detail-mode) .modal-tab:focus-visible,
+.template-modal:not(.detail-mode) .modal-create-btn:focus-visible,
+.template-primary-action:focus-visible {
+  outline: 2px solid var(--tpl-ink-900);
+  outline-offset: 2px;
+}
+
+.template-card-main {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.template-icon-block {
+  width: 64px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 64px;
+  border-radius: 14px;
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-700);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+.template-card-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.template-title-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.template-title-row h2 {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--tpl-ink-900);
+  font-family: var(--tpl-sans);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-card-copy p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--tpl-ink-500);
+  font-size: 12.5px;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.template-author-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--tpl-ink-500);
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+
+.template-author-avatar {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 20px;
+  border-radius: 999px;
+  background: var(--tpl-ink-900);
+  color: #ffffff;
+  font-family: var(--tpl-serif);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.template-author-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tpl-ink-900);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-card-footer {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tpl-line);
+}
+
+.template-source-chip {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 1;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-700);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.template-source-chip svg {
+  flex: 0 0 auto;
+}
+
+.template-card-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.template-primary-action {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tpl-accent);
+  color: #ffffff;
+  font-family: var(--tpl-sans);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.template-primary-action:hover {
+  filter: brightness(0.94);
+}
+
+.template-modal:not(.detail-mode) .empty-state {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  border: 1px solid var(--tpl-line);
+  border-radius: 14px;
+  background: var(--tpl-panel);
+  color: var(--tpl-ink-500);
+  text-align: center;
+}
+
+.template-modal:not(.detail-mode) .empty-state svg {
+  color: var(--tpl-accent);
+}
+
+.template-modal:not(.detail-mode) .empty-state strong {
+  color: var(--tpl-ink-900);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.template-modal:not(.detail-mode) .reset-btn {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid var(--tpl-line);
+  border-radius: 10px;
+  background: var(--tpl-soft);
+  color: var(--tpl-ink-900);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.template-modal:not(.detail-mode) .reset-btn:hover,
+.template-modal:not(.detail-mode) .reset-btn.active {
+  border-color: rgba(200, 85, 46, 0.28);
+  background: var(--tpl-accent-tint);
+  color: var(--tpl-accent-700);
+  transform: none;
+}
+
+@media (max-width: 980px) {
+  .template-modal:not(.detail-mode) {
+    padding: 28px;
+  }
+
+  .template-modal:not(.detail-mode) .modal-command-bar {
+    align-items: stretch;
+  }
+
+  .template-modal:not(.detail-mode) .modal-search-control {
+    max-width: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .template-modal:not(.detail-mode) {
+    width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 22px 18px 24px;
+  }
+
+  .template-modal:not(.detail-mode) .modal-title-row {
+    padding-right: 44px;
+  }
+
+  .template-modal:not(.detail-mode) .modal-header h2 {
+    font-size: 22px;
+  }
+
+  .template-modal:not(.detail-mode) .modal-command-bar {
+    flex-direction: column;
+  }
+
+  .template-modal:not(.detail-mode) .modal-search-control,
+  .template-modal:not(.detail-mode) .modal-create-btn {
+    width: 100%;
+  }
+
+  .template-modal:not(.detail-mode) .template-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .template-card-main {
+    align-items: flex-start;
+  }
+
+  .template-card-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .template-card-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>
