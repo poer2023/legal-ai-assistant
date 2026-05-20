@@ -380,7 +380,7 @@ const routes = [
     path: '/team',
     name: 'team',
     component: TeamManageView,
-    meta: { title: '团队管理' },
+    meta: { title: '团队管理', fullScreen: true },
     children: [
       { path: '', name: 'team-overview', component: TeamOverviewView, meta: { title: '团队概览' } },
       { path: 'members', name: 'team-members', component: TeamSectionShellView, props: { section: 'members' }, meta: { title: '成员管理' } },

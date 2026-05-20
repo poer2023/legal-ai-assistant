@@ -5,6 +5,9 @@ export type SkillCreatorAnswers = {
   source: string;
   output: string;
   scope: string;
+  intakeSummary?: string[];
+  materials?: string[];
+  outputHints?: string[];
 };
 
 type SkillCreatorStreamPayload = {

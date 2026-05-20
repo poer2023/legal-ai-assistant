@@ -289,17 +289,17 @@ const sourceModeCopy: Record<SkillMode, {
   personal: {
     name: '个人',
     emptyTitle: '暂无个人技能',
-    emptyDescription: '可以从推荐或共享资源中安装，也可以直接创建一个新技能。',
+    emptyDescription: '可以从官方、市场或共享资源中订阅，也可以直接创建一个新技能。',
   },
   'group-shared': {
     name: '小组',
     emptyTitle: '暂无小组共享技能',
-    emptyDescription: '小组成员发布后，会出现在这里供组内安装使用。',
+    emptyDescription: '小组成员发布后，会出现在这里供组内订阅使用。',
   },
   'team-shared': {
     name: '团队',
     emptyTitle: '暂无团队共享技能',
-    emptyDescription: '发布到团队的技能会在这里展示，团队成员可以安装到自己的技能库。',
+    emptyDescription: '发布到团队的技能会在这里展示，团队成员可以订阅到自己的技能库。',
   },
   official: {
     name: '官方',
@@ -309,12 +309,12 @@ const sourceModeCopy: Record<SkillMode, {
   market: {
     name: '市场',
     emptyTitle: '暂无市场技能',
-    emptyDescription: '公开发布后的技能会进入市场，所有使用者都可以发现和安装。',
+    emptyDescription: '公开发布后的技能会进入市场，所有使用者都可以发现和订阅。',
   },
   'public-hub': {
     name: '市场',
     emptyTitle: '暂无市场技能',
-    emptyDescription: '公开发布后的技能会进入市场，所有使用者都可以发现和安装。',
+    emptyDescription: '公开发布后的技能会进入市场，所有使用者都可以发现和订阅。',
   },
   recommended: {
     name: '官方',
@@ -331,13 +331,6 @@ const sortSkillsForLibrary = (skills: SkillCatalogItem[]) =>
     return leftIsUtility ? 1 : -1;
   });
 
-const recommendedSkills = computed(() =>
-  dedupeSkillsById([
-    ...officialRecommendedSkills,
-    ...catalogPublicHubSkills.value,
-  ]),
-);
-
 const standaloneSourceSkillPool = computed(() =>
   dedupeSkillsById([
     ...personalSkills.value,
@@ -349,22 +342,23 @@ const standaloneSourceSkillPool = computed(() =>
 );
 
 const officialSkills = computed(() =>
-  standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'official'),
+  dedupeSkillsById([
+    ...standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'official'),
+    ...officialRecommendedSkills,
+  ]),
 );
 
 const marketSkills = computed(() =>
-  standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'market'),
+  dedupeSkillsById([
+    ...standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'market'),
+    ...catalogPublicHubSkills.value.filter((skill) => skill.source !== 'recommended'),
+  ]),
 );
 
 const activeSkills = computed(() =>
   sortSkillsForLibrary(
     {
-      personal: dedupeSkillsById([
-        ...personalSkills.value,
-        ...catalogGroupSharedSkills.value,
-        ...teamSharedSkills.value,
-        ...recommendedSkills.value,
-      ]),
+      personal: personalSkills.value,
       'group-shared': catalogGroupSharedSkills.value,
       'team-shared': teamSharedSkills.value,
       official: officialSkills.value,
@@ -521,17 +515,16 @@ const selectSkill = (skill: SkillCatalogItem) => {
   });
 };
 
-const isMarketplaceMode = computed(() =>
-  skillMode.value === 'official'
-  || skillMode.value === 'market'
-  || skillMode.value === 'recommended'
-  || skillMode.value === 'public-hub'
-);
+const isSubscriptionMode = computed(() => skillMode.value !== 'personal');
 
-const shouldBlockSkillDetail = () => isMarketplaceMode.value;
+const shouldBlockSkillDetail = (skill: SkillCatalogItem) =>
+  isSubscriptionMode.value && !isSkillAdded(skill);
 
 const openSkill = (skill: SkillCatalogItem) => {
-  if (shouldBlockSkillDetail()) return;
+  if (shouldBlockSkillDetail(skill)) {
+    showToast(`请先订阅「${getSkillDisplayName(skill)}」后查看或使用`, { tone: 'warning' });
+    return;
+  }
   selectedSkill.value = skill;
   openCardMenuId.value = null;
 };
@@ -558,25 +551,20 @@ const handleSkillCreated = (skill: SkillCatalogItem) => {
 
 const addSkill = (skill: SkillCatalogItem) => {
   const didAdd = addPersonalSkill(skill.id);
-  showToast(didAdd ? `${skill.name} 已安装到我的技能` : `${skill.name} 已在我的技能中`);
+  showToast(didAdd ? `${getSkillDisplayName(skill)} 已订阅到我的技能` : `${getSkillDisplayName(skill)} 已在我的技能中`);
 };
 
-const installSharedSkill = (skill: SkillCatalogItem) => {
-  if (isMarketplaceMode.value) {
-    addSkill(skill);
-    return;
-  }
-
-  showToast(`${skill.name} 已安装到我的技能`);
+const subscribeSharedSkill = (skill: SkillCatalogItem) => {
+  addSkill(skill);
 };
 
 const handlePrimarySkillAction = (skill: SkillCatalogItem) => {
-  if (skillMode.value === 'personal') {
+  if (skillMode.value === 'personal' || isSkillAdded(skill)) {
     selectSkill(skill);
     return;
   }
 
-  installSharedSkill(skill);
+  subscribeSharedSkill(skill);
 };
 
 const handlePersonalSkillAction = (skill: SkillCatalogItem) => {
@@ -590,12 +578,11 @@ const handlePersonalSkillAction = (skill: SkillCatalogItem) => {
 
 const getPrimarySkillActionLabel = (skill: SkillCatalogItem) => {
   if (skillMode.value === 'personal') return isSkillDisplayEnabled(skill) ? '使用' : '启用';
-  if (isMarketplaceMode.value && isSkillAdded(skill)) return '已安装';
-  return '安装';
+  if (isSkillAdded(skill)) return '使用';
+  return '订阅';
 };
 
-const isPrimarySkillActionDisabled = (skill: SkillCatalogItem) =>
-  isMarketplaceMode.value && isSkillAdded(skill);
+const isPrimarySkillActionDisabled = (_skill: SkillCatalogItem) => false;
 
 const setSkillOpen = (skill: SkillCatalogItem, enabled: boolean) => {
   const updatedSkill = setSkillEnabled(skill.id, enabled);
@@ -1116,42 +1103,14 @@ onBeforeUnmount(() => {
               class="managed-card"
               :class="{
                 'recommend-card': skillMode !== 'personal',
-                'preview-disabled': shouldBlockSkillDetail(),
+                'preview-disabled': shouldBlockSkillDetail(skill),
                 'is-closed': skillMode === 'personal' && !isSkillEnabled(skill),
                 'menu-open': openCardMenuId === `skill-${skill.id}`
               }"
-              :tabindex="shouldBlockSkillDetail() ? undefined : 0"
+              :tabindex="shouldBlockSkillDetail(skill) ? undefined : 0"
               @click="openSkill(skill)"
               @keydown.enter.prevent="openSkill(skill)"
             >
-              <div v-if="openCardMenuId === `skill-${skill.id}`" class="card-action-menu" @click.stop>
-                <button
-                  class="menu-action"
-                  type="button"
-                  @click="editSkill(skill)"
-                >
-                  <Pencil :size="15" />
-                  <span>编辑</span>
-                </button>
-                <button class="menu-action" type="button" @click="downloadSkill(skill)">
-                  <Download :size="15" />
-                  <span>下载</span>
-                </button>
-                <button class="menu-action" type="button" @click="setSkillOpen(skill, !isSkillEnabled(skill))">
-                  <Power v-if="!isSkillEnabled(skill)" :size="15" />
-                  <PowerOff v-else :size="15" />
-                  <span>{{ isSkillEnabled(skill) ? '停用' : '启用' }}</span>
-                </button>
-                <button class="menu-action" type="button" @click="openPublishDialog(skill)">
-                  <UsersRound :size="15" />
-                  <span>发布</span>
-                </button>
-                <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
-                  <Trash2 :size="15" />
-                  <span>删除</span>
-                </button>
-              </div>
-
               <div class="card-main-row">
                 <div class="card-avatar" :class="getSkillToneClass(skill)" aria-hidden="true">
                   <component :is="getSkillIcon(skill)" :size="30" :stroke-width="2" />
@@ -1220,7 +1179,7 @@ onBeforeUnmount(() => {
                     @click.stop="handlePrimarySkillAction(skill)"
                   >
                     <Check v-if="isPrimarySkillActionDisabled(skill)" :size="14" />
-                    <Plus v-else-if="getPrimarySkillActionLabel(skill) === '安装'" :size="14" />
+                    <Plus v-else-if="getPrimarySkillActionLabel(skill) === '订阅'" :size="14" />
                     <span>{{ getPrimarySkillActionLabel(skill) }}</span>
                   </button>
                   <button
@@ -1228,10 +1187,39 @@ onBeforeUnmount(() => {
                     class="card-more-btn"
                     type="button"
                     :aria-label="`${getSkillDisplayName(skill)} 更多操作`"
+                    :aria-expanded="openCardMenuId === `skill-${skill.id}`"
                     @click.stop="toggleCardMenu(`skill-${skill.id}`)"
                   >
                     <MoreHorizontal :size="18" />
                   </button>
+
+                  <div v-if="openCardMenuId === `skill-${skill.id}`" class="card-action-menu" @click.stop>
+                    <button
+                      class="menu-action"
+                      type="button"
+                      @click="editSkill(skill)"
+                    >
+                      <Pencil :size="14" />
+                      <span>编辑</span>
+                    </button>
+                    <button class="menu-action" type="button" @click="downloadSkill(skill)">
+                      <Download :size="14" />
+                      <span>下载</span>
+                    </button>
+                    <button class="menu-action" type="button" @click="setSkillOpen(skill, !isSkillEnabled(skill))">
+                      <Power v-if="!isSkillEnabled(skill)" :size="14" />
+                      <PowerOff v-else :size="14" />
+                      <span>{{ isSkillEnabled(skill) ? '停用' : '启用' }}</span>
+                    </button>
+                    <button class="menu-action" type="button" @click="openPublishDialog(skill)">
+                      <UsersRound :size="14" />
+                      <span>发布</span>
+                    </button>
+                    <button class="menu-action danger" type="button" @click="deleteSkill(skill)">
+                      <Trash2 :size="14" />
+                      <span>删除</span>
+                    </button>
+                  </div>
                 </div>
               </footer>
             </article>
@@ -1321,7 +1309,7 @@ onBeforeUnmount(() => {
             <Building2 :size="18" />
             <div>
               <strong>金杜律师事务所 ・ 涌见律师演示组织</strong>
-              <span>21 名成员将能在「团队」分类下安装此能力</span>
+              <span>21 名成员将能在「团队」分类下订阅此能力</span>
             </div>
           </section>
 
@@ -1948,6 +1936,7 @@ onBeforeUnmount(() => {
 }
 
 .card-actions {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2098,28 +2087,29 @@ onBeforeUnmount(() => {
 
 .card-action-menu {
   position: absolute;
-  top: 58px;
-  right: 14px;
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 8px);
   z-index: 40;
-  min-width: 176px;
-  padding: 8px;
+  min-width: 148px;
+  padding: 6px;
   border: 1px solid var(--border-color);
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--card-bg);
   box-shadow: var(--shadow-popover);
 }
 
 .card-action-menu button {
   width: 100%;
-  min-height: 38px;
+  min-height: 32px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  border-radius: 10px;
+  gap: 9px;
+  padding: 0 9px;
+  border-radius: 7px;
   color: var(--text-main);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 500;
   text-align: left;
 }
 
@@ -2496,6 +2486,9 @@ onBeforeUnmount(() => {
 }
 
 .card-action-menu button.danger {
+  margin-top: 4px;
+  border-top: 1px solid var(--border-color);
+  border-radius: 0 0 7px 7px;
   color: var(--diff-removed);
 }
 
@@ -3209,10 +3202,10 @@ onBeforeUnmount(() => {
 
 .card-action-menu {
   position: absolute;
-  right: 16px;
-  bottom: 56px;
+  right: 0;
+  bottom: calc(100% + 8px);
   z-index: 50;
-  min-width: 160px;
+  min-width: 148px;
   padding: 6px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
@@ -3870,10 +3863,10 @@ onBeforeUnmount(() => {
 
 .card-action-menu {
   top: auto;
-  right: 18px;
-  bottom: 54px;
-  width: 176px;
-  min-width: 176px;
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 148px;
+  min-width: 148px;
   box-sizing: border-box;
   padding: 6px;
   border: 1px solid var(--skill-line);

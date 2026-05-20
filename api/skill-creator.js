@@ -11,6 +11,11 @@ const SUPPORT_FILE_ORDER = [
   'examples/example-output.md',
 ];
 
+const sanitizeProviderError = (message = '') => String(message)
+  .replace(/DEEPSEEK_API_KEY/g, '模型服务密钥')
+  .replace(/DEEPSEEK_BASE_URL/g, '模型服务地址')
+  .replace(/DeepSeek/gi, '模型服务');
+
 const sendJson = (response, statusCode, payload) => {
   if (typeof response.status === 'function' && typeof response.json === 'function') {
     response.status(statusCode).json(payload);
@@ -188,8 +193,8 @@ const renderSystemParsedArtifacts = (skill, { fallbackUsed = false } = {}) => {
     '## 系统解析：待写入生成物',
     '',
     fallbackUsed
-      ? '- DeepSeek 返回的 skill_json 未能完整解析，系统使用本地兜底草稿生成待写入技能包。'
-      : '- 已解析 DeepSeek 返回的 skill_json，并得到待写入的技能包。',
+      ? '- 模型返回的 skill_json 未能完整解析，系统使用本地兜底草稿生成待写入技能包。'
+      : '- 已解析模型返回的 skill_json，并得到待写入的技能包。',
     '- 以下内容是系统准备写入当前技能库的最终生成物；后续写入和持久化以这里的内容为准。',
     '',
     '### 最终生成物清单',
@@ -429,16 +434,6 @@ const renderExampleOutput = ({ name }) => [
   '- 对外沟通：……',
 ].join('\n');
 
-const renderReferenceForPath = (path, structured) => {
-  if (path === 'references/intake.md') return renderIntakeReference(structured);
-  if (path === 'references/checklist.md') return renderChecklistReference(structured);
-  if (path === 'references/output-patterns.md') return renderOutputPatternsReference(structured);
-  if (path === 'references/quality-gates.md') return renderQualityGatesReference(structured);
-  if (path === 'examples/example-input.md') return renderExampleInput(structured);
-  if (path === 'examples/example-output.md') return renderExampleOutput(structured);
-  return renderChecklistReference(structured);
-};
-
 const normalizePathList = (paths) => {
   const seen = new Set();
   return paths
@@ -450,41 +445,6 @@ const normalizePathList = (paths) => {
       seen.add(path);
       return true;
     });
-};
-
-const hasPromptSignal = (brief, answers, pattern) => [
-  brief,
-  answers?.scenario,
-  answers?.source,
-  answers?.output,
-  answers?.scope,
-].filter(Boolean).some((value) => pattern.test(String(value)));
-
-const inferSupportPaths = (structured, brief = '', answers = {}) => {
-  const text = [brief, structured.name, structured.category, ...structured.tags].join('\n');
-  const paths = [];
-
-  const wantsReferences = hasPromptSignal(brief, answers, /复杂|详细|完整|团队|共享|playbook|知识库|审查|合规|法规|诉讼|证据|合同|对比|差距|上线|隐私|监管|检索|尽调|并购|劳动|知识产权|整改|清单|矩阵|报告/i);
-  const wantsOutputTemplate = hasPromptSignal(brief, answers, /Word|文书|报告|矩阵|表格|模板|清单|可复制|邮件|红线|路线图|时间线|目录|摘要/i);
-  const wantsIntake = hasPromptSignal(brief, answers, /信息不足|材料|上传|粘贴|团队|playbook|知识库|诉讼|证据|尽调|产品|上线|法规|合规/i);
-  const wantsQualityGate = hasPromptSignal(brief, answers, /高风险|监管|数据|隐私|金融|医疗|未成年人|劳动|并购|上线|法规|合规|公开披露|质量|复核/i);
-  const wantsExamples = hasPromptSignal(brief, answers, /示例|example|样例|样稿|模板|格式样式/i);
-
-  if (wantsIntake) paths.push('references/intake.md');
-  if (wantsReferences || /诉讼|证据|合同|法规|合规|上线|审查|检索|尽调|并购|劳动|知识产权/.test(text)) {
-    paths.push('references/checklist.md');
-  }
-  if (wantsOutputTemplate) paths.push('references/output-patterns.md');
-  if (wantsQualityGate && paths.length >= 2) paths.push('references/quality-gates.md');
-  if (wantsExamples && paths.length) {
-    paths.push('examples/example-input.md', 'examples/example-output.md');
-  }
-
-  if (!paths.length && (structured.workflow.length > 4 || structured.checks.length > 3 || structured.output.length > 2)) {
-    paths.push('references/checklist.md');
-  }
-
-  return normalizePathList(paths);
 };
 
 const contractReviewDraft = (answers = {}) => ({
@@ -861,12 +821,6 @@ const shouldReplaceSkillMarkdown = (content, id) => {
   return stripSkillFrontmatter(text).length < 500;
 };
 
-const shouldReplaceReferenceMarkdown = (content, requiredPatterns = []) => {
-  const text = String(content || '').trim();
-  if (text.length < 500) return true;
-  return requiredPatterns.some((pattern) => !pattern.test(text));
-};
-
 const normalizeCreatedSkill = (draft, brief = '', answers = {}) => {
   const structured = createStructuredDraft(draft, brief, answers);
   const files = Array.isArray(draft?.files) ? draft.files : [];
@@ -879,33 +833,7 @@ const normalizeCreatedSkill = (draft, brief = '', answers = {}) => {
     fileMap.set(path, content);
   });
 
-  if (structured.id === 'contract-review-redline') {
-    fileMap.clear();
-  }
-
-  const generatedSupportPaths = Array.from(fileMap.keys()).filter((path) => path !== 'SKILL.md');
-  const inferredSupportPaths = inferSupportPaths(structured, brief, answers);
-  const supportPaths = normalizePathList([
-    ...generatedSupportPaths,
-    ...(!generatedSupportPaths.length ? inferredSupportPaths : inferredSupportPaths.filter((path) => fileMap.has(path))),
-  ]);
-
-  supportPaths.forEach((path) => {
-    const content = fileMap.get(path);
-    const requiredPatterns = path === 'references/intake.md'
-      ? [/启动|输入|材料/, /缺失|待确认|澄清/]
-      : path === 'references/checklist.md'
-        ? [/风险|等级|优先级|清单|步骤/, /复核|检查|核验|边界/]
-        : path === 'references/output-patterns.md'
-          ? [/输出|交付|表格|格式/, /禁止|不得|不要|待确认/]
-          : path === 'references/quality-gates.md'
-            ? [/质量|门槛|复核/, /升级|禁止|不得/]
-            : [];
-
-    if (!content || (requiredPatterns.length && shouldReplaceReferenceMarkdown(content, requiredPatterns))) {
-      fileMap.set(path, renderReferenceForPath(path, structured));
-    }
-  });
+  const supportPaths = normalizePathList(Array.from(fileMap.keys()).filter((path) => path !== 'SKILL.md'));
 
   Array.from(fileMap.keys()).forEach((path) => {
     if (path !== 'SKILL.md' && !supportPaths.includes(path)) {
@@ -1012,7 +940,7 @@ const readDeepSeekStreamFrame = (frame) => {
 
   const payload = JSON.parse(data);
   if (payload.error) {
-    throw new Error(payload.error.message || 'skill-creator 创建失败');
+    throw new Error(sanitizeProviderError(payload.error.message || '技能创建失败'));
   }
 
   return {
@@ -1025,7 +953,7 @@ const readDeepSeekStreamFrame = (frame) => {
 
 const forwardSkillCreatorStream = async (upstreamResponse, response, model, brief, answers) => {
   if (!upstreamResponse.body) {
-    throw new Error('skill-creator 未返回可读取的流');
+    throw new Error('技能创建未返回可读取的流');
   }
 
   response.statusCode = 200;
@@ -1156,11 +1084,14 @@ const skillCreatorRules = [
   '你是“法律版”产品的真实 skill-creator，不是简单模板填充器。',
   '目标：把用户的一句或多句需求，扩展成可在法律工作中反复调用的高质量技能包。',
   '你必须根据需求识别法律工作类型：合同审查/对比/起草、诉讼时间线、证据整理、法规差距、产品上线合规、数据隐私、劳动用工、知识产权、公司治理、投融资并购、法律检索、文书起草、谈判准备、整改路线图等。',
-  '如果信息不足，不要编造业务事实；把缺失信息写进 intake、checks、guardrails 和待确认规则。',
+  '如果信息不足，不要编造业务事实；把缺失信息写进 SKILL.md、checks、guardrails、待确认规则，或在确实需要单独材料收集说明时写进 intake reference。',
   'skill_json 必须是 JSON object，字段：id,name,description,category,tags,scope,triggers,inputs,workflow,output,checks,guardrails,files。',
   'id 必须是 lowercase hyphen-case，长度小于 64；name 用中文展示名；description 用英文或中英混合说明触发场景，长度小于 1024。',
   'files 必须至少包含 SKILL.md；其他文件全部按需生成，不能为了凑数量创建占位文件。',
-  '简单技能优先单文件 SKILL.md；中等复杂度可以增加 1-2 个 references；复杂、高风险、格式严格或团队 playbook 型技能才增加更多 references/examples/scripts/assets。',
+  '文件数量不是质量指标，不要默认生成“完整技能包”。像官方 skill-creator 一样，先理解用户的真实使用例、复用资源和复杂度，再决定需要哪些文件。',
+  '默认从简洁的 SKILL.md 开始；只有当细节会让 SKILL.md 过长、存在可复用参考资料、稳定模板、确定性脚本或输出素材时，才增加 references、examples、scripts 或 assets。',
+  '如果前置 selector 已经收集了触发场景、运行材料、工作流、输出标准、质量边界等多轮信息，最终技能必须承接这些信息；可以合并进 SKILL.md，也可以拆到支持文件，但不要因为存在这些信息就机械拆文件。',
+  '决定是否拆文件时解释“为什么这个资源会帮助后续调用”：references 用于详细规则/清单/领域知识，examples 用于输出强依赖示例的场景，scripts 用于确定性或重复性操作，assets 用于模板和静态资源。',
   'SKILL.md 必须以 YAML frontmatter 开头，且 frontmatter 只能包含 name 和 description；name 必须等于 id。',
   'SKILL.md 保持入口级说明：使用场景、输入要求、工作流、输出要求、质量检查、边界规则、需要时读取。',
   'references/ 只在 SKILL.md 会过长、需要详细清单/输出模板/领域规则时生成；文件要聚焦，且必须在 SKILL.md 中说明何时读取。',
@@ -1172,7 +1103,7 @@ const skillCreatorRules = [
   '如果用户需求中包含“关联底稿”“作为底稿”“知识库文件”“关联模板”或“使用这个模板”，必须把这些资产理解为创建技能时的参考输入：底稿/知识库应反映到输入要求、intake 或 checklist；模板应反映到输出结构、字段约束或 output-patterns。',
   '关联模板只是创建时的格式参考，不要把技能重新硬绑定到模板库；关联底稿只是运行时材料类型示例，不要编造文件全文中不存在的事实。',
   '如果用户消息包含“需求采集状态：已完成”，说明前置 selector 已经完成信息充分性判断；你不得再向用户追问，必须直接打包技能包。',
-  '如果 selector 仍留下“待确认/边界规则”，必须把它们写入 SKILL.md、references/intake.md、checks 或 guardrails，而不是补造答案。',
+  '如果 selector 仍留下“待确认/边界规则”，必须把它们写入 SKILL.md、必要的 reference、checks 或 guardrails，而不是补造答案。',
   'content 必须具体到该技能：至少写出可执行检查维度、材料字段、风险分级、输出表头、待确认规则，不能只写“识别材料和目标”。',
   '除非用户明确需要确定性脚本或资产，否则不要生成 scripts/、assets/；不要生成 README.md、安装说明、CHANGELOG 或迁移来源说明。',
   '不得编造具体案件事实、合同条款、法规来源、法院案号、监管口径或内部制度；不确定内容写成待确认规则。',
@@ -1184,6 +1115,15 @@ const buildUserMessage = (brief, answers) => [
   `输入来源：${answers?.source || '未说明'}`,
   `期望输出：${answers?.output || '未说明'}`,
   `使用范围：${answers?.scope || '未说明'}`,
+  Array.isArray(answers?.intakeSummary) && answers.intakeSummary.length
+    ? `逐轮补充信息：\n${answers.intakeSummary.map((item, index) => `${index + 1}. ${item}`).join('\n')}`
+    : '',
+  Array.isArray(answers?.materials) && answers.materials.length
+    ? `参考材料建议：${answers.materials.join('；')}`
+    : '',
+  Array.isArray(answers?.outputHints) && answers.outputHints.length
+    ? `输出模板/示例线索：${answers.outputHints.join('；')}。如果用户只是选择了模板或示例线索，需由你基于当前需求自行生成对应 references/examples 内容，不要要求用户再次上传。`
+    : '',
 ].join('\n');
 
 const buildMessages = (brief, answers) => [
@@ -1217,10 +1157,12 @@ const buildStreamingMessages = (brief, answers) => [
       '',
       '## 2. 生成物清单',
       '',
+      '先按复杂度决定 N：简单技能可以 N=1，只生成 SKILL.md；只有确实需要承接详细材料、检查清单、稳定输出格式、质量边界、示例或脚本时才增加支持文件。',
+      '',
       '| 序号 | 路径 | 类型 | 用途 |',
       '| --- | --- | --- | --- |',
       '| 1 | SKILL.md | 入口说明 | 必需文件，包含 frontmatter、触发场景、输入、工作流、输出、质量检查和边界规则 |',
-      '| 2 | {实际支持文件路径} | {支持资料/示例/脚本/资产} | {只有确实生成该文件时才列出，说明它解决什么复杂度问题} |',
+      '| 2 | {实际支持文件路径} | {支持资料/示例/脚本/资产} | {只有确实生成该文件时才列出，说明它解决什么复杂度问题；如果 N=1，不能输出这一行} |',
       '',
       '生成物清单只能列出实际会生成并写入 skill_json.files 的文件；不生成的 scripts、assets、examples 或 references 不要出现在清单中，也不要解释“不生成原因”。',
       '',
@@ -1238,7 +1180,7 @@ const buildStreamingMessages = (brief, answers) => [
       '{该文件完整内容}',
       '```',
       '',
-      '继续按 3/N、4/N 输出所有 files 中的文件。每个 skill_json.files 中的文件都必须在这里出现一次，路径必须完全一致，内容必须完整，不得只写摘要。',
+      '如果 N=1，不能输出 2/N 或任何支持文件占位段。否则继续按 3/N、4/N 输出所有 files 中的文件。每个 skill_json.files 中的文件都必须在这里出现一次，路径必须完全一致，内容必须完整，不得只写摘要。',
       '',
       '逐个生成完所有文件后，直接结束 generation_markdown。不要输出“待系统解析”“保存结果”“已创建技能”等第四步文案；系统会在解析 skill_json、写入、持久化和读回校验阶段展示独立状态条。',
       '</generation_markdown>',
@@ -1272,7 +1214,7 @@ export default async function handler(request, response) {
   const baseUrl = (process.env.DEEPSEEK_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
 
   if (!apiKey) {
-    sendJson(response, 500, { error: '缺少 DEEPSEEK_API_KEY 环境变量' });
+    sendJson(response, 500, { error: '模型服务暂未配置，请联系管理员' });
     return;
   }
 
@@ -1314,8 +1256,8 @@ export default async function handler(request, response) {
     if (wantsStream) {
       if (!upstreamResponse.ok) {
         const upstreamData = await upstreamResponse.json().catch(() => null);
-        const errorMessage = upstreamData?.error?.message || `DeepSeek 请求失败 (${upstreamResponse.status})`;
-        sendJson(response, upstreamResponse.status, { error: errorMessage });
+        const errorMessage = upstreamData?.error?.message || `AI 请求失败 (${upstreamResponse.status})`;
+        sendJson(response, upstreamResponse.status, { error: sanitizeProviderError(errorMessage) });
         return;
       }
 
@@ -1326,8 +1268,8 @@ export default async function handler(request, response) {
     const upstreamData = await upstreamResponse.json().catch(() => null);
 
     if (!upstreamResponse.ok) {
-      const errorMessage = upstreamData?.error?.message || `DeepSeek 请求失败 (${upstreamResponse.status})`;
-      sendJson(response, upstreamResponse.status, { error: errorMessage });
+      const errorMessage = upstreamData?.error?.message || `AI 请求失败 (${upstreamResponse.status})`;
+      sendJson(response, upstreamResponse.status, { error: sanitizeProviderError(errorMessage) });
       return;
     }
 
@@ -1346,10 +1288,16 @@ export default async function handler(request, response) {
       fallbackUsed: !parsed,
     });
   } catch (error) {
-    sendJson(response, 500, {
-      error: error instanceof Error && error.name === 'AbortError'
-        ? 'skill-creator 请求超时，请稍后重试'
-        : error instanceof Error ? error.message : 'skill-creator 创建失败',
-    });
+    const errorMessage = error instanceof Error && error.name === 'AbortError'
+      ? '技能创建请求超时，请稍后重试'
+      : error instanceof Error ? sanitizeProviderError(error.message) : '技能创建失败';
+
+    if (response.headersSent) {
+      await sendStreamEvent(response, 'error', { error: errorMessage });
+      response.end();
+      return;
+    }
+
+    sendJson(response, 500, { error: errorMessage });
   }
 }

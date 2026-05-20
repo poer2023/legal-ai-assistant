@@ -1,5 +1,249 @@
 [
   {
+    "id": "org-yongjian-law:contract-review-redline",
+    "slug": "org-yongjian-law:contract-review-redline",
+    "name": "合同审查与红线生成",
+    "description": "Review commercial contracts and generate risk matrices, redline language, fallback positions, and negotiation reasons from a specified party perspective.",
+    "category": "商事合同",
+    "route_name": "chat",
+    "tags": [
+      "合同审查",
+      "红线",
+      "风险矩阵",
+      "谈判"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "active",
+    "files": [
+      {
+        "id": "contract-review-redline-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: contract-review-redline\ndescription: \"Review commercial contracts and generate risk matrices, redline language, fallback positions, and negotiation reasons from a specified party perspective.\"\n---\n\n# 合同审查与红线生成\n\n## 使用场景\n- 用户上传或粘贴合同、订单、附件、DPA、SLA、报价单、披露函或补充协议并要求审查。\n- 用户需要按客户、供应商、买方、卖方、投资方或融资方立场提出红线修改。\n- 用户需要把审查意见转成风险矩阵、谈判清单或给对方律师的修改理由。\n\n## 输入要求\n- 合同全文及附件，包含主协议、订单、SLA、DPA、报价单、披露函或补充协议。\n- 用户立场、交易背景、适用法域、交易金额、行业、谈判底线和内部 playbook。\n- 输出用途：中文审查意见、对外红线理由、内部风险 memo 或逐条替代条款。\n\n## 工作流\n1. 确认合同类型、用户立场、适用法域、交易金额、关键商业目标和缺失材料。\n2. 建立文件地图，标明主协议、订单、附件、线上条款和补充协议之间的优先级。\n3. 逐条审查主体、付款、交付/验收、变更、IP、数据、保密、违约、赔偿、责任限制、终止、争议解决和合规条款。\n4. 按用户立场判断条款是否偏离市场标准或团队 playbook，并标注 P0/P1/P2/P3 风险。\n5. 对高/中风险点输出问题、影响、建议立场、fallback、可插入替代条款和对外修改理由。\n6. 列出待补充事实、必须升级律师或业务负责人决策的事项，以及可接受但需留痕的风险。\n\n## 输出要求\n- 执行摘要：可签、可谈或不建议签的初步结论和前三大风险。\n- 条款级风险矩阵：条款位置、原文摘要、风险等级、己方影响、建议动作、替代条款。\n- 红线语言：可直接插入合同的中文条款或中英双语条款。\n- 谈判策略：preferred position、fallback position、对外修改理由。\n- 待确认事项：事实、附件、商业底线、法域和监管问题。\n\n## 质量检查\n- 每个重大风险必须能追溯到合同条款或明确标记为基于缺失事实的待确认风险。\n- 必须区分法律风险、商业风险、合规风险和操作风险。\n- 红线语言必须可执行、可复制，不只写原则性建议。\n- 必须检查赔偿条款是否受责任上限约束，以及责任上限例外是否过宽。\n- 必须检查自动续费、单方变更、服务暂停、数据删除/导出、审计权和终止后义务。\n\n## 边界规则\n- 不得编造合同中没有的条款、事实、附件或法律依据。\n- 缺少完整合同时必须说明结论仅限已提供文本。\n- 不得直接给出正式法律意见或保证某条款一定有效。\n- 涉及税务、外汇、国资、反垄断、数据出境、金融监管或劳动竞业时提示专项复核。\n\n## 需要时读取\n\n- 当前技能为单文件结构；只有用户要求更严格模板、示例、脚本或详细清单时才需要新增支持文件。"
+      }
+    ],
+    "icon_data_url": null,
+    "publisher_name": null,
+    "publisher_avatar_url": null,
+    "use_profile_identity": true,
+    "publish_destinations": [
+      "team"
+    ],
+    "publish_settings": null,
+    "usage_count": 0,
+    "last_used_at": null,
+    "created_at": "2026-05-20T11:23:08.464Z",
+    "updated_at": "2026-05-20T11:35:24.088Z"
+  },
+  {
+    "id": "org-yongjian-law:legal-case-research-brief-summary",
+    "slug": "org-yongjian-law:legal-case-research-brief-summary",
+    "name": "法律研究报告生成（诉讼案件简要总结）",
+    "description": "Generate a brief legal research summary for ongoing litigation cases, analyzing legal issues and key precedents based on uploaded pleadings (complaint, answer, evidence list, etc.). Output only core conclusions and key case abstracts.",
+    "category": "法律检索与文书分析",
+    "route_name": "chat",
+    "tags": [
+      "诉讼案件研究",
+      "类案裁判",
+      "法律文书分析",
+      "简要总结"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "draft",
+    "files": [
+      {
+        "id": "legal-case-research-brief-summary-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: legal-case-research-brief-summary\ndescription: \"Generate a brief legal research summary for ongoing litigation cases, analyzing legal issues and key precedents based on uploaded pleadings (complaint, answer, evidence list, etc.). Output only core conclusions and key case abstracts.\"\n---\n\n# 法律研究报告生成（诉讼案件简要总结）\n\n## 使用场景\n- 咨询意见\n\n## 输入要求\n- 上传或粘贴项目材料\n\n## 工作流\n1. 拆解法律问题，明确法域、主体、事实要件、时间范围和检索边界。\n2. 设计关键词、同义词、法条路径、案例路径和监管路径。\n3. 整理法规层级、案例裁判要旨、适用条件、相反观点和未决问题。\n4. 评估每条依据的权威性、时效性、适用性和事实相似度。\n5. 输出结论倾向、依据表、类案比较、风险提示和待补检索事项。\n\n## 输出要求\n- 审查清单\n\n## 质量检查\n- 是否准确从文书中提取了争议焦点和法律问题？\n- 是否列出了至少3个相关类案？\n- 核心结论是否明确回答了本案的法律问题？\n- 摘要是否包含案件来源和裁判要旨？\n\n## 边界规则\n- 不提供具体法律建议，仅提供研究和分析参考。\n- 所有类案裁判观点应标注来源（案号、法院、年份）。\n- 不得编造案件事实或裁判观点，对于不确定的内容明确标注为“需进一步核实”。\n- 如果文书信息不足以确定法律问题，应要求用户提供补充信息。\n\n## 需要时读取\n\n- 当前技能为单文件结构；只有用户要求更严格模板、示例、脚本或详细清单时才需要新增支持文件。"
+      }
+    ],
+    "icon_data_url": null,
+    "publisher_name": null,
+    "publisher_avatar_url": null,
+    "use_profile_identity": true,
+    "publish_destinations": [
+      "team"
+    ],
+    "publish_settings": null,
+    "usage_count": 0,
+    "last_used_at": null,
+    "created_at": "2026-05-20T10:16:58.682Z",
+    "updated_at": "2026-05-20T10:17:10.661Z"
+  },
+  {
+    "id": "org-yongjian-law:custom-1111-mpdv7b3o",
+    "slug": "org-yongjian-law:custom-1111-mpdv7b3o",
+    "name": "1111",
+    "description": "2222",
+    "category": "自定义技能",
+    "route_name": "skills",
+    "tags": [
+      "自定义技能",
+      "创建技能"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "active",
+    "files": [
+      {
+        "id": "custom-1111-mpdv7b3o-skill",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: custom-1111-mpdv7b3o\ndescription: \"2222\"\n---\n\n# 1111\n\n## 技能简介\n2222\n\n## 创建要求\n按用户输入的业务目标、材料和输出要求，生成可复用的法律工作流。\n\n## 输入材料\n- 用户在对话中提供的事实、目标、限制条件和交付要求。\n\n## 工作流\n1. 先确认用户目标、适用场景、材料范围和输出格式。\n2. 读取用户提供的事实、上传文件摘要和交付模板说明。\n3. 结合种子文件反推用户的工作方式、文风、术语和引用习惯。\n4. 按创建要求拆解任务步骤，识别关键法律问题、风险点和缺失信息。\n5. 按输出要求生成结果，并把待确认事项、依据位置和风险等级单独列明。\n6. 在结尾提示人工复核重点，避免把未提供材料当作已审阅事实。\n\n## 输出要求\n按背景、问题、分析、风险、建议、待确认事项输出；如已上传交付模板，优先遵循模板的骨架和占位符。\n\n## 参考文件分类\n### 种子文件\n- 暂未提供。\n\n### 交付模板\n- 暂未提供。\n\n### 检索文件\n- 暂未提供。\n\n## 边界规则\n- 不编造未提供的事实、文件内容、法规条文或案例。\n- 种子文件只用于学习工作方式和表达习惯，不代表运行时已审阅原文。\n- 交付模板只约束输出结构，不代表必须调用模板库。\n- 检索文件仅作为创建参考，运行时仍需用户明确提供或授权引用具体材料。\n- 高风险结论、最终法律意见和对外文件必须提示律师复核。\n\n## 需要时读取\n- references/checklist.md：执行前后核对清单。\n- references/output-patterns.md：稳定输出结构和写法。\n"
+      },
+      {
+        "id": "custom-1111-mpdv7b3o-checklist",
+        "name": "checklist.md",
+        "path": "references/checklist.md",
+        "type": "markdown",
+        "content": "# 1111检查清单\n\n## 启动前\n- 用户目标、适用场景和交付物是否明确。\n- 输入材料是否足以支撑输出；不足时先列待补充信息。\n- 是否存在需要专项律师复核的高风险事项。\n\n## 执行中\n- 每个结论是否能对应事实、材料位置或用户描述。\n- 风险描述是否写明影响、建议动作和待确认事项。\n- 输出是否遵循交付模板或用户指定格式。\n\n## 输出前\n- 删除空泛建议，保留可执行动作。\n- 标注假设、限制和需要人工复核的部分。\n- 不把关联文件或模板描述成已经被完整审阅的事实。"
+      },
+      {
+        "id": "custom-1111-mpdv7b3o-output-patterns",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# 1111输出模式\n\n## 推荐结构\n按背景、问题、分析、风险、建议、待确认事项输出；如用户指定格式或上传交付模板，以用户格式为准。\n\n## 表格字段\n| 事项 | 依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n\n## 写法要求\n- 结论句说明“基于目前材料”。\n- 风险必须具体，不写只有原则的提示。\n- 建议动作要能落到条款、流程、材料、证据或沟通口径。"
+      }
+    ],
+    "icon_data_url": null,
+    "publisher_name": null,
+    "publisher_avatar_url": null,
+    "use_profile_identity": true,
+    "publish_destinations": [
+      "team"
+    ],
+    "publish_settings": null,
+    "usage_count": 0,
+    "last_used_at": null,
+    "created_at": "2026-05-20T09:33:57.876Z",
+    "updated_at": "2026-05-20T09:33:57.879Z"
+  },
+  {
+    "id": "org-yongjian-law:legal-consultation-writing",
+    "slug": "org-yongjian-law:legal-consultation-writing",
+    "name": "律师文书写作（咨询意见）",
+    "description": "生成法律咨询意见书初稿的Skill。触发场景：用户提供咨询问题、事实和法规描述后，自动输出结构化的Markdown初稿，便于转换为Word文书。包含事实整理、法律分析、结论与建议。适用范围为个人内部参考。",
+    "category": "文书起草",
+    "route_name": "chat",
+    "tags": [
+      "咨询意见",
+      "律师文书",
+      "Word初稿",
+      "法律分析"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "draft",
+    "files": [
+      {
+        "id": "legal-consultation-writing-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: legal-consultation-writing\ndescription: \"生成法律咨询意见书初稿的Skill。触发场景：用户提供咨询问题、事实和法规描述后，自动输出结构化的Markdown初稿，便于转换为Word文书。包含事实整理、法律分析、结论与建议。适用范围为个人内部参考。\"\n---\n\n# 律师文书写作（咨询意见）\n\n## 使用场景\n- 用户提出一个法律咨询问题\n- 用户提供相关事实和可能的适用规则\n- 用户需要快速输出咨询意见书初稿\n\n## 输入要求\n- 咨询问题描述（必须）\n- 相关背景事实（必须）\n- 适用的法律法规或规则（推荐）\n- 用户初步观点（可选）\n\n## 工作流\n1. 理解问题：解析用户输入，识别核心法律问题\n2. 整理事实：按逻辑顺序重组用户提供的事实\n3. 法律分析：基于规则分析事实，给出初步判断\n4. 形成结论与建议：总结分析，给出行动建议\n5. 草拟文书：按output-patterns模板生成Markdown\n6. 质量检查：执行检查项，修正问题\n\n## 输出要求\n- Word 文书初稿\n\n## 质量检查\n- 逻辑一致性检查：结论是否与分析呼应\n- 引用准确性检查：法律依据是否与问题相关\n- 事实完整性检查：用户提供的事实是否全部纳入\n- 错别字与标点检查\n- 格式规范性检查：是否按output-patterns模板输出\n\n## 边界规则\n- 开头注明‘本初稿仅供内部参考，不构成正式法律意见’\n- 用户未提供的事实不得自行编造；用占位符标注\n- 用户未提供的法规不得自行引用；用‘请确认适用法规’占位\n- 所有待确认内容必须列在‘待确认事项’章节\n- 仅限个人使用，不得用于对第三方出具意见\n\n## 需要时读取\n\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。"
+      },
+      {
+        "id": "legal-consultation-writing-references-output-patterns-md",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# 律师文书写作（咨询意见）输出模式\n\n## 推荐输出结构\n- Word 文书初稿\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
+      }
+    ],
+    "icon_data_url": null,
+    "publisher_name": null,
+    "publisher_avatar_url": null,
+    "use_profile_identity": true,
+    "publish_destinations": [
+      "team"
+    ],
+    "publish_settings": null,
+    "usage_count": 0,
+    "last_used_at": null,
+    "created_at": "2026-05-20T03:31:25.744Z",
+    "updated_at": "2026-05-20T03:31:27.650Z"
+  },
+  {
+    "id": "org-yongjian-law:legal-document-writing",
+    "slug": "org-yongjian-law:legal-document-writing",
+    "name": "法律文书写作",
+    "description": "用于法律咨询意见的起草，根据团队知识库和参考模板，生成标准化的咨询意见模板和条款库。触发场景：当需要撰写法律咨询意见，或需要构建常用条款库时。",
+    "category": "法律文书起草",
+    "route_name": "chat",
+    "tags": [
+      "法律文书",
+      "咨询意见",
+      "模板",
+      "条款库"
+    ],
+    "scope": "personal",
+    "source": "custom",
+    "status": "active",
+    "files": [
+      {
+        "id": "legal-document-writing-SKILL-md",
+        "name": "SKILL.md",
+        "path": "SKILL.md",
+        "type": "markdown",
+        "content": "---\nname: legal-document-writing\ndescription: \"用于法律咨询意见的起草，根据团队知识库和参考模板，生成标准化的咨询意见模板和条款库。触发场景：当需要撰写法律咨询意见，或需要构建常用条款库时。\"\n---\n\n# 法律文书写作\n\n## 使用场景\n- 用户需要撰写法律咨询意见时\n- 用户需要从知识库提取标准条款形成条款库时\n\n## 输入要求\n- 团队知识库\n\n## 工作流\n1. 收集用户输入的场景描述、事实、法律问题及可选材料\n2. 若未提供自定义模板，则读取 references/output-patterns.md 获取标准输出结构\n3. 分析知识库材料（如有），提取与法律问题相关的依据\n4. 按标准结构生成咨询意见模板（标题、引言、事实摘要、法律分析、结论与建议、落款）\n5. 从分析中提炼可复用的条款，生成条款库表格\n6. 执行质量检查并添加免责声明\n7. 输出最终文档\n\n## 输出要求\n- 模板 / 条款库\n\n## 质量检查\n- 事实摘要是否完整覆盖输入的关键事实？\n- 法律分析是否至少引用一个有效法律来源？若无，须标注“待确认”\n- 结论与事实和法律分析是否逻辑一致？\n- 条款库中的条款是否明确标注了“仅供参考，需根据实际交易调整”？\n- 输出中是否避免出现客户真实名称或可识别信息？\n\n## 边界规则\n- 不得编造任何法律依据、法规条文或判例\n- 输出末尾必须附加免责声明：“本咨询意见基于所提供材料生成，未经客户确认，不构成正式法律意见。”\n- 条款库中的条款不得包含具体价格、期限等变量数字；仅提供文本框架\n- 若知识库材料不足，必须在输出中标注“待确认”\n- 本技能不存储任何用户输入数据，每次运行独立\n\n## 需要时读取\n\n- references/intake.md：启动前问题、材料清单、缺失信息处理和澄清规则。\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。\n- examples/example-input.md：示例输入结构。\n- examples/example-output.md：示例输出骨架。"
+      },
+      {
+        "id": "legal-document-writing-references-intake-md",
+        "name": "intake.md",
+        "path": "references/intake.md",
+        "type": "markdown",
+        "content": "# 法律文书写作启动与信息收集\n\n## 适用边界\n- 技能类别：法律文书起草\n- 关键词：法律文书、咨询意见、模板、条款库\n- 用户需要撰写法律咨询意见时\n- 用户需要从知识库提取标准条款形成条款库时\n\n## 启动前必问\n- 这次输出要给谁看：内部法务、业务负责人、外部律师、对方、法院/仲裁机构、监管机构还是客户？\n- 适用法域、业务场景、交易/案件阶段、用户立场和需要解决的具体问题是什么？\n- 是否有硬期限、上线/签署/提交节点、必须保留的商业条件或不可触碰红线？\n- 已提供哪些材料，哪些材料尚未提供，哪些事实只能作为假设？\n- 期望输出是 Word 文书、审查意见、风险矩阵、谈判清单、整改路线图、邮件草稿还是汇报摘要？\n\n## 输入材料清单\n- 团队知识库\n\n## 缺失信息处理\n- 如果缺失信息会影响结论、风险等级或建议动作，先列为“待确认事项”。\n- 如果用户要求继续生成，必须在输出开头说明“基于目前材料”。\n- 不得为了让输出完整而补造合同条款、案件事实、法规依据、审批记录、时间节点或当事人立场。\n- 对期限、金额、主体、材料版本、适用法域、授权范围等关键字段，必须保留不确定性标记。"
+      },
+      {
+        "id": "legal-document-writing-references-checklist-md",
+        "name": "checklist.md",
+        "path": "references/checklist.md",
+        "type": "markdown",
+        "content": "# 法律文书写作检查清单\n\n## 输入核验\n- 团队知识库\n\n## 执行步骤\n1. 收集用户输入的场景描述、事实、法律问题及可选材料\n2. 若未提供自定义模板，则读取 references/output-patterns.md 获取标准输出结构\n3. 分析知识库材料（如有），提取与法律问题相关的依据\n4. 按标准结构生成咨询意见模板（标题、引言、事实摘要、法律分析、结论与建议、落款）\n5. 从分析中提炼可复用的条款，生成条款库表格\n6. 执行质量检查并添加免责声明\n7. 输出最终文档\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 事实摘要是否完整覆盖输入的关键事实？\n- 法律分析是否至少引用一个有效法律来源？若无，须标注“待确认”\n- 结论与事实和法律分析是否逻辑一致？\n- 条款库中的条款是否明确标注了“仅供参考，需根据实际交易调整”？\n- 输出中是否避免出现客户真实名称或可识别信息？\n\n## 边界\n- 不得编造任何法律依据、法规条文或判例\n- 输出末尾必须附加免责声明：“本咨询意见基于所提供材料生成，未经客户确认，不构成正式法律意见。”\n- 条款库中的条款不得包含具体价格、期限等变量数字；仅提供文本框架\n- 若知识库材料不足，必须在输出中标注“待确认”\n- 本技能不存储任何用户输入数据，每次运行独立"
+      },
+      {
+        "id": "legal-document-writing-references-output-patterns-md",
+        "name": "output-patterns.md",
+        "path": "references/output-patterns.md",
+        "type": "markdown",
+        "content": "# 法律文书写作输出模式\n\n## 推荐输出结构\n- 模板 / 条款库\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
+      },
+      {
+        "id": "legal-document-writing-examples-example-input-md",
+        "name": "example-input.md",
+        "path": "examples/example-input.md",
+        "type": "markdown",
+        "content": "# 法律文书写作示例输入\n\n以下仅作为输入结构示例，真实使用时必须替换为用户自己的材料。\n\n```text\n任务目标：请基于以下材料生成结构化法律工作流输出。\n适用法域：待确认。\n用户立场：待确认。\n输出用途：内部审查 / 对外沟通 / Word 文书 / 风险矩阵。\n已提供材料：\n1. 材料 A：……\n2. 材料 B：……\n关键限制：不得编造未提供事实；缺失信息列为待确认。\n```"
+      },
+      {
+        "id": "legal-document-writing-examples-example-output-md",
+        "name": "example-output.md",
+        "path": "examples/example-output.md",
+        "type": "markdown",
+        "content": "# 法律文书写作示例输出骨架\n\n## 基于目前材料的初步结论\n- 结论：……\n- 关键假设：……\n- 需要复核：……\n\n## 风险 / 问题矩阵\n| 项目 | 材料依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n| 示例事项 | 材料位置或事实来源 | P0/P1/P2/P3 | 具体后果 | 可执行动作 | 责任人或缺口 |\n\n## 下一步\n- 补充材料：……\n- 律师复核：……\n- 对外沟通：……"
+      }
+    ],
+    "icon_data_url": null,
+    "publisher_name": "周知行",
+    "publisher_avatar_url": "/mock-skill-authors/author-03.webp",
+    "use_profile_identity": false,
+    "publish_destinations": [
+      "team"
+    ],
+    "publish_settings": null,
+    "usage_count": 3,
+    "last_used_at": "2026-05-20T02:44:12.373Z",
+    "created_at": "2026-05-14T09:08:17.587Z",
+    "updated_at": "2026-05-20T02:44:12.381Z"
+  },
+  {
     "id": "org-yongjian-law:class-cases-analysis-report",
     "slug": "org-yongjian-law:class-cases-analysis-report",
     "name": "类案检索分析报告",
@@ -239,47 +483,6 @@
     "use_profile_identity": true
   },
   {
-    "id": "org-yongjian-law:legal-consultation-writing",
-    "slug": "org-yongjian-law:legal-consultation-writing",
-    "name": "咨询意见起草",
-    "description": "Generate a legal consultation opinion draft based on user-provided factual description and legal rules. The skill outputs a structured Word-ready draft in Chinese.",
-    "category": "文书起草",
-    "route_name": "chat",
-    "tags": [
-      "咨询意见",
-      "法律文书",
-      "初稿",
-      "意见书"
-    ],
-    "scope": "personal",
-    "source": "custom",
-    "status": "draft",
-    "files": [
-      {
-        "id": "legal-consultation-writing-SKILL-md",
-        "name": "SKILL.md",
-        "path": "SKILL.md",
-        "type": "markdown",
-        "content": "---\nname: legal-consultation-writing\ndescription: \"Generate a legal consultation opinion draft based on user-provided factual description and legal rules. The skill outputs a structured Word-ready draft in Chinese.\"\n---\n\n# 咨询意见起草\n\n## 使用场景\n- 用户提供事实背景和法律规则\n- 需要起草法律咨询意见\n\n## 输入要求\n- 纯文字描述规则\n\n## 工作流\n1. 提取用户输入的基本信息、事实背景、法律规则和问题\n2. 按照标准咨询意见结构构建框架\n3. 填充分析内容，保持逻辑严密\n4. 添加免责声明和落款\n5. 输出Markdown格式初稿\n\n## 输出要求\n- Word 文书初稿\n\n## 质量检查\n- 输入中的事实和法律规则是否全部被使用\n- 结论是否有前提支撑\n- 是否有逻辑矛盾\n- 免责声明是否包含\n- 格式是否匹配output-patterns\n\n## 边界规则\n- 不得编造事实或法条\n- 用户输入不足时标注‘待核实’\n- 初稿仅供内部参考，不构成正式法律意见\n\n## 需要时读取\n\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。"
-      },
-      {
-        "id": "legal-consultation-writing-references-output-patterns-md",
-        "name": "output-patterns.md",
-        "path": "references/output-patterns.md",
-        "type": "markdown",
-        "content": "# 咨询意见起草输出模式\n\n## 推荐输出结构\n- Word 文书初稿\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
-      }
-    ],
-    "usage_count": 0,
-    "last_used_at": null,
-    "created_at": "2026-05-16T05:15:21.823Z",
-    "updated_at": "2026-05-16T05:15:23.629Z",
-    "icon_data_url": null,
-    "publisher_name": null,
-    "publisher_avatar_url": null,
-    "use_profile_identity": true
-  },
-  {
     "id": "org-yongjian-law:regulatory-gap-analysis",
     "slug": "org-yongjian-law:regulatory-gap-analysis",
     "name": "法规差距分析助手",
@@ -324,75 +527,6 @@
     "icon_data_url": null,
     "publisher_name": "陆明薇",
     "publisher_avatar_url": "/mock-skill-authors/author-12.webp",
-    "use_profile_identity": false
-  },
-  {
-    "id": "org-yongjian-law:legal-document-writing",
-    "slug": "org-yongjian-law:legal-document-writing",
-    "name": "法律文书写作",
-    "description": "用于法律咨询意见的起草，根据团队知识库和参考模板，生成标准化的咨询意见模板和条款库。触发场景：当需要撰写法律咨询意见，或需要构建常用条款库时。",
-    "category": "法律文书起草",
-    "route_name": "chat",
-    "tags": [
-      "法律文书",
-      "咨询意见",
-      "模板",
-      "条款库"
-    ],
-    "scope": "personal",
-    "source": "custom",
-    "status": "active",
-    "files": [
-      {
-        "id": "legal-document-writing-SKILL-md",
-        "name": "SKILL.md",
-        "path": "SKILL.md",
-        "type": "markdown",
-        "content": "---\nname: legal-document-writing\ndescription: \"用于法律咨询意见的起草，根据团队知识库和参考模板，生成标准化的咨询意见模板和条款库。触发场景：当需要撰写法律咨询意见，或需要构建常用条款库时。\"\n---\n\n# 法律文书写作\n\n## 使用场景\n- 用户需要撰写法律咨询意见时\n- 用户需要从知识库提取标准条款形成条款库时\n\n## 输入要求\n- 团队知识库\n\n## 工作流\n1. 收集用户输入的场景描述、事实、法律问题及可选材料\n2. 若未提供自定义模板，则读取 references/output-patterns.md 获取标准输出结构\n3. 分析知识库材料（如有），提取与法律问题相关的依据\n4. 按标准结构生成咨询意见模板（标题、引言、事实摘要、法律分析、结论与建议、落款）\n5. 从分析中提炼可复用的条款，生成条款库表格\n6. 执行质量检查并添加免责声明\n7. 输出最终文档\n\n## 输出要求\n- 模板 / 条款库\n\n## 质量检查\n- 事实摘要是否完整覆盖输入的关键事实？\n- 法律分析是否至少引用一个有效法律来源？若无，须标注“待确认”\n- 结论与事实和法律分析是否逻辑一致？\n- 条款库中的条款是否明确标注了“仅供参考，需根据实际交易调整”？\n- 输出中是否避免出现客户真实名称或可识别信息？\n\n## 边界规则\n- 不得编造任何法律依据、法规条文或判例\n- 输出末尾必须附加免责声明：“本咨询意见基于所提供材料生成，未经客户确认，不构成正式法律意见。”\n- 条款库中的条款不得包含具体价格、期限等变量数字；仅提供文本框架\n- 若知识库材料不足，必须在输出中标注“待确认”\n- 本技能不存储任何用户输入数据，每次运行独立\n\n## 需要时读取\n\n- references/intake.md：启动前问题、材料清单、缺失信息处理和澄清规则。\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。\n- examples/example-input.md：示例输入结构。\n- examples/example-output.md：示例输出骨架。"
-      },
-      {
-        "id": "legal-document-writing-references-intake-md",
-        "name": "intake.md",
-        "path": "references/intake.md",
-        "type": "markdown",
-        "content": "# 法律文书写作启动与信息收集\n\n## 适用边界\n- 技能类别：法律文书起草\n- 关键词：法律文书、咨询意见、模板、条款库\n- 用户需要撰写法律咨询意见时\n- 用户需要从知识库提取标准条款形成条款库时\n\n## 启动前必问\n- 这次输出要给谁看：内部法务、业务负责人、外部律师、对方、法院/仲裁机构、监管机构还是客户？\n- 适用法域、业务场景、交易/案件阶段、用户立场和需要解决的具体问题是什么？\n- 是否有硬期限、上线/签署/提交节点、必须保留的商业条件或不可触碰红线？\n- 已提供哪些材料，哪些材料尚未提供，哪些事实只能作为假设？\n- 期望输出是 Word 文书、审查意见、风险矩阵、谈判清单、整改路线图、邮件草稿还是汇报摘要？\n\n## 输入材料清单\n- 团队知识库\n\n## 缺失信息处理\n- 如果缺失信息会影响结论、风险等级或建议动作，先列为“待确认事项”。\n- 如果用户要求继续生成，必须在输出开头说明“基于目前材料”。\n- 不得为了让输出完整而补造合同条款、案件事实、法规依据、审批记录、时间节点或当事人立场。\n- 对期限、金额、主体、材料版本、适用法域、授权范围等关键字段，必须保留不确定性标记。"
-      },
-      {
-        "id": "legal-document-writing-references-checklist-md",
-        "name": "checklist.md",
-        "path": "references/checklist.md",
-        "type": "markdown",
-        "content": "# 法律文书写作检查清单\n\n## 输入核验\n- 团队知识库\n\n## 执行步骤\n1. 收集用户输入的场景描述、事实、法律问题及可选材料\n2. 若未提供自定义模板，则读取 references/output-patterns.md 获取标准输出结构\n3. 分析知识库材料（如有），提取与法律问题相关的依据\n4. 按标准结构生成咨询意见模板（标题、引言、事实摘要、法律分析、结论与建议、落款）\n5. 从分析中提炼可复用的条款，生成条款库表格\n6. 执行质量检查并添加免责声明\n7. 输出最终文档\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 复核纪律\n- 事实摘要是否完整覆盖输入的关键事实？\n- 法律分析是否至少引用一个有效法律来源？若无，须标注“待确认”\n- 结论与事实和法律分析是否逻辑一致？\n- 条款库中的条款是否明确标注了“仅供参考，需根据实际交易调整”？\n- 输出中是否避免出现客户真实名称或可识别信息？\n\n## 边界\n- 不得编造任何法律依据、法规条文或判例\n- 输出末尾必须附加免责声明：“本咨询意见基于所提供材料生成，未经客户确认，不构成正式法律意见。”\n- 条款库中的条款不得包含具体价格、期限等变量数字；仅提供文本框架\n- 若知识库材料不足，必须在输出中标注“待确认”\n- 本技能不存储任何用户输入数据，每次运行独立"
-      },
-      {
-        "id": "legal-document-writing-references-output-patterns-md",
-        "name": "output-patterns.md",
-        "path": "references/output-patterns.md",
-        "type": "markdown",
-        "content": "# 法律文书写作输出模式\n\n## 推荐输出结构\n- 模板 / 条款库\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
-      },
-      {
-        "id": "legal-document-writing-examples-example-input-md",
-        "name": "example-input.md",
-        "path": "examples/example-input.md",
-        "type": "markdown",
-        "content": "# 法律文书写作示例输入\n\n以下仅作为输入结构示例，真实使用时必须替换为用户自己的材料。\n\n```text\n任务目标：请基于以下材料生成结构化法律工作流输出。\n适用法域：待确认。\n用户立场：待确认。\n输出用途：内部审查 / 对外沟通 / Word 文书 / 风险矩阵。\n已提供材料：\n1. 材料 A：……\n2. 材料 B：……\n关键限制：不得编造未提供事实；缺失信息列为待确认。\n```"
-      },
-      {
-        "id": "legal-document-writing-examples-example-output-md",
-        "name": "example-output.md",
-        "path": "examples/example-output.md",
-        "type": "markdown",
-        "content": "# 法律文书写作示例输出骨架\n\n## 基于目前材料的初步结论\n- 结论：……\n- 关键假设：……\n- 需要复核：……\n\n## 风险 / 问题矩阵\n| 项目 | 材料依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n| 示例事项 | 材料位置或事实来源 | P0/P1/P2/P3 | 具体后果 | 可执行动作 | 责任人或缺口 |\n\n## 下一步\n- 补充材料：……\n- 律师复核：……\n- 对外沟通：……"
-      }
-    ],
-    "usage_count": 2,
-    "last_used_at": "2026-05-16T04:47:17.861Z",
-    "created_at": "2026-05-14T09:08:17.587Z",
-    "updated_at": "2026-05-16T04:47:17.864Z",
-    "icon_data_url": null,
-    "publisher_name": "周知行",
-    "publisher_avatar_url": "/mock-skill-authors/author-03.webp",
     "use_profile_identity": false
   },
   {
@@ -461,81 +595,6 @@
     "updated_at": "2026-05-15T15:36:48.297Z",
     "publisher_name": "林若澜",
     "publisher_avatar_url": "/mock-skill-authors/author-02.webp",
-    "use_profile_identity": false
-  },
-  {
-    "id": "org-yongjian-law:contract-review-redline",
-    "slug": "org-yongjian-law:contract-review-redline",
-    "name": "合同审查与红线生成",
-    "description": "Review commercial contracts and generate risk matrices, redline language, fallback positions, and negotiation reasons from a specified party perspective.",
-    "category": "商事合同",
-    "route_name": "chat",
-    "tags": [
-      "合同审查",
-      "红线",
-      "风险矩阵",
-      "谈判"
-    ],
-    "scope": "personal",
-    "source": "custom",
-    "status": "draft",
-    "files": [
-      {
-        "id": "contract-review-redline-SKILL-md",
-        "name": "SKILL.md",
-        "path": "SKILL.md",
-        "type": "markdown",
-        "content": "---\nname: contract-review-redline\ndescription: \"Review commercial contracts and generate risk matrices, redline language, fallback positions, and negotiation reasons from a specified party perspective.\"\n---\n\n# 合同审查与红线生成\n\n## 使用场景\n- 用户上传或粘贴合同、订单、附件、DPA、SLA、报价单、披露函或补充协议并要求审查。\n- 用户需要按客户、供应商、买方、卖方、投资方或融资方立场提出红线修改。\n- 用户需要把审查意见转成风险矩阵、谈判清单或给对方律师的修改理由。\n\n## 输入要求\n- 合同全文及附件，包含主协议、订单、SLA、DPA、报价单、披露函或补充协议。\n- 用户立场、交易背景、适用法域、交易金额、行业、谈判底线和内部 playbook。\n- 输出用途：中文审查意见、对外红线理由、内部风险 memo 或逐条替代条款。\n\n## 工作流\n1. 确认合同类型、用户立场、适用法域、交易金额、关键商业目标和缺失材料。\n2. 建立文件地图，标明主协议、订单、附件、线上条款和补充协议之间的优先级。\n3. 逐条审查主体、付款、交付/验收、变更、IP、数据、保密、违约、赔偿、责任限制、终止、争议解决和合规条款。\n4. 按用户立场判断条款是否偏离市场标准或团队 playbook，并标注 P0/P1/P2/P3 风险。\n5. 对高/中风险点输出问题、影响、建议立场、fallback、可插入替代条款和对外修改理由。\n6. 列出待补充事实、必须升级律师或业务负责人决策的事项，以及可接受但需留痕的风险。\n\n## 输出要求\n- 执行摘要：可签、可谈或不建议签的初步结论和前三大风险。\n- 条款级风险矩阵：条款位置、原文摘要、风险等级、己方影响、建议动作、替代条款。\n- 红线语言：可直接插入合同的中文条款或中英双语条款。\n- 谈判策略：preferred position、fallback position、对外修改理由。\n- 待确认事项：事实、附件、商业底线、法域和监管问题。\n\n## 质量检查\n- 每个重大风险必须能追溯到合同条款或明确标记为基于缺失事实的待确认风险。\n- 必须区分法律风险、商业风险、合规风险和操作风险。\n- 红线语言必须可执行、可复制，不只写原则性建议。\n- 必须检查赔偿条款是否受责任上限约束，以及责任上限例外是否过宽。\n- 必须检查自动续费、单方变更、服务暂停、数据删除/导出、审计权和终止后义务。\n\n## 边界规则\n- 不得编造合同中没有的条款、事实、附件或法律依据。\n- 缺少完整合同时必须说明结论仅限已提供文本。\n- 不得直接给出正式法律意见或保证某条款一定有效。\n- 涉及税务、外汇、国资、反垄断、数据出境、金融监管或劳动竞业时提示专项复核。\n\n## 需要时读取\n\n- references/intake.md：启动前问题、材料清单、缺失信息处理和澄清规则。\n- references/checklist.md：场景化检查清单、风险识别、分级和复核清单。\n- references/output-patterns.md：稳定输出结构、表格字段、可复制文本和禁止输出。\n- references/quality-gates.md：质量门槛、升级规则、幻觉防护和人工复核边界。\n- examples/example-input.md：示例输入结构。\n- examples/example-output.md：示例输出骨架。"
-      },
-      {
-        "id": "contract-review-redline-references-intake-md",
-        "name": "intake.md",
-        "path": "references/intake.md",
-        "type": "markdown",
-        "content": "# 合同审查与红线生成启动与信息收集\n\n## 适用边界\n- 技能类别：商事合同\n- 关键词：合同审查、红线、风险矩阵、谈判\n- 用户上传或粘贴合同、订单、附件、DPA、SLA、报价单、披露函或补充协议并要求审查。\n- 用户需要按客户、供应商、买方、卖方、投资方或融资方立场提出红线修改。\n- 用户需要把审查意见转成风险矩阵、谈判清单或给对方律师的修改理由。\n\n## 启动前必问\n- 这次输出要给谁看：内部法务、业务负责人、外部律师、对方、法院/仲裁机构、监管机构还是客户？\n- 适用法域、业务场景、交易/案件阶段、用户立场和需要解决的具体问题是什么？\n- 是否有硬期限、上线/签署/提交节点、必须保留的商业条件或不可触碰红线？\n- 已提供哪些材料，哪些材料尚未提供，哪些事实只能作为假设？\n- 期望输出是 Word 文书、审查意见、风险矩阵、谈判清单、整改路线图、邮件草稿还是汇报摘要？\n\n## 输入材料清单\n- 合同全文及附件，包含主协议、订单、SLA、DPA、报价单、披露函或补充协议。\n- 用户立场、交易背景、适用法域、交易金额、行业、谈判底线和内部 playbook。\n- 输出用途：中文审查意见、对外红线理由、内部风险 memo 或逐条替代条款。\n\n## 缺失信息处理\n- 如果缺失信息会影响结论、风险等级或建议动作，先列为“待确认事项”。\n- 如果用户要求继续生成，必须在输出开头说明“基于目前材料”。\n- 不得为了让输出完整而补造合同条款、案件事实、法规依据、审批记录、时间节点或当事人立场。\n- 对期限、金额、主体、材料版本、适用法域、授权范围等关键字段，必须保留不确定性标记。"
-      },
-      {
-        "id": "contract-review-redline-references-checklist-md",
-        "name": "checklist.md",
-        "path": "references/checklist.md",
-        "type": "markdown",
-        "content": "# 合同审查与红线生成检查清单\n\n## 输入核验\n- 合同全文及附件，包含主协议、订单、SLA、DPA、报价单、披露函或补充协议。\n- 用户立场、交易背景、适用法域、交易金额、行业、谈判底线和内部 playbook。\n- 输出用途：中文审查意见、对外红线理由、内部风险 memo 或逐条替代条款。\n\n## 执行步骤\n1. 确认合同类型、用户立场、适用法域、交易金额、关键商业目标和缺失材料。\n2. 建立文件地图，标明主协议、订单、附件、线上条款和补充协议之间的优先级。\n3. 逐条审查主体、付款、交付/验收、变更、IP、数据、保密、违约、赔偿、责任限制、终止、争议解决和合规条款。\n4. 按用户立场判断条款是否偏离市场标准或团队 playbook，并标注 P0/P1/P2/P3 风险。\n5. 对高/中风险点输出问题、影响、建议立场、fallback、可插入替代条款和对外修改理由。\n6. 列出待补充事实、必须升级律师或业务负责人决策的事项，以及可接受但需留痕的风险。\n\n## 风险分级\n| 等级 | 判断标准 | 推荐动作 |\n| --- | --- | --- |\n| P0 / Red | 影响签署、交割、上线、核心权利、监管义务或重大责任 | 签署或执行前必须处理或升级 |\n| P1 / High | 风险明确但可通过条款、证据、流程或审批缓释 | 优先修改、谈判、补证或补流程 |\n| P2 / Medium | 影响执行便利性、成本、管理或后续争议 | 结合商业目标优化并留痕 |\n| P3 / Note | 信息缺口、低风险提示或需业务确认事项 | 标注待确认或常规跟进 |\n\n## 合同审查专项维度\n| 维度 | 重点问题 |\n| --- | --- |\n| 文件关系 | 主协议、订单、附件、SLA、DPA、线上条款、补充协议的优先级是否清楚 |\n| 主体与授权 | 签署主体、关联方、授权代表、第三方受益人和转让限制是否一致 |\n| 商业条款 | 价款、税费、付款节点、验收、变更、续费、涨价和暂停服务是否可执行 |\n| 责任结构 | 违约责任、赔偿、责任上限、责任例外、间接损失排除和保险是否相互冲突 |\n| 数据与安全 | 客户数据、个人信息、子处理者、跨境、事故通知、删除返还和审计权是否完整 |\n| IP 与成果 | 背景 IP、交付成果、开源组件、侵权赔偿、反馈和数据训练授权是否清楚 |\n| 退出机制 | 终止权、终止后付款、迁移协助、数据导出、存续义务和过渡期是否足够 |\n| 争议与合规 | 管辖、适用法、禁令救济、反腐败、制裁、出口管制和行业监管是否可接受 |\n\n## 复核纪律\n- 每个重大风险必须能追溯到合同条款或明确标记为基于缺失事实的待确认风险。\n- 必须区分法律风险、商业风险、合规风险和操作风险。\n- 红线语言必须可执行、可复制，不只写原则性建议。\n- 必须检查赔偿条款是否受责任上限约束，以及责任上限例外是否过宽。\n- 必须检查自动续费、单方变更、服务暂停、数据删除/导出、审计权和终止后义务。\n\n## 边界\n- 不得编造合同中没有的条款、事实、附件或法律依据。\n- 缺少完整合同时必须说明结论仅限已提供文本。\n- 不得直接给出正式法律意见或保证某条款一定有效。\n- 涉及税务、外汇、国资、反垄断、数据出境、金融监管或劳动竞业时提示专项复核。"
-      },
-      {
-        "id": "contract-review-redline-references-output-patterns-md",
-        "name": "output-patterns.md",
-        "path": "references/output-patterns.md",
-        "type": "markdown",
-        "content": "# 合同审查与红线生成输出模式\n\n## 推荐输出结构\n- 执行摘要：可签、可谈或不建议签的初步结论和前三大风险。\n- 条款级风险矩阵：条款位置、原文摘要、风险等级、己方影响、建议动作、替代条款。\n- 红线语言：可直接插入合同的中文条款或中英双语条款。\n- 谈判策略：preferred position、fallback position、对外修改理由。\n- 待确认事项：事实、附件、商业底线、法域和监管问题。\n\n## 标准交付表\n| 项目 | 依据 | 风险等级 | 影响 | 建议动作 | 可复制文本 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- | --- |\n| 示例事项 | 条款、事实或材料位置 | P0/P1/P2/P3 | 具体后果 | 修改、补证、谈判、升级或接受 | 可直接插入或发送的文本 | 责任人或缺口 |\n\n## 写法要求\n- 结论句必须说明“基于目前材料”。\n- 风险描述必须写具体后果，不写空泛的“存在风险”。\n- 修改建议必须能执行，能落到条款、文件、流程、证据或审批动作。\n- 对外沟通语言和内部风险备注要分开写。\n\n## 红线语言模式\n### 责任上限\n建议将责任上限限定为“过去 12 个月内已支付或应支付的费用总额”，并明确排除间接损失、利润损失、商誉损失和数据损失；如需例外，应限于保密、数据安全、知识产权侵权赔偿、欺诈或故意不当行为。\n\n### 赔偿程序\n建议增加赔偿通知、抗辩控制、和解同意、配合义务和减损义务。未经被赔偿方事先书面同意，赔偿方不得达成包含承认责任、非金钱义务或影响被赔偿方权利的和解。\n\n### 数据删除与导出\n建议明确服务终止后供应商应在合理期限内提供客户数据导出，并在迁移期结束后按客户指示删除或返还数据；法律要求保留的备份数据应继续受保密和安全义务约束。\n\n### 单方变更\n建议限制供应商对服务、价格、安全措施或线上条款的单方变更；如变更实质降低服务、扩大客户义务或影响合规，应提前通知并给予客户终止权。\n\n## 谈判口径\n| 场景 | 对外理由 | fallback |\n| --- | --- | --- |\n| 对方拒绝责任上限 | 责任结构需要与合同金额和保险安排匹配，避免无限责任造成审批障碍 | 设置超级 cap 或仅对少数高风险例外不适用 cap |\n| 对方要求单方停服 | 争议期间停服会直接影响业务连续性 | 限定为重大安全风险、违法使用或长期逾期付款，并要求事先通知 |\n| 对方拒绝数据导出 | 退出迁移是客户数据控制和业务连续性的基本要求 | 缩短协助期或收取合理专业服务费 |\n| 对方要求宽泛 IP 赔偿 | 赔偿应限于第三方正式索赔并排除客户材料、修改和组合使用导致的侵权 | 增加排除项和赔偿程序控制 |\n\n## 禁止输出\n- 不输出只有原则、没有动作的建议。\n- 不把业务偏好包装成确定法律结论。\n- 不把未提供材料当作已经审阅。"
-      },
-      {
-        "id": "contract-review-redline-references-quality-gates-md",
-        "name": "quality-gates.md",
-        "path": "references/quality-gates.md",
-        "type": "markdown",
-        "content": "# 合同审查与红线生成质量门槛\n\n## 保存前质量门槛\n- SKILL.md 必须能让模型知道什么时候触发、要问什么、按什么步骤处理、输出什么、哪些不能做。\n- references/checklist.md 必须足够具体，不能只写“识别风险、给出建议”。\n- references/output-patterns.md 必须包含稳定表格字段、可复制文本模式和禁止输出。\n- 所有重大建议必须有依据、影响、动作、责任人或待确认事项中的至少三项。\n- 输出必须区分事实、假设、判断、建议和待复核事项。\n\n## 复核清单\n- 每个重大风险必须能追溯到合同条款或明确标记为基于缺失事实的待确认风险。\n- 必须区分法律风险、商业风险、合规风险和操作风险。\n- 红线语言必须可执行、可复制，不只写原则性建议。\n- 必须检查赔偿条款是否受责任上限约束，以及责任上限例外是否过宽。\n- 必须检查自动续费、单方变更、服务暂停、数据删除/导出、审计权和终止后义务。\n\n## 升级规则\n- 涉及诉讼期限、监管处罚、数据出境、金融医疗、未成年人、劳动解除、重大交易交割或公开披露时，提示专项律师复核。\n- 材料冲突、事实缺失、用户要求确定结论但依据不足时，先列风险和待确认事项。\n- 用户要求规避监管、伪造材料、删除证据、误导对方或法院/监管机构时，拒绝协助并转为合规建议。\n\n## 禁止事项\n- 不得编造合同中没有的条款、事实、附件或法律依据。\n- 缺少完整合同时必须说明结论仅限已提供文本。\n- 不得直接给出正式法律意见或保证某条款一定有效。\n- 涉及税务、外汇、国资、反垄断、数据出境、金融监管或劳动竞业时提示专项复核。"
-      },
-      {
-        "id": "contract-review-redline-examples-example-input-md",
-        "name": "example-input.md",
-        "path": "examples/example-input.md",
-        "type": "markdown",
-        "content": "# 合同审查与红线生成示例输入\n\n以下仅作为输入结构示例，真实使用时必须替换为用户自己的材料。\n\n```text\n任务目标：请基于以下材料生成结构化法律工作流输出。\n适用法域：待确认。\n用户立场：待确认。\n输出用途：内部审查 / 对外沟通 / Word 文书 / 风险矩阵。\n已提供材料：\n1. 材料 A：……\n2. 材料 B：……\n关键限制：不得编造未提供事实；缺失信息列为待确认。\n```"
-      },
-      {
-        "id": "contract-review-redline-examples-example-output-md",
-        "name": "example-output.md",
-        "path": "examples/example-output.md",
-        "type": "markdown",
-        "content": "# 合同审查与红线生成示例输出骨架\n\n## 基于目前材料的初步结论\n- 结论：……\n- 关键假设：……\n- 需要复核：……\n\n## 风险 / 问题矩阵\n| 项目 | 材料依据 | 风险等级 | 影响 | 建议动作 | 待确认事项 |\n| --- | --- | --- | --- | --- | --- |\n| 示例事项 | 材料位置或事实来源 | P0/P1/P2/P3 | 具体后果 | 可执行动作 | 责任人或缺口 |\n\n## 下一步\n- 补充材料：……\n- 律师复核：……\n- 对外沟通：……"
-      }
-    ],
-    "usage_count": 0,
-    "last_used_at": null,
-    "created_at": "2026-05-14T08:33:58.382+00:00",
-    "updated_at": "2026-05-14T08:34:04.1+00:00",
-    "publisher_name": "沈安宁",
-    "publisher_avatar_url": "/mock-skill-authors/author-04.webp",
     "use_profile_identity": false
   },
   {

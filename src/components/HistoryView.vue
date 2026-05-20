@@ -257,7 +257,7 @@ onBeforeUnmount(() => {
         </section>
 
         <section v-if="unpinnedHistory.length" class="history-group" aria-label="最近">
-          <div v-if="pinnedHistory.length" class="history-group-title">最近</div>
+          <div class="history-group-title">最近</div>
           <div class="history-list">
             <article
               v-for="item in unpinnedHistory"
@@ -348,7 +348,7 @@ onBeforeUnmount(() => {
 <style scoped>
 .history-page {
   min-height: 100%;
-  padding: 32px 56px 60px;
+  padding: 38px 56px 60px;
   background: var(--bg, var(--bg-color));
   color: var(--ink-900, var(--text-main));
 }
@@ -441,13 +441,13 @@ onBeforeUnmount(() => {
 }
 
 .history-group {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .history-group-title {
-  margin-bottom: 5px;
+  margin-bottom: 6px;
   color: var(--ink-500, var(--text-secondary));
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -460,7 +460,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 74px;
+  min-height: 57px;
   padding: 0 12px;
   border-bottom: 1px solid var(--line, var(--border-color));
   cursor: pointer;
@@ -473,6 +473,8 @@ onBeforeUnmount(() => {
 
 .history-pin-mark {
   flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
   color: var(--accent, var(--primary-color));
 }
 
@@ -482,7 +484,7 @@ onBeforeUnmount(() => {
 }
 
 .history-row-main.unpinned {
-  padding-left: 4px;
+  padding-left: 0;
 }
 
 .history-row-title {
@@ -517,17 +519,10 @@ onBeforeUnmount(() => {
   justify-content: center;
   border-radius: 7px;
   color: var(--ink-400, var(--text-muted));
-  opacity: 0;
+  opacity: 1;
   transition:
-    opacity 0.15s ease,
     background-color 0.15s ease,
     color 0.15s ease;
-}
-
-.history-list-row:hover .history-page-more,
-.history-page-more:focus-visible,
-.history-page-more[aria-expanded="true"] {
-  opacity: 1;
 }
 
 .history-page-more:hover,
@@ -688,7 +683,7 @@ onBeforeUnmount(() => {
   }
 
   .history-list-row {
-    min-height: 68px;
+    min-height: 56px;
     padding: 0 4px;
   }
 

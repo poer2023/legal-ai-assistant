@@ -74,7 +74,7 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   (event: 'close'): void;
-  (event: 'create'): void;
+  (event: 'create', prompt?: string): void;
   (event: 'use', skillName?: string): void;
 }>();
 
@@ -349,13 +349,6 @@ const collapseStandaloneDuplicates = (skills: SkillCatalogItem[]) => {
   });
 };
 
-const recommendedSkills = computed(() =>
-  dedupeSkillsById([
-    ...officialRecommendedSkills,
-    ...catalogPublicHubSkills.value,
-  ]),
-);
-
 const standaloneSourceSkillPool = computed(() =>
   dedupeSkillsById([
     ...personalSkills.value,
@@ -367,21 +360,22 @@ const standaloneSourceSkillPool = computed(() =>
 );
 
 const officialSkills = computed(() =>
-  standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'official'),
+  dedupeSkillsById([
+    ...standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'official'),
+    ...officialRecommendedSkills,
+  ]),
 );
 
 const marketSkills = computed(() =>
-  standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'market'),
+  dedupeSkillsById([
+    ...standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'market'),
+    ...catalogPublicHubSkills.value.filter((skill) => skill.source !== 'recommended'),
+  ]),
 );
 
 const activeListSkills = computed(() =>
   sortSkillsForLibrary({
-    personal: dedupeSkillsById([
-      ...personalSkills.value,
-      ...catalogGroupSharedSkills.value,
-      ...teamSharedSkills.value,
-      ...recommendedSkills.value,
-    ]),
+    personal: personalSkills.value,
     'group-shared': catalogGroupSharedSkills.value,
     'team-shared': teamSharedSkills.value,
     official: officialSkills.value,
@@ -628,12 +622,14 @@ const createSkill = () => {
 };
 
 const handleCreateSkillAction = () => {
-  if (props.createBehavior === 'emit') {
-    emit('create');
-    return;
-  }
-
   createSkill();
+};
+
+const handleSkillCreateChatStart = (prompt: string) => {
+  showSkillCreateModal.value = false;
+  isCreateMode.value = false;
+  selectedSkill.value = null;
+  emit('create', prompt);
 };
 
 const handleSkillCreated = (skill: SkillCatalogItem) => {
@@ -641,7 +637,7 @@ const handleSkillCreated = (skill: SkillCatalogItem) => {
   isCreateMode.value = false;
   activeListPage.value = skill.scope === 'team' ? 'team-shared' : 'personal';
   selectedStatusFilter.value = 'all';
-  openSkill(skill);
+  openSkill(skill, { bypassSubscription: true });
   setStatus(`${skill.name} 已创建`);
 };
 
@@ -671,7 +667,17 @@ const handleListCardClick = (skill: SkillCatalogItem) => {
   openSkill(skill);
 };
 
-const openSkill = (skill: SkillCatalogItem) => {
+const isSubscriptionPage = computed(() => activeListPage.value !== 'personal');
+
+const shouldBlockSkillDetail = (skill: SkillCatalogItem) =>
+  isSubscriptionPage.value && !isSkillAdded(skill);
+
+const openSkill = (skill: SkillCatalogItem, options: { bypassSubscription?: boolean } = {}) => {
+  if (!options.bypassSubscription && shouldBlockSkillDetail(skill)) {
+    setStatus(`请先订阅「${getSkillDisplayName(skill)}」后查看或使用`);
+    return;
+  }
+
   selectedSkill.value = skill;
   resetDetailState(skill);
 };
@@ -930,12 +936,11 @@ const getSkillFileDisplayName = (file: SkillFile | SkillChipDisplay) =>
 
 const getPrimarySkillActionLabel = (skill: SkillCatalogItem) => {
   if (activeListPage.value === 'personal') return isSkillDisplayEnabled(skill) ? '使用' : '启用';
-  if (isMarketplacePage.value && isSkillAdded(skill)) return '已安装';
-  return '安装';
+  if (isSkillAdded(skill)) return '使用';
+  return '订阅';
 };
 
-const isPrimarySkillActionDisabled = (skill: SkillCatalogItem) =>
-  isMarketplacePage.value && isSkillAdded(skill);
+const isPrimarySkillActionDisabled = (_skill: SkillCatalogItem) => false;
 
 const handlePrimarySkillAction = (skill: SkillCatalogItem) => {
   if (activeListPage.value === 'personal') {
@@ -947,20 +952,21 @@ const handlePrimarySkillAction = (skill: SkillCatalogItem) => {
     return;
   }
 
-  installSkill(skill);
+  if (isSkillAdded(skill)) {
+    useSkill(skill.name, skill.id);
+    return;
+  }
+
+  subscribeSkill(skill);
 };
 
 const addSkill = (skill: SkillCatalogItem) => {
   const didAdd = addPersonalSkill(skill.id);
-  setStatus(didAdd ? `${skill.name} 已安装到我的技能` : `${skill.name} 已在我的技能中`);
+  setStatus(didAdd ? `${getSkillDisplayName(skill)} 已订阅到我的技能` : `${getSkillDisplayName(skill)} 已在我的技能中`);
 };
 
-const installSkill = (skill: SkillCatalogItem) => {
-  if (isMarketplacePage.value) {
-    addSkill(skill);
-    return;
-  }
-  setStatus(`${skill.name} 已安装到我的技能`);
+const subscribeSkill = (skill: SkillCatalogItem) => {
+  addSkill(skill);
 };
 
 const setSkillOpen = (skill: SkillCatalogItem, enabled: boolean) => {
@@ -1140,7 +1146,7 @@ const saveGeneratedSkill = (skill: SkillCatalogItem) => {
 
   activeListPage.value = savedSkill.scope === 'team' ? 'team-shared' : 'personal';
   isCreateMode.value = false;
-  openSkill(savedSkill);
+  openSkill(savedSkill, { bypassSubscription: true });
   setStatus(`${savedSkill.name} 已创建`);
 };
 
@@ -1172,10 +1178,6 @@ const generateDraft = async () => {
 onMounted(() => {
   document.addEventListener('click', closeCardMenuOnOutsideClick);
   if (props.startInCreate) {
-    if (props.createBehavior === 'emit') {
-      emit('create');
-      return;
-    }
     createSkill();
   }
 });
@@ -1355,10 +1357,11 @@ onBeforeUnmount(() => {
             class="managed-card"
             :class="{
               'recommend-card': activeListPage !== 'personal',
+              'preview-disabled': shouldBlockSkillDetail(skill),
               'is-closed': activeListPage === 'personal' && getSkillStatusKind(skill) === 'inactive',
               'menu-open': openCardMenuId === skill.id
             }"
-            tabindex="0"
+            :tabindex="shouldBlockSkillDetail(skill) ? undefined : 0"
             @click="handleListCardClick(skill)"
             @keydown.enter.prevent="handleListCardClick(skill)"
           >
@@ -1436,7 +1439,7 @@ onBeforeUnmount(() => {
                   @click.stop="handlePrimarySkillAction(skill)"
                 >
                   <Check v-if="isPrimarySkillActionDisabled(skill)" :size="14" />
-                  <Plus v-else-if="getPrimarySkillActionLabel(skill) === '安装'" :size="14" />
+                  <Plus v-else-if="getPrimarySkillActionLabel(skill) === '订阅'" :size="14" />
                   <span>{{ getPrimarySkillActionLabel(skill) }}</span>
                 </button>
                 <button
@@ -1649,7 +1652,7 @@ onBeforeUnmount(() => {
               <Building2 :size="18" />
               <div>
                 <strong>金杜律师事务所 ・ 涌见律师演示组织</strong>
-                <span>21 名成员将能在「团队」分类下安装此能力</span>
+                <span>21 名成员将能在「团队」分类下订阅此能力</span>
               </div>
             </section>
 
@@ -1720,8 +1723,10 @@ onBeforeUnmount(() => {
 
     <SkillCreateModal
       v-if="showSkillCreateModal"
+      :submission-mode="props.createBehavior === 'emit' ? 'chat' : 'save'"
       @close="showSkillCreateModal = false"
       @created="handleSkillCreated"
+      @start-chat="handleSkillCreateChatStart"
     />
   </div>
 </template>

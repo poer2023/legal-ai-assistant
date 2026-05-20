@@ -9,7 +9,7 @@ export type SkillCreatorGuideOption = {
 
 export type SkillCreatorGuideAssetSlot = {
   id: string;
-  type: 'draft' | 'template';
+  type: 'draft' | 'template' | 'example' | 'rule' | 'history' | 'knowledge';
   title: string;
   description: string;
   optional?: boolean;
@@ -152,7 +152,11 @@ export const evaluateSkillCreatorIntake = async ({
     answers,
   });
 
-  const nextStep = data?.nextStep && data.nextStep.field && data.nextStep.title && Array.isArray(data.nextStep.options)
+  const nextStep = data?.nextStep
+    && data.nextStep.field
+    && data.nextStep.title
+    && Array.isArray(data.nextStep.options)
+    && data.nextStep.options.length > 0
     ? data.nextStep
     : null;
 

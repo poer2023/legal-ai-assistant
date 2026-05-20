@@ -152,8 +152,18 @@ const createSkillFiles = (document: NonLitigationDocument): SkillFile[] => [
   },
 ];
 
-const legalWorkflowSkills: SkillCatalogItem[] = nonLitigationDocuments.map((document) => {
+const getDemoSkillPublishDestinations = (
+  document: NonLitigationDocument,
+  index: number,
+): SkillPublishDestination[] => {
+  if (/尽职调查|咨询意见|合规|数据|监管/.test(document.category) || index % 7 === 2) return ['group'];
+  if (/并购|基金|劳动|用工|争议/.test(document.category) || index % 7 === 4) return ['public'];
+  return ['team'];
+};
+
+const legalWorkflowSkills: SkillCatalogItem[] = nonLitigationDocuments.map((document, index) => {
   const author = getMockSkillAuthor(document.id);
+  const publishDestinations = getDemoSkillPublishDestinations(document, index);
 
   return {
     id: document.id,
@@ -169,6 +179,7 @@ const legalWorkflowSkills: SkillCatalogItem[] = nonLitigationDocuments.map((docu
     publisherName: author.name,
     publisherAvatarUrl: author.avatarUrl,
     useProfileIdentity: false,
+    publishDestinations,
   };
 });
 
@@ -193,10 +204,19 @@ const allSkillIds = new Set(allSkills.map((skill) => skill.id));
 const skillMap = new Map(allSkills.map((skill) => [skill.id, skill]));
 
 const legacyLegalWorkflowSkillIds = legalWorkflowSkills.map((skill) => skill.id);
+const initialPersonalSkillIds = [
+  'confidentiality-agreement',
+  'engagement-agreement',
+  'contract-review-checklist',
+];
 const initialTeamMarketSkillIds = legacyLegalWorkflowSkillIds;
 
 const normalizePersonalSkillIds = (ids: string[]) =>
-  Array.from(new Set(ids.filter((id) => recommendedSkillIds.has(id))));
+  Array.from(new Set(
+    ids
+      .filter((id) => typeof id === 'string' && id.trim().length > 0)
+      .map((id) => id.trim()),
+  ));
 
 const normalizeTeamMarketSkillIds = (ids: string[]) =>
   Array.from(new Set(ids.filter((id) => allSkillIds.has(id))));
@@ -490,8 +510,13 @@ const writeStoredSkillUsageStats = (stats: Record<string, SkillUsageStat>) => {
 };
 
 const personalSkillIds = ref<string[]>(
-  readStoredSkillIds(personalSkillStorageKey, normalizePersonalSkillIds),
+  readStoredSkillIds(personalSkillStorageKey, normalizePersonalSkillIds, initialPersonalSkillIds),
 );
+
+if (!personalSkillIds.value.length) {
+  personalSkillIds.value = normalizePersonalSkillIds(initialPersonalSkillIds);
+  writeStoredSkillIds(personalSkillStorageKey, personalSkillIds.value);
+}
 
 const teamMarketSkillIds = ref<string[]>(
   normalizeTeamMarketSkillIds([
@@ -607,7 +632,7 @@ export const publicHubSkills = computed<SkillCatalogItem[]>(() =>
 );
 
 export const availableSkills = computed<SkillCatalogItem[]>(() => [
-  ...dedupeSkills([...personalSkills.value, ...teamMarketSkills.value]).filter(isSkillEnabled),
+  ...personalSkills.value.filter(isSkillEnabled),
 ]);
 
 export const registeredSkillNames = computed(
@@ -625,19 +650,19 @@ export const isRegisteredSkillName = (skillName: string) => registeredSkillNames
 export const isRecommendedSkill = (skillId: string) => recommendedSkillIds.has(skillId);
 
 export const isPersonalSkill = (skillId: string) =>
-  (recommendedSkillIds.has(skillId) && personalSkillIds.value.includes(skillId)) ||
+  personalSkillIds.value.includes(skillId) ||
   customSkills.value.some((skill) => skill.id === skillId && skill.scope !== 'team');
 
 export const isTeamMarketSkill = (skillId: string) =>
   teamMarketSkillIds.value.includes(skillId) ||
   customSkills.value.some((skill) => skill.id === skillId && skill.scope === 'team');
 
-export const isSkillAvailable = (skillId: string) => isPersonalSkill(skillId) || isTeamMarketSkill(skillId);
+export const isSkillAvailable = (skillId: string) => isPersonalSkill(skillId);
 
 export const isAddedRecommendedSkill = isSkillAvailable;
 
 export const addPersonalSkill = (skillId: string) => {
-  if (!recommendedSkillIds.has(skillId)) return false;
+  if (!getCatalogSkillById(skillId)) return false;
   if (personalSkillIds.value.includes(skillId)) return false;
 
   const nextIds = normalizePersonalSkillIds([...personalSkillIds.value, skillId]);

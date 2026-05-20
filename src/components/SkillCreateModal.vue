@@ -29,13 +29,16 @@ type ReferenceUploadRow = {
 
 const props = withDefaults(defineProps<{
   defaultScope?: CreateScope;
+  submissionMode?: 'save' | 'chat';
 }>(), {
   defaultScope: 'personal',
+  submissionMode: 'save',
 });
 
 const emit = defineEmits<{
   (event: 'close'): void;
   (event: 'created', skill: SkillCatalogItem): void;
+  (event: 'start-chat', prompt: string): void;
 }>();
 
 const referenceRows: ReferenceUploadRow[] = [
@@ -188,6 +191,47 @@ const renderReferenceFilesMarkdown = () => [
   }),
 ].join('\n\n');
 
+const trimPromptFileContent = (content: string) => {
+  const normalized = content.trim();
+  if (!normalized) return '该文件无法读取为文本，已记录文件名和元信息。';
+  const limit = 6000;
+  return normalized.length > limit
+    ? `${normalized.slice(0, limit)}\n\n[内容较长，已截取前 ${limit} 字符作为创建参考]`
+    : normalized;
+};
+
+const renderSkillCreatorChatPrompt = () => {
+  const lines = [
+    '/skill-creator',
+    '',
+    '我想创建一个可复用的技能，请先基于以下信息判断是否足够；如果还缺关键信息，请继续通过选择题或补充问题与我确认；如果已经足够，再进入技能创建。',
+    '',
+    `技能名称：${skillName.value.trim()}`,
+    `简要描述：${skillDescription.value.trim()}`,
+    `保存范围：${saveScope.value === 'team' ? '团队' : '个人'}`,
+  ];
+
+  if (skillDetail.value.trim()) {
+    lines.push('', `创建要求：${skillDetail.value.trim()}`);
+  }
+
+  if (attachedFiles.value.length) {
+    lines.push('', '参考文件：');
+    attachedFiles.value.forEach((file) => {
+      lines.push(
+        '',
+        `## ${referenceLabelMap[file.kind]}：${file.name}`,
+        `文件类型：${file.type || '未知'}`,
+        `文件大小：${formatFileSize(file.size)}`,
+        '',
+        trimPromptFileContent(file.content),
+      );
+    });
+  }
+
+  return lines.join('\n').trim();
+};
+
 const buildSkillFiles = (skillId: string): SkillFile[] => {
   const files: SkillFile[] = [
     {
@@ -270,6 +314,115 @@ const formatFileSize = (size: number) => {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 };
 
+const getFileExtension = (name: string) =>
+  name.split('.').pop()?.trim().toLowerCase() || '';
+
+const textFileExtensions = new Set([
+  'txt',
+  'md',
+  'markdown',
+  'csv',
+  'json',
+  'yaml',
+  'yml',
+  'xml',
+  'html',
+  'htm',
+  'rtf',
+]);
+
+const isTextReadableFile = (file: File) =>
+  file.type.startsWith('text/') || textFileExtensions.has(getFileExtension(file.name));
+
+const looksLikeBinaryText = (content: string) => {
+  const sample = content.slice(0, 1200);
+  if (!sample) return false;
+  if (sample.startsWith('PK\u0003\u0004') || sample.includes('\u0000')) return true;
+  const suspiciousChars = Array.from(sample).filter((char) => {
+    const code = char.charCodeAt(0);
+    return char === '\uFFFD' || (code < 32 && ![9, 10, 13].includes(code));
+  }).length;
+  return suspiciousChars / sample.length > 0.04;
+};
+
+const inflateRawDeflate = async (bytes: Uint8Array) => {
+  const DecompressionStreamCtor = (globalThis as typeof globalThis & {
+    DecompressionStream?: new(format: string) => DecompressionStream;
+  }).DecompressionStream;
+
+  if (!DecompressionStreamCtor) return null;
+
+  try {
+    const buffer = bytes.slice().buffer as ArrayBuffer;
+    const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStreamCtor('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch {
+    return null;
+  }
+};
+
+const decodeXmlText = (value: string) =>
+  value
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+
+const extractDocxText = async (file: File) => {
+  const data = new Uint8Array(await file.arrayBuffer());
+  const view = new DataView(data.buffer);
+  const decoder = new TextDecoder();
+  let offset = 0;
+
+  while (offset + 30 < data.length) {
+    if (view.getUint32(offset, true) !== 0x04034b50) {
+      offset += 1;
+      continue;
+    }
+
+    const method = view.getUint16(offset + 8, true);
+    const compressedSize = view.getUint32(offset + 18, true);
+    const fileNameLength = view.getUint16(offset + 26, true);
+    const extraLength = view.getUint16(offset + 28, true);
+    const nameStart = offset + 30;
+    const nameEnd = nameStart + fileNameLength;
+    const dataStart = nameEnd + extraLength;
+    const dataEnd = dataStart + compressedSize;
+    const path = decoder.decode(data.slice(nameStart, nameEnd));
+
+    if (path === 'word/document.xml' && compressedSize > 0 && dataEnd <= data.length) {
+      const compressed = data.slice(dataStart, dataEnd);
+      const xmlBytes = method === 0 ? compressed : method === 8 ? await inflateRawDeflate(compressed) : null;
+      if (!xmlBytes) return '';
+      const xml = decoder.decode(xmlBytes);
+      return decodeXmlText(xml)
+        .replace(/<w:tab\s*\/>/g, '\t')
+        .replace(/<w:br\s*\/>/g, '\n')
+        .replace(/<\/w:p>/g, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    }
+
+    offset = dataEnd > offset ? dataEnd : offset + 4;
+  }
+
+  return '';
+};
+
+const readReferenceFileContent = async (file: File) => {
+  const extension = getFileExtension(file.name);
+  if (extension === 'docx') {
+    return extractDocxText(file);
+  }
+
+  if (!isTextReadableFile(file)) return '';
+
+  const content = await file.text();
+  return looksLikeBinaryText(content) ? '' : content;
+};
+
 const chooseIcon = () => {
   iconInputRef.value?.click();
 };
@@ -303,7 +456,7 @@ const handleFileChange = async (event: Event) => {
   const nextFiles = await Promise.all(files.map(async (file) => {
     let content = '';
     try {
-      content = await file.text();
+      content = await readReferenceFileContent(file);
     } catch {
       content = '';
     }
@@ -333,6 +486,11 @@ const removeFile = (fileId: string) => {
 const submitCreate = () => {
   if (!canSubmit.value) {
     formError.value = '请填写技能名称和简要描述';
+    return;
+  }
+
+  if (props.submissionMode === 'chat') {
+    emit('start-chat', renderSkillCreatorChatPrompt());
     return;
   }
 

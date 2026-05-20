@@ -47,6 +47,7 @@ const templateExtractionStatesStorageKey = 'legal-version-template-extraction-st
 const templateExtractionMessagesStorageKey = 'legal-version-template-extraction-messages';
 const templatePublishDestinationsStorageKey = 'legal-version-template-publish-destinations';
 const templatePublishSettingsStorageKey = 'legal-version-template-publish-settings';
+const templateSubscriptionStorageKey = 'legal-version-subscribed-template-ids';
 
 const isTemplatePublishDestination = (destination: unknown): destination is TemplatePublishDestination =>
   destination === 'group' || destination === 'team' || destination === 'public';
@@ -201,6 +202,22 @@ const writeJsonRecord = (storageKey: string, value: unknown) => {
   window.localStorage.setItem(getOrganizationScopedStorageKey(storageKey), JSON.stringify(value));
 };
 
+const normalizeTemplateSubscriptionIds = (ids: unknown) => {
+  if (!Array.isArray(ids)) return [];
+  return Array.from(new Set(
+    ids
+      .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+      .map((id) => id.trim()),
+  ));
+};
+
+const readStoredTemplateSubscriptionIds = () =>
+  normalizeTemplateSubscriptionIds(readJsonRecord<unknown[]>(templateSubscriptionStorageKey, []));
+
+const writeStoredTemplateSubscriptionIds = (ids: string[]) => {
+  writeJsonRecord(templateSubscriptionStorageKey, normalizeTemplateSubscriptionIds(ids));
+};
+
 const readStoredTemplates = () => {
   const parsed = readJsonRecord<unknown[]>(customTemplateStorageKey, []);
   if (!Array.isArray(parsed)) return [];
@@ -263,6 +280,7 @@ const templatePublishDestinations = ref<Record<string, TemplatePublishDestinatio
 const templatePublishSettings = ref<Record<string, TemplatePublishSettings>>(
   readStoredPublishSettings(),
 );
+export const subscribedTemplateIds = ref<string[]>(readStoredTemplateSubscriptionIds());
 const loadedRemoteTemplateOrganizationIds = new Set<string>();
 const remoteTemplateLoadPromises = new Map<string, Promise<void>>();
 
@@ -273,6 +291,7 @@ const persistTemplatesLocal = () => {
   writeJsonRecord(templateExtractionMessagesStorageKey, extractionMessageByTemplateId.value);
   writeJsonRecord(templatePublishDestinationsStorageKey, templatePublishDestinations.value);
   writeJsonRecord(templatePublishSettingsStorageKey, templatePublishSettings.value);
+  writeStoredTemplateSubscriptionIds(subscribedTemplateIds.value);
 };
 
 const getTemplatesApiUrl = (
@@ -407,6 +426,7 @@ export const syncTemplateCatalogForCurrentOrganization = () => {
   extractionMessageByTemplateId.value = readStoredStringRecord(templateExtractionMessagesStorageKey);
   templatePublishDestinations.value = readStoredPublishDestinations();
   templatePublishSettings.value = readStoredPublishSettings();
+  subscribedTemplateIds.value = readStoredTemplateSubscriptionIds();
 };
 
 export const upsertCustomTemplate = (
@@ -503,6 +523,16 @@ export const hasTemplatePublishDestination = (
   templateId: string,
   destination: TemplatePublishDestination,
 ) => getTemplatePublishDestinations(templateId).includes(destination);
+
+export const isTemplateSubscribed = (templateId: string) =>
+  subscribedTemplateIds.value.includes(templateId);
+
+export const subscribeTemplate = (templateId: string) => {
+  if (!templateId || subscribedTemplateIds.value.includes(templateId)) return false;
+  subscribedTemplateIds.value = normalizeTemplateSubscriptionIds([...subscribedTemplateIds.value, templateId]);
+  writeStoredTemplateSubscriptionIds(subscribedTemplateIds.value);
+  return true;
+};
 
 export const publishTemplateToMarket = (
   templateId: string,

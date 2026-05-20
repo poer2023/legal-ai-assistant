@@ -28,6 +28,16 @@ export type ChatHistoryAnswer = {
 const createInitialHistory = (): ChatHistoryItem[] => [];
 
 const normalizePrompt = (prompt: string) => prompt.replace(/\s+/g, ' ').trim();
+const isSkillCreatorPrompt = (prompt: string) => /\/skill-creator\b/i.test(prompt);
+const hasCompletedSkillCreatorAnswer = (content: string) =>
+  /技能已经创建完成|\[\[skill-package:|<skill_json>|技能完整度校验通过|已保存为个人草稿|已整理成一个可预览的技能包/i.test(content);
+
+const normalizeCreatedSkillIdForAnswer = (prompt: string, answer?: ChatHistoryAnswer) => {
+  const createdSkillId = answer?.createdSkillId;
+  if (!createdSkillId) return undefined;
+  if (isSkillCreatorPrompt(prompt) && !hasCompletedSkillCreatorAnswer(answer.content)) return undefined;
+  return createdSkillId;
+};
 
 const normalizeTitle = (title: string) => {
   const normalized = title.replace(/\s+/g, ' ').trim();
@@ -55,8 +65,6 @@ const parseHistoryTimestamp = (createdAt: string) => {
 
 const sortHistoryItems = (items: ChatHistoryItem[]) => {
   return [...items].sort((left, right) => {
-    if (left.pinned && !right.pinned) return -1;
-    if (right.pinned && !left.pinned) return 1;
     if (left.mock === 'docx' && right.mock !== 'docx') return 1;
     if (right.mock === 'docx' && left.mock !== 'docx') return -1;
     return parseHistoryTimestamp(right.createdAt) - parseHistoryTimestamp(left.createdAt);
@@ -119,7 +127,9 @@ const readHistory = (): ChatHistoryItem[] => {
               content: item.answer.content,
               model: typeof item.answer.model === 'string' ? item.answer.model : undefined,
               cachedAt: item.answer.cachedAt,
-              createdSkillId: typeof item.answer.createdSkillId === 'string' ? item.answer.createdSkillId : undefined,
+              createdSkillId: typeof item.answer.createdSkillId === 'string'
+                ? normalizeCreatedSkillIdForAnswer(item.prompt, item.answer)
+                : undefined,
               thinkingContent: typeof item.answer.thinkingContent === 'string' ? item.answer.thinkingContent : undefined,
             }
           : undefined;
@@ -226,12 +236,19 @@ export const useChatHistory = () => {
             return items;
           }
 
+          const answer = item.answer
+            ? {
+                ...item.answer,
+                createdSkillId: normalizeCreatedSkillIdForAnswer(item.prompt, item.answer),
+              }
+            : undefined;
+
           items.push({
             id: item.id,
             title: item.title,
             prompt: item.prompt,
             createdAt: item.createdAt,
-            ...(item.answer ? { answer: item.answer } : {}),
+            ...(answer ? { answer } : {}),
             ...(item.mock === 'docx' ? { mock: 'docx' as const } : {}),
             ...(item.pinned === true ? { pinned: true } : {}),
           });
@@ -255,7 +272,8 @@ export const useChatHistory = () => {
               ...(localPinned ? { pinned: true } : {}),
               answer: {
                 ...item.answer,
-                createdSkillId: item.answer.createdSkillId || localAnswer.createdSkillId,
+                createdSkillId: normalizeCreatedSkillIdForAnswer(item.prompt, item.answer)
+                  || normalizeCreatedSkillIdForAnswer(localItem?.prompt || item.prompt, localAnswer),
                 thinkingContent: item.answer.thinkingContent || localAnswer.thinkingContent,
               },
             };
@@ -279,7 +297,7 @@ export const useChatHistory = () => {
     const normalizedPrompt = prompt ? normalizePrompt(prompt) : '';
 
     const itemById = historyItems.value.find((item) => item.id === historyId);
-    if (itemById && (!normalizedPrompt || normalizePrompt(itemById.prompt) === normalizedPrompt)) {
+    if (itemById) {
       return itemById;
     }
 
@@ -288,6 +306,7 @@ export const useChatHistory = () => {
   };
 
   const getCachedConversation = (historyId?: string | null, prompt?: string | null) => {
+    if (!historyId) return null;
     const item = findHistoryItem(historyId, prompt);
     return item?.answer?.content.trim() ? item : null;
   };
@@ -369,22 +388,6 @@ export const useChatHistory = () => {
     const normalizedPrompt = normalizePrompt(prompt);
     if (!normalizedPrompt) return null;
 
-    const existingIndex = historyItems.value.findIndex((item) => item.prompt === normalizedPrompt);
-    if (existingIndex >= 0) {
-      const existing = historyItems.value[existingIndex];
-      if (!existing) return null;
-      historyItems.value.splice(existingIndex, 1);
-      const updated: ChatHistoryItem = {
-        ...existing,
-        title: existing.mock === 'docx' ? existing.title : DEFAULT_CONVERSATION_TITLE,
-        createdAt: existing.mock === 'docx' ? existing.createdAt : formatHistoryTime(),
-      };
-      historyItems.value = removeDeprecatedMockHistory([updated, ...historyItems.value]);
-      persistHistory();
-      persistRemoteHistoryItem(updated);
-      return updated;
-    }
-
     const item: ChatHistoryItem = {
       id: createId(),
       title: DEFAULT_CONVERSATION_TITLE,
@@ -418,12 +421,16 @@ export const useChatHistory = () => {
 
     const existing = historyItems.value[existingIndex];
     if (!existing) return null;
+    const normalizedAnswer = {
+      ...answer,
+      createdSkillId: normalizeCreatedSkillIdForAnswer(normalizedPrompt, answer),
+    };
 
     const updated: ChatHistoryItem = {
       ...existing,
       title: existing.mock === 'docx' ? existing.title : normalizeTitle(existing.title) || DEFAULT_CONVERSATION_TITLE,
       prompt: normalizedPrompt,
-      answer,
+      answer: normalizedAnswer,
     };
 
     historyItems.value.splice(existingIndex, 1, updated);

@@ -62,7 +62,6 @@ const isHistoryActive = (item: ChatHistoryItem) => {
   return route.name === 'chat'
     && (
       route.query.historyId === item.id
-      || route.query.prompt === item.prompt
       || (item.mock && route.query.mock === item.mock)
     );
 };
@@ -112,7 +111,6 @@ const handleKnowledgeClick = () => {
 const handleHistoryClick = (item: ChatHistoryItem) => {
   closeHistoryMenu();
   const query: Record<string, string> = {
-    prompt: item.prompt,
     historyId: item.id,
   };
 
@@ -338,7 +336,7 @@ onBeforeUnmount(() => {
           >
             <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="history" :size="18" class="nav-icon" />
             <History v-else :size="18" class="nav-icon" />
-            <span class="nav-label">历史记录</span>
+            <span class="nav-label">历史会话</span>
           </button>
           <div
             v-for="item in recentHistory"

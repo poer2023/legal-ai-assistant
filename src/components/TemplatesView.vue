@@ -26,9 +26,11 @@ import {
   extractionMessageByTemplateId,
   extractionStateByTemplateId,
   hasTemplatePublishDestination,
+  isTemplateSubscribed,
   loadCustomTemplates,
   originalFilesByTemplateId,
   publishTemplateToMarket,
+  subscribeTemplate,
   upsertCustomTemplate,
   type TemplatePublishDestination,
 } from '../data/templateCatalog';
@@ -48,6 +50,17 @@ type AiExtractedTemplatePayload = {
   sections?: unknown;
 };
 
+type CreatedTemplateSummary = {
+  id: string;
+  name: string;
+  fileName: string;
+  fileSize: number;
+  extension: string;
+  sectionCount: number;
+  fieldCount: number;
+  placeholderCount: number;
+};
+
 type SourceFilter = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
 
 const searchKeyword = ref('');
@@ -55,11 +68,10 @@ const selectedSource = ref<SourceFilter>('personal');
 const selectedTemplate = ref<TemplateAsset | null>(null);
 const openTemplateMenuId = ref<string | null>(null);
 const showCreateModal = ref(false);
-const uploadedTemplateFile = ref<File | null>(null);
 const extractionState = ref<ExtractionState>('idle');
 const extractionError = ref('');
 const extractionNote = ref('');
-const isTemplateDragActive = ref(false);
+const createdTemplateSummaries = ref<CreatedTemplateSummary[]>([]);
 const { showToast } = useToast();
 
 const combinedTemplates = computed(() => [...customTemplateAssets.value, ...templateAssets]);
@@ -95,22 +107,22 @@ const templateModeCopy: Record<SourceFilter, { name: string; emptyTitle: string;
   'group-shared': {
     name: '小组',
     emptyTitle: '暂无小组共享模板',
-    emptyDescription: '小组内共享的模板会集中展示在这里。',
+    emptyDescription: '小组内共享的模板会集中展示在这里，订阅后可查看和使用。',
   },
   'team-shared': {
     name: '团队',
     emptyTitle: '暂无团队共享模板',
-    emptyDescription: '团队发布的通用模板会集中展示在这里。',
+    emptyDescription: '团队发布的通用模板会集中展示在这里，订阅后可查看和使用。',
   },
   'public-hub': {
     name: '市场',
     emptyTitle: '暂无市场模板',
-    emptyDescription: '公开发布到市场的模板会集中展示在这里。',
+    emptyDescription: '公开发布到市场的模板会集中展示在这里，订阅后可查看和使用。',
   },
   recommended: {
     name: '官方',
     emptyTitle: '暂无官方模板',
-    emptyDescription: '官方模板会集中展示在这里。',
+    emptyDescription: '官方模板会集中展示在这里，订阅后可查看和使用。',
   },
 };
 
@@ -135,6 +147,9 @@ const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter
   if (source === 'recommended') {
     const staticSource = getTemplateStaticSourceKind(template);
     return staticSource === 'recommended';
+  }
+  if (source === 'personal') {
+    return getTemplateStaticSourceKind(template) === source || isTemplateSubscribed(template.id);
   }
   return getTemplateStaticSourceKind(template) === source;
 };
@@ -214,8 +229,23 @@ const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
   return getTemplateStaticSourceKind(template);
 };
 
+const templateRequiresSubscription = (template: TemplateAsset) =>
+  getTemplateDisplaySource(template) !== 'personal';
+
+const isTemplateReady = (template: TemplateAsset) =>
+  !templateRequiresSubscription(template) || isTemplateSubscribed(template.id);
+
+const getTemplatePrimaryActionLabel = (template: TemplateAsset) =>
+  isTemplateReady(template) ? '使用模板' : '订阅';
+
 const handleTemplatePrimaryAction = (template: TemplateAsset) => {
   openTemplateMenuId.value = null;
+  if (!isTemplateReady(template)) {
+    const didSubscribe = subscribeTemplate(template.id);
+    showToast(didSubscribe ? `${template.name} 已订阅到我的模板` : `${template.name} 已在我的模板中`);
+    return;
+  }
+
   openTemplate(template);
 };
 
@@ -249,6 +279,11 @@ const setSource = (source: SourceFilter) => {
 
 const openTemplate = (template: TemplateAsset) => {
   openTemplateMenuId.value = null;
+  if (!isTemplateReady(template)) {
+    showToast(`请先订阅「${template.name}」后查看或使用`, { tone: 'warning' });
+    return;
+  }
+
   selectedTemplate.value = template;
 };
 
@@ -265,11 +300,24 @@ const openCreateModal = () => {
   extractionState.value = 'idle';
   extractionError.value = '';
   extractionNote.value = '';
-  uploadedTemplateFile.value = null;
+  createdTemplateSummaries.value = [];
 };
 
 const closeCreateModal = () => {
   showCreateModal.value = false;
+};
+
+const resetCreateModalBatch = () => {
+  extractionState.value = 'idle';
+  extractionError.value = '';
+  extractionNote.value = '';
+  createdTemplateSummaries.value = [];
+};
+
+const finishCreateModal = () => {
+  selectedSource.value = 'personal';
+  selectedTemplate.value = null;
+  closeCreateModal();
 };
 
 const toggleTemplateMenu = (templateId: string) => {
@@ -402,6 +450,10 @@ const editTemplate = (template: TemplateAsset) => {
 
 const downloadTemplate = (template: TemplateAsset) => {
   openTemplateMenuId.value = null;
+  if (!isTemplateReady(template)) {
+    showToast(`请先订阅「${template.name}」后下载`, { tone: 'warning' });
+    return;
+  }
   downloadText(`${template.name}-template.md`, createTemplateDocumentText(template));
 };
 
@@ -696,77 +748,74 @@ const createUploadedTemplateAsset = (
   } satisfies TemplateAsset;
 };
 
-const analyzeUploadedTemplate = async (file: File) => {
-  uploadedTemplateFile.value = file;
+const createTemplateSummary = (template: TemplateAsset, file: File): CreatedTemplateSummary => {
+  const fieldCount = Math.max(template.requiredFields.length, 0);
+  return {
+    id: template.id,
+    name: template.name,
+    fileName: file.name,
+    fileSize: file.size,
+    extension: file.name.split('.').pop()?.toUpperCase() || 'DOC',
+    sectionCount: Math.max(template.documentSections?.length ?? 0, 1),
+    fieldCount,
+    placeholderCount: Math.max(1, Math.round(fieldCount * 0.67)),
+  };
+};
+
+const analyzeUploadedTemplates = async (files: File[]) => {
+  if (!files.length) return;
+
   extractionError.value = '';
   extractionNote.value = '';
+  createdTemplateSummaries.value = [];
   extractionState.value = 'reading';
+  selectedSource.value = 'personal';
 
   try {
-    const originalText = await readUploadedTemplateText(file);
-    const templateId = `uploaded-template-${Date.now()}`;
-    const placeholderTemplate = createUploadedTemplateAsset(file, originalText, null, templateId, 'generating');
+    const summaries: CreatedTemplateSummary[] = [];
 
-    upsertCustomTemplate(placeholderTemplate, {
-      originalFile: {
+    for (const [index, file] of files.entries()) {
+      const originalText = await readUploadedTemplateText(file);
+      const templateId = `uploaded-template-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+      const placeholderTemplate = createUploadedTemplateAsset(file, originalText, null, templateId, 'generating');
+      const originalFile = {
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
         originalText,
-      },
-      extractionState: 'analyzing',
-      extractionMessage: '生成模板中...',
-    });
-    originalFilesByTemplateId.value[templateId] = {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      originalText,
-    };
-    selectedTemplate.value = placeholderTemplate;
-    closeCreateModal();
+      };
 
-    extractionState.value = 'analyzing';
+      upsertCustomTemplate(placeholderTemplate, {
+        originalFile,
+        extractionState: 'analyzing',
+        extractionMessage: '生成模板中...',
+      });
 
-    let payload: AiExtractedTemplatePayload | null = null;
-    try {
-      payload = await runAiExtraction(file, originalText);
-      extractionNote.value = payload ? '已完成 AI 结构提取，原件已随模板保留。' : '已完成结构化提取，原件已随模板保留。';
-    } catch {
-      extractionNote.value = 'AI 服务暂不可用，已先使用本地结构化提取并保留原件。';
+      extractionState.value = 'analyzing';
+
+      let payload: AiExtractedTemplatePayload | null = null;
+      try {
+        payload = await runAiExtraction(file, originalText);
+        extractionNote.value = payload ? '已完成 AI 结构提取，原件已随模板保留。' : '已完成结构化提取，原件已随模板保留。';
+      } catch {
+        extractionNote.value = 'AI 服务暂不可用，已先使用本地结构化提取并保留原件。';
+      }
+
+      const template = createUploadedTemplateAsset(file, originalText, payload, templateId, 'done');
+      upsertCustomTemplate(template, {
+        originalFile,
+        extractionState: 'done',
+        extractionMessage: extractionNote.value,
+      });
+      summaries.push(createTemplateSummary(template, file));
+      createdTemplateSummaries.value = [...summaries];
     }
 
-    const template = createUploadedTemplateAsset(file, originalText, payload, templateId, 'done');
-    upsertCustomTemplate(template, {
-      originalFile: originalFilesByTemplateId.value[templateId],
-      extractionState: 'done',
-      extractionMessage: extractionNote.value,
-    });
-    if (selectedTemplate.value?.id === templateId) {
-      selectedTemplate.value = template;
-    }
     extractionState.value = 'done';
   } catch (error) {
     extractionError.value = error instanceof Error ? error.message : '模板读取失败，请重新上传。';
     extractionState.value = 'error';
   }
-};
-
-const handleUploadedTemplateChange = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
-  target.value = '';
-  if (!file) return;
-
-  void analyzeUploadedTemplate(file);
-};
-
-const handleTemplateDrop = (event: DragEvent) => {
-  isTemplateDragActive.value = false;
-  const file = event.dataTransfer?.files?.[0];
-  if (!file) return;
-
-  void analyzeUploadedTemplate(file);
 };
 
 onMounted(() => {
@@ -832,29 +881,10 @@ onBeforeUnmount(() => {
                 class="template-market-card"
                 :class="{ 'menu-open': openTemplateMenuId === template.id }"
                 :title="`${template.name}\n${templateFilePath(template)}`"
-                tabindex="0"
+                :tabindex="isTemplateReady(template) ? 0 : undefined"
                 @click="openTemplate(template)"
                 @keydown.enter.prevent="openTemplate(template)"
               >
-                <div v-if="openTemplateMenuId === template.id" class="template-card-action-menu" @click.stop>
-                  <button class="template-menu-action" type="button" @click="editTemplate(template)">
-                    <Pencil :size="15" />
-                    <span>编辑</span>
-                  </button>
-                  <button class="template-menu-action" type="button" @click="downloadTemplate(template)">
-                    <Download :size="15" />
-                    <span>下载</span>
-                  </button>
-                  <button class="template-menu-action" type="button" @click="openTemplatePublishDialog(template)">
-                    <UsersRound :size="15" />
-                    <span>发布</span>
-                  </button>
-                  <button class="template-menu-action danger" type="button" @click="deleteTemplate(template)">
-                    <Trash2 :size="15" />
-                    <span>删除</span>
-                  </button>
-                </div>
-
                 <div class="template-card-main">
                   <div class="template-icon-block" aria-hidden="true">
                     <FileText :size="34" />
@@ -894,16 +924,36 @@ onBeforeUnmount(() => {
                       type="button"
                       @click="handleTemplatePrimaryAction(template)"
                     >
-                      使用模板
+                      {{ getTemplatePrimaryActionLabel(template) }}
                     </button>
                     <button
                       class="template-more-btn"
                       type="button"
                       :aria-label="`${template.name} 更多操作`"
+                      :aria-expanded="openTemplateMenuId === template.id"
                       @click.stop="toggleTemplateMenu(template.id)"
                     >
                       <MoreHorizontal :size="17" />
                     </button>
+
+                    <div v-if="openTemplateMenuId === template.id" class="template-card-action-menu" @click.stop>
+                      <button class="template-menu-action" type="button" @click="editTemplate(template)">
+                        <Pencil :size="14" />
+                        <span>编辑</span>
+                      </button>
+                      <button class="template-menu-action" type="button" @click="downloadTemplate(template)">
+                        <Download :size="14" />
+                        <span>下载</span>
+                      </button>
+                      <button class="template-menu-action" type="button" @click="openTemplatePublishDialog(template)">
+                        <UsersRound :size="14" />
+                        <span>发布</span>
+                      </button>
+                      <button class="template-menu-action danger" type="button" @click="deleteTemplate(template)">
+                        <Trash2 :size="14" />
+                        <span>删除</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </article>
@@ -975,7 +1025,7 @@ onBeforeUnmount(() => {
                 <Building2 :size="18" />
                 <div>
                   <strong>金杜律师事务所 ・ 涌见律师演示组织</strong>
-                  <span>21 名成员将能在「团队」分类下安装此能力</span>
+                  <span>21 名成员将能在「团队」分类下订阅此模板</span>
                 </div>
               </section>
 
@@ -1045,11 +1095,13 @@ onBeforeUnmount(() => {
 
         <TemplateCreateModal
           v-if="showCreateModal"
-          :uploaded-file="uploadedTemplateFile"
           :extraction-state="extractionState"
           :extraction-error="extractionError"
+          :created-templates="createdTemplateSummaries"
           @close="closeCreateModal"
-          @upload="analyzeUploadedTemplate"
+          @analyze="analyzeUploadedTemplates"
+          @reset="resetCreateModalBatch"
+          @finish="finishCreateModal"
         />
       </template>
     </main>
@@ -2593,6 +2645,7 @@ onBeforeUnmount(() => {
 }
 
 .template-card-actions {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2641,28 +2694,28 @@ onBeforeUnmount(() => {
 
 .template-card-action-menu {
   position: absolute;
-  top: 58px;
-  right: 14px;
+  right: 0;
+  bottom: calc(100% + 8px);
   z-index: 40;
-  min-width: 176px;
-  padding: 8px;
+  min-width: 148px;
+  padding: 6px;
   border: 1px solid var(--tpl-line);
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--tpl-panel);
-  box-shadow: 0 16px 38px rgba(26, 22, 20, 0.16);
+  box-shadow: 0 12px 28px rgba(26, 22, 20, 0.14);
 }
 
 .template-card-action-menu button {
   width: 100%;
-  min-height: 38px;
+  min-height: 32px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  border-radius: 10px;
+  gap: 9px;
+  padding: 0 9px;
+  border-radius: 7px;
   color: var(--tpl-ink-700);
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 500;
   text-align: left;
 }
 
@@ -2677,6 +2730,9 @@ onBeforeUnmount(() => {
 }
 
 .template-card-action-menu button.danger {
+  margin-top: 4px;
+  border-top: 1px solid var(--tpl-line);
+  border-radius: 0 0 7px 7px;
   color: #a33a2a;
 }
 

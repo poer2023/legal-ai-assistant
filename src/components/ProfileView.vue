@@ -249,6 +249,7 @@ const bioText = computed(() => profileBioDraft.value.trim());
 const avatarText = computed(() => profileName.value.slice(0, 1).toUpperCase() || '律');
 const selectedExpertise = computed(() => expertiseDraft.value.slice(0, 5));
 const canManageTeam = computed(() => currentOrganization.value?.role === '管理员');
+const teamManagementHref = computed(() => router.resolve({ name: 'team' }).href);
 
 const showStatus = (message: string) => {
   statusMessage.value = message;
@@ -343,10 +344,6 @@ const openOrganizationManager = () => {
   isOrganizationDialogOpen.value = true;
 };
 
-const openTeamManagement = () => {
-  void router.push({ name: 'team' });
-};
-
 const handleLogout = () => {
   isLogoutConfirmOpen.value = false;
   logout();
@@ -381,15 +378,16 @@ onBeforeUnmount(() => {
           <h1 class="profile-title">{{ copy.title }}</h1>
           <div class="heading-actions">
             <span v-if="statusMessage" class="profile-status">{{ statusMessage }}</span>
-            <button
+            <a
               v-if="canManageTeam"
               class="btn btn-ghost btn-sm"
-              type="button"
-              @click="openTeamManagement"
+              :href="teamManagementHref"
+              target="_blank"
+              rel="noopener noreferrer"
             >
               <Building2 :size="14" />
               <span>{{ copy.teamManagement }}</span>
-            </button>
+            </a>
             <button class="btn btn-ghost btn-sm" type="button" @click="toggleEdit">
               <Check v-if="isEditingProfile" :size="14" />
               <UserRound v-else :size="14" />

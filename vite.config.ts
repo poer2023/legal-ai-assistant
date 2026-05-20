@@ -64,12 +64,17 @@ const sendStreamEvent = async (response: ServerResponse, event: string, payload:
   await writeStreamChunk(response, `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
 };
 
+const sanitizeProviderError = (message: string) => message
+  .replace(/DEEPSEEK_API_KEY/g, '模型服务密钥')
+  .replace(/DEEPSEEK_BASE_URL/g, '模型服务地址')
+  .replace(/DeepSeek/gi, '模型服务');
+
 const normalizeDeepSeekError = (message: string) => {
   if (/provider returned error/i.test(message)) {
-    return 'DeepSeek 上游模型返回异常，请稍后重试或切换模型';
+    return '上游模型返回异常，请稍后重试或切换模型';
   }
 
-  return message;
+  return sanitizeProviderError(message);
 };
 
 const readDeepSeekError = (data: unknown, fallback: string) => {
@@ -224,7 +229,7 @@ const handleDeepSeekStreamFrame = async (frame: string, response: ServerResponse
 
   if (payload.error) {
     await sendStreamEvent(response, 'error', {
-      error: normalizeDeepSeekError(payload.error.message || 'DeepSeek 调用失败'),
+      error: normalizeDeepSeekError(payload.error.message || 'AI 调用失败'),
     });
     return true;
   }
@@ -250,7 +255,7 @@ const forwardDeepSeekStream = async (
   model: string,
 ) => {
   if (!upstreamResponse.body) {
-    throw new Error('DeepSeek 未返回可读取的流');
+    throw new Error('模型服务未返回可读取的流');
   }
 
   response.statusCode = 200;
@@ -350,7 +355,7 @@ const createDeepSeekChatDevPlugin = (env: Record<string, string>): Plugin => ({
       const baseUrl = (env.DEEPSEEK_BASE_URL || process.env.DEEPSEEK_BASE_URL || DEFAULT_DEEPSEEK_BASE_URL).replace(/\/+$/, '');
 
       if (!apiKey) {
-        sendJson(response, 500, { error: '缺少 DEEPSEEK_API_KEY 环境变量' });
+        sendJson(response, 500, { error: '模型服务暂未配置，请联系管理员' });
         return;
       }
 
@@ -389,7 +394,7 @@ const createDeepSeekChatDevPlugin = (env: Record<string, string>): Plugin => ({
         if (wantsStream) {
           if (!upstreamResponse.ok) {
             const upstreamData = await upstreamResponse.json().catch(() => null);
-            const errorMessage = readDeepSeekError(upstreamData, `DeepSeek 请求失败 (${upstreamResponse.status})`);
+            const errorMessage = readDeepSeekError(upstreamData, `AI 请求失败 (${upstreamResponse.status})`);
             sendJson(response, upstreamResponse.status, { error: errorMessage });
             return;
           }
@@ -401,7 +406,7 @@ const createDeepSeekChatDevPlugin = (env: Record<string, string>): Plugin => ({
         const upstreamData = await upstreamResponse.json().catch(() => null) as DeepSeekChatResponse | null;
 
         if (!upstreamResponse.ok) {
-          const errorMessage = readDeepSeekError(upstreamData, `DeepSeek 请求失败 (${upstreamResponse.status})`);
+          const errorMessage = readDeepSeekError(upstreamData, `AI 请求失败 (${upstreamResponse.status})`);
           sendJson(response, upstreamResponse.status, { error: errorMessage });
           return;
         }
@@ -416,8 +421,8 @@ const createDeepSeekChatDevPlugin = (env: Record<string, string>): Plugin => ({
         });
       } catch (error) {
         const errorMessage = error instanceof Error && error.name === 'AbortError'
-          ? 'DeepSeek 请求超时，请稍后重试'
-          : error instanceof Error ? normalizeDeepSeekError(error.message) : 'DeepSeek 调用失败';
+          ? 'AI 请求超时，请稍后重试'
+          : error instanceof Error ? normalizeDeepSeekError(error.message) : 'AI 调用失败';
 
         if (response.headersSent) {
           await sendStreamEvent(response, 'error', { error: errorMessage });

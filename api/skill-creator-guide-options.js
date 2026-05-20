@@ -2,6 +2,11 @@ const DEFAULT_BASE_URL = 'https://api.deepseek.com';
 const DEFAULT_MODEL = 'deepseek-v4-flash';
 const UPSTREAM_TIMEOUT_MS = 45_000;
 
+const sanitizeProviderError = (message = '') => String(message)
+  .replace(/DEEPSEEK_API_KEY/g, '模型服务密钥')
+  .replace(/DEEPSEEK_BASE_URL/g, '模型服务地址')
+  .replace(/DeepSeek/gi, '模型服务');
+
 const rootNeedOptions = [
   {
     id: 'compliance-review-skill',
@@ -38,14 +43,41 @@ const rootNeedOptions = [
 
 const fallbackPlanSteps = [
   {
-    field: 'source',
-    title: '技能运行时主要读取什么材料？',
+    field: 'trigger-scenario',
+    title: '这个技能主要在什么场景下被触发？',
+    options: [
+      {
+        id: 'review-and-approval',
+        label: '审查与审批',
+        description: '用户提交材料后，技能识别风险、给出修改建议和审批结论。',
+        recommended: true,
+      },
+      {
+        id: 'drafting-and-generation',
+        label: '起草与生成',
+        description: '用户给出背景和要求后，技能生成文书、条款、清单或报告。',
+      },
+      {
+        id: 'research-and-analysis',
+        label: '检索与分析',
+        description: '围绕法规、案例、监管口径或事实材料形成结构化分析。',
+      },
+      {
+        id: 'workflow-assistant',
+        label: '流程辅助',
+        description: '拆解固定工作步骤，提醒材料、节点、复核点和下一步动作。',
+      },
+    ],
+  },
+  {
+    field: 'runtime-materials',
+    title: '运行时需要读取哪些材料或依据？',
     assetSlots: [
       {
         id: 'runtime-drafts',
         type: 'draft',
-        title: '建议补充运行底稿',
-        description: '可以上传或选择一份典型材料，帮助技能明确启动时要读取哪些文件。',
+        title: '补充典型底稿或示例输入',
+        description: '可以上传底稿、选择知识库资料、引用团队规则或历史输出，帮助技能明确输入边界。',
         optional: true,
         allowLocal: true,
         allowKnowledge: true,
@@ -53,82 +85,87 @@ const fallbackPlanSteps = [
       {
         id: 'output-template',
         type: 'template',
-        title: '建议选择输出模板',
-        description: '如果技能要稳定复用某种文书结构，可以选择一个模板作为格式约束。',
+        title: '选择输出模板或示例成果',
+        description: '如果技能需要稳定格式，可以选择模板或历史成果作为输出结构约束。',
         optional: true,
         allowTemplate: true,
       },
     ],
     options: [
       {
-        id: 'plain-text-rules',
-        label: '纯文字描述规则',
-        description: '用户用自然语言说明任务目标、材料范围、适用规则和限制。',
+        id: 'user-uploaded-drafts',
+        label: '用户每次提供底稿',
+        description: '合同、事实说明、证据、邮件、制度、截图等由用户在运行时提供。',
         recommended: true,
       },
       {
-        id: 'uploaded-materials',
-        label: '上传或粘贴材料',
-        description: '每次使用时提供合同、事实说明、制度、邮件、证据或截图。',
+        id: 'knowledge-and-rules',
+        label: '知识库和团队规则',
+        description: '需要引用团队规则、Playbook、条款库、案例库或历史项目资料。',
       },
       {
-        id: 'templates-and-playbooks',
-        label: '模板 / Playbook',
-        description: '基于已有模板、团队口径、清单或示例输出生成。',
+        id: 'templates-and-examples',
+        label: '模板和示例成果',
+        description: '以固定文书模板、表格字段或历史交付作为输出格式依据。',
       },
       {
-        id: 'knowledge-base',
-        label: '知识库资料',
-        description: '需要参考团队沉淀的规则、案例、条款库或历史交付。',
+        id: 'plain-text-only',
+        label: '仅依赖文字要求',
+        description: '用户用自然语言说明任务目标、适用规则、处理边界和输出要求。',
       },
     ],
   },
   {
-    field: 'output',
-    title: '希望这项技能稳定产出什么？',
+    field: 'output-quality',
+    title: '怎样的输出才算可交付？',
     options: [
       {
-        id: 'word-draft',
-        label: 'Word 文书初稿',
-        description: '输出可继续编辑的正式文档、报告、备忘录或意见书草稿。',
+        id: 'formal-draft',
+        label: '正式文书草稿',
+        description: '结构完整、可继续编辑，能作为报告、意见书、协议或备忘录初稿。',
         recommended: true,
       },
       {
-        id: 'risk-matrix',
-        label: '风险矩阵',
-        description: '按事项、依据、风险等级、影响、建议动作组织结果。',
+        id: 'structured-matrix',
+        label: '结构化表格',
+        description: '按事项、依据、风险等级、影响、建议动作、责任人等字段输出。',
       },
       {
-        id: 'review-checklist',
-        label: '审查清单',
-        description: '输出逐项核查点、判断标准、通过条件和待确认事项。',
+        id: 'checklist-and-judgment',
+        label: '清单加判断',
+        description: '逐项列出检查点、判断标准、通过条件和待确认事项。',
       },
       {
-        id: 'workflow-output',
-        label: '工作流结果',
-        description: '输出步骤化处理结果、结论摘要、下一步动作和复核点。',
+        id: 'decision-brief',
+        label: '结论摘要',
+        description: '给出核心结论、依据、风险、建议动作和需要人工确认的点。',
       },
     ],
   },
   {
-    field: 'scope',
-    title: '这项技能先按什么范围设计？',
+    field: 'quality-boundaries',
+    title: '哪些情况必须标记为待确认或人工复核？',
     options: [
       {
-        id: 'personal',
-        label: '仅个人使用',
-        description: '先服务自己的高频工作流，边界和示例可以更贴近个人用法。',
+        id: 'missing-source',
+        label: '缺少材料或依据',
+        description: '关键事实、原文、来源、授权或团队规则缺失时必须列为待确认。',
         recommended: true,
       },
       {
-        id: 'team',
-        label: '团队共享',
-        description: '面向团队复用，需要更明确的触发条件、质量门槛和边界规则。',
+        id: 'high-risk-legal',
+        label: '高风险法律结论',
+        description: '涉及签署、诉讼、监管、处罚、核心权利义务时必须提示复核。',
       },
       {
-        id: 'personal-draft',
-        label: '个人草稿标准',
-        description: '先保存为个人技能，后续根据使用效果再继续调整或共享。',
+        id: 'format-or-process-failure',
+        label: '格式或流程失败',
+        description: '未按模板、字段、层级、审批路径或复核标准输出时视为失败。',
+      },
+      {
+        id: 'custom-boundary',
+        label: '其他红线',
+        description: '由用户补充不能接受的结果、禁止事项或必须保留的边界。',
       },
     ],
   },
@@ -273,7 +310,7 @@ const normalizeAssetSlots = (step, field) => {
     .map((slot, index) => normalizeAssetSlot(slot, index, field))
     .filter(Boolean);
 
-  const slots = normalized.length ? normalized : inferAssetSlots(step);
+  const slots = normalized;
   const seen = new Set();
   return slots.filter((slot) => {
     const key = `${slot.type}:${slot.id}`;
@@ -376,6 +413,37 @@ const fallbackQualityStep = {
   ],
 };
 
+const workflowFieldGroups = {
+  trigger: ['root-need', 'trigger-scenario', 'scope'],
+  materials: ['runtime-materials', 'source'],
+  output: ['output-quality', 'output'],
+  boundary: ['quality-boundaries'],
+};
+
+const hasAnsweredAny = (answeredFields, fields) =>
+  fields.some((field) => answeredFields.has(field));
+
+const hasSufficientFallbackAnswers = ({ currentText, answers }) => {
+  if (!currentText || currentText.trim().length < 6) return false;
+  const answeredFields = new Set(answers.map((answer) => answer.field));
+  const answeredText = answers.map((answer) => [
+    answer.title,
+    answer.label,
+    answer.description,
+    ...(Array.isArray(answer.assets) ? answer.assets.map((asset) => `${asset.name} ${asset.sourceLabel}`) : []),
+  ].filter(Boolean).join(' ')).join('\n');
+
+  const hasTrigger = hasAnsweredAny(answeredFields, workflowFieldGroups.trigger);
+  const hasMaterials = hasAnsweredAny(answeredFields, workflowFieldGroups.materials)
+    || /材料|底稿|模板|知识库|规则|playbook|历史|示例|合同|文件/.test(answeredText);
+  const hasOutput = hasAnsweredAny(answeredFields, workflowFieldGroups.output)
+    || /输出|文书|表格|矩阵|清单|报告|结论|意见/.test(answeredText);
+  const hasBoundary = hasAnsweredAny(answeredFields, workflowFieldGroups.boundary)
+    || /复核|待确认|红线|禁止|不得|质量|失败/.test(answeredText);
+
+  return answers.length >= 3 && hasTrigger && hasMaterials && hasOutput && hasBoundary;
+};
+
 const createFallbackIntakeStep = (answers = []) => {
   const answeredFields = new Set(answers.map((answer) => answer.field));
   if (!answeredFields.has('root-need')) {
@@ -398,15 +466,16 @@ const normalizeMissingList = (value) =>
 
 const normalizeIntakeEvaluation = (value, { currentText, answers }) => {
   const complete = value?.complete === true;
+  const fallbackComplete = !value && hasSufficientFallbackAnswers({ currentText, answers });
   const analysis = normalizeText(
     value?.analysis,
     260,
-  ) || (complete
+  ) || (complete || fallbackComplete
     ? '当前信息已经足够生成技能包。'
-    : '当前信息还不足以稳定生成可复用技能，需要继续补充一个关键问题。');
+    : '已根据当前信息判断下一步最关键的补充项。');
   const missing = normalizeMissingList(value?.missing);
 
-  if (complete) {
+  if (complete || fallbackComplete) {
     return {
       complete: true,
       analysis,
@@ -467,12 +536,13 @@ const buildFollowupPlanMessages = ({ currentText, rootNeed }) => [
     role: 'system',
     content: [
       '你是“法律版”产品中 skill-creator selector 的追问规划器。',
-      '任务：在用户已经选定根本需求后，一次性生成后续所有需要追问的 selector 步骤。',
-      '总步数包含根需求步骤最多 5 步，所以你只能生成 2 到 4 个后续步骤。',
-      '不要每一步都问泛泛分类；每一步必须能减少真实技能创建的不确定性。',
-      '优先覆盖：运行时输入材料、期望输出、生成物复杂度/是否需要 references/examples/scripts/assets、使用范围或质量边界。根据根需求取舍，不要机械凑满。',
-      '如果某一步适合让用户补充典型底稿、知识库文件或输出模板，请在该 step 上返回 assetSlots。assetSlots 是非必填上传/选择框，不是选项。',
-      'assetSlots 只在确实有帮助时返回；材料/证据/合同/底稿/尽调类步骤通常返回 draft，输出格式/文书结构/模板类步骤通常返回 template。',
+      '任务：在用户已经选定根本需求后，规划后续 selector 的候选问题，但实际产品会逐轮重新判断，不会一次性全部抛出。',
+      '总步数包含根需求步骤最多 5 步，所以你最多生成 2 到 4 个候选步骤。',
+      '不要每一步都问泛泛分类；每一步必须能帮助理解真实工作流。',
+      '优先覆盖：触发场景、运行时材料/依据、处理步骤、好输出标准、质量边界、是否需要 references/examples/scripts/assets、使用范围。根据根需求取舍，不要机械凑满。',
+      'assetSlots 是独立的“建议补充材料”入口，不是普通选项；只有当这一轮问题本身需要参考底稿、团队规则、知识库、历史成果、示例或输出模板时才返回。',
+      '不要给纯分类、触发场景、使用范围、文书类型、目标确认类问题返回 assetSlots；这类问题只需要普通 selector 选项。',
+      '如果确实建议补充材料，材料/证据/合同/底稿/尽调类步骤返回 draft，团队制度/知识库类返回 rule 或 knowledge，输出格式/样例/模板类返回 template/example/history。',
       '每个步骤给 3 到 5 个候选项，第一项 recommended=true。',
       '你只生成问题和选项，不创建技能，不输出解释，不输出 Markdown。',
       '返回 JSON object，格式固定为 {"steps":[{"field":"lowercase-hyphen","title":"中文问题","options":[{"id":"lowercase-hyphen","label":"中文短标签","description":"中文一句说明","recommended":true}],"assetSlots":[{"id":"runtime-drafts","type":"draft","title":"建议补充运行底稿","description":"中文一句说明","optional":true,"allowLocal":true,"allowKnowledge":true}]}]}。',
@@ -497,11 +567,14 @@ const buildIntakeEvaluationMessages = ({ currentText, answers }) => [
     content: [
       '你是“法律版”产品中 skill-creator 的需求完整度评估器。',
       '你的任务不是创建技能，而是像 Claude 的 skill 创建流程一样，先判断当前信息是否足够生成一个高质量、可复用、可验证的技能包。',
-      '只有同时足够明确以下内容时才能 complete=true：技能目标/触发场景、运行时输入材料、处理工作流、稳定输出形式、质量检查、边界/禁止编造规则、是否需要 references/examples/scripts/assets、使用范围。',
+      '请隐藏模板化检查表，只在 JSON 里返回结论。判断重点是：这个技能什么时候触发、运行时读取什么材料或依据、按什么工作流处理、怎样的输出算好、哪些情况必须待确认或人工复核、是否需要 references/examples/scripts/assets、使用范围。',
+      'complete=true 的标准是：当前信息足以创建一个可用的技能包；小缺口可以写入 references/intake.md、checks 或 guardrails，不要为了完美信息无限追问。',
       '如果信息不足，返回 exactly one nextStep，作为 selector 组件的下一轮追问；这个问题必须是当前最能降低不确定性的一个问题，不要重复已回答内容。',
+      '第一轮如果主输入很宽泛，优先问“触发场景/根本目标”；如果用户已经说明目标，优先问材料来源、好输出标准或质量边界。',
       '如果信息已经足够，返回 complete=true，不要返回 nextStep；仍有小缺口时写入 missing，后续会作为技能待确认和 guardrails。',
       'selector 选项必须具体可选，每个 nextStep 给 3 到 5 个 options，第一项 recommended=true。',
-      '如该问题适合补充典型底稿、知识库文件或输出模板，可返回 assetSlots；assetSlots 是非必填材料入口。',
+      'assetSlots 是独立的“建议补充材料”入口，不是普通选项；只有当前最关键问题确实需要参考底稿、团队规则、知识库、历史成果、示例或输出模板时才返回。',
+      '不要给纯分类、触发场景、使用范围、文书类型、目标确认类问题返回 assetSlots；不确定是否需要材料时不要返回 assetSlots。',
       '不要编造具体法规、案件事实、法院案号、内部制度或客户信息。',
       '只返回 JSON object，不输出 Markdown。',
       '格式：{"complete":false,"analysis":"中文一句判断","missing":["缺口"],"nextStep":{"field":"lowercase-hyphen","title":"中文问题","options":[{"id":"lowercase-hyphen","label":"中文短标签","description":"中文一句说明","recommended":true}],"assetSlots":[{"id":"runtime-drafts","type":"draft","title":"建议补充运行底稿","description":"中文一句说明","optional":true,"allowLocal":true,"allowKnowledge":true}]}}',
@@ -546,8 +619,8 @@ const requestDeepSeekJson = async ({ apiKey, baseUrl, messages, maxTokens }) => 
 
   const upstreamData = await upstreamResponse.json().catch(() => null);
   if (!upstreamResponse.ok) {
-    const errorMessage = upstreamData?.error?.message || `DeepSeek 请求失败 (${upstreamResponse.status})`;
-    throw new Error(errorMessage);
+    const errorMessage = upstreamData?.error?.message || `AI 请求失败 (${upstreamResponse.status})`;
+    throw new Error(sanitizeProviderError(errorMessage));
   }
 
   const content = upstreamData?.choices?.[0]?.message?.content || '';
@@ -580,7 +653,7 @@ export default async function handler(request, response) {
           model: DEFAULT_MODEL,
           fallbackUsed: true,
           ...normalizeIntakeEvaluation(null, { currentText, answers }),
-          error: '缺少 DEEPSEEK_API_KEY 环境变量，已使用本地兜底问题。',
+          error: '模型服务暂未配置，已使用本地兜底问题。',
         });
         return;
       }
@@ -591,7 +664,7 @@ export default async function handler(request, response) {
         ...(mode === 'followup-plan'
           ? { steps: fallbackPlanSteps }
           : { options: rootNeedOptions }),
-        error: '缺少 DEEPSEEK_API_KEY 环境变量，已使用本地兜底选项。',
+        error: '模型服务暂未配置，已使用本地兜底选项。',
       });
       return;
     }
@@ -654,8 +727,8 @@ export default async function handler(request, response) {
       missing: ['需要继续补充技能目标、输入、输出或质量边界。'],
       nextStep: normalizeStep(createFallbackIntakeStep([]), 0),
       error: error instanceof Error && error.name === 'AbortError'
-        ? 'DeepSeek selector 生成超时，已使用本地兜底选项。'
-        : error instanceof Error ? error.message : 'DeepSeek selector 生成失败，已使用本地兜底选项。',
+        ? '模型选项生成超时，已使用本地兜底选项。'
+        : error instanceof Error ? sanitizeProviderError(error.message) : '模型选项生成失败，已使用本地兜底选项。',
     });
   }
 }

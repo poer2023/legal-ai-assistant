@@ -24,8 +24,10 @@ import {
   extractionMessageByTemplateId,
   extractionStateByTemplateId,
   hasTemplatePublishDestination,
+  isTemplateSubscribed,
   loadCustomTemplates,
   originalFilesByTemplateId,
+  subscribeTemplate,
   upsertCustomTemplate,
 } from '../data/templateCatalog';
 import { sendDeepSeekMessage } from '../services/deepseekChat';
@@ -46,6 +48,16 @@ type AiExtractedTemplatePayload = {
   tags?: unknown;
   sections?: unknown;
 };
+type CreatedTemplateSummary = {
+  id: string;
+  name: string;
+  fileName: string;
+  fileSize: number;
+  extension: string;
+  sectionCount: number;
+  fieldCount: number;
+  placeholderCount: number;
+};
 type SourceFilter = 'personal' | 'group-shared' | 'team-shared' | 'public-hub' | 'recommended';
 type TemplateSectionId = string;
 
@@ -55,10 +67,10 @@ const statusMessage = ref('');
 const searchKeyword = ref('');
 const selectedSource = ref<SourceFilter>('personal');
 const showCreateModal = ref(false);
-const uploadedTemplateFile = ref<File | null>(null);
 const extractionState = ref<ExtractionState>('idle');
 const extractionError = ref('');
 const extractionNote = ref('');
+const createdTemplateSummaries = ref<CreatedTemplateSummary[]>([]);
 let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
 const sourceTabsKeys: SourceFilter[] = [
@@ -78,22 +90,22 @@ const templateListPageCopy: Record<SourceFilter, { name: string; emptyTitle: str
   'group-shared': {
     name: '小组',
     emptyTitle: '暂无小组共享模板',
-    emptyDescription: '小组内共享的模板会集中展示在这里。',
+    emptyDescription: '小组内共享的模板会集中展示在这里，订阅后可查看和使用。',
   },
   'team-shared': {
     name: '团队',
     emptyTitle: '暂无团队共享模板',
-    emptyDescription: '团队发布的通用模板会集中展示在这里。',
+    emptyDescription: '团队发布的通用模板会集中展示在这里，订阅后可查看和使用。',
   },
   'public-hub': {
     name: '市场',
     emptyTitle: '暂无市场模板',
-    emptyDescription: '公开发布到市场的模板会集中展示在这里。',
+    emptyDescription: '公开发布到市场的模板会集中展示在这里，订阅后可查看和使用。',
   },
   recommended: {
     name: '官方',
     emptyTitle: '暂无官方模板',
-    emptyDescription: '官方模板会集中展示在这里。',
+    emptyDescription: '官方模板会集中展示在这里，订阅后可查看和使用。',
   },
 };
 
@@ -128,6 +140,9 @@ const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter
   if (source === 'recommended') {
     const staticSource = getTemplateStaticSourceKind(template);
     return staticSource === 'recommended';
+  }
+  if (source === 'personal') {
+    return getTemplateStaticSourceKind(template) === source || isTemplateSubscribed(template.id);
   }
   return getTemplateStaticSourceKind(template) === source;
 };
@@ -210,6 +225,15 @@ const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
   return staticSource;
 };
 
+const templateRequiresSubscription = (template: TemplateAsset) =>
+  getTemplateDisplaySource(template) !== 'personal';
+
+const isTemplateReady = (template: TemplateAsset) =>
+  !templateRequiresSubscription(template) || isTemplateSubscribed(template.id);
+
+const getTemplatePrimaryActionLabel = (template: TemplateAsset) =>
+  isTemplateReady(template) ? '使用模板' : '订阅';
+
 const setSource = (source: SourceFilter) => {
   selectedSource.value = source;
 };
@@ -223,11 +247,24 @@ const openCreateModal = () => {
   extractionState.value = 'idle';
   extractionError.value = '';
   extractionNote.value = '';
-  uploadedTemplateFile.value = null;
+  createdTemplateSummaries.value = [];
 };
 
 const closeCreateModal = () => {
   showCreateModal.value = false;
+};
+
+const resetCreateModalBatch = () => {
+  extractionState.value = 'idle';
+  extractionError.value = '';
+  extractionNote.value = '';
+  createdTemplateSummaries.value = [];
+};
+
+const finishCreateModal = () => {
+  selectedSource.value = 'personal';
+  selectedTemplate.value = null;
+  closeCreateModal();
 };
 
 const formatFileSize = (size: number) => {
@@ -443,50 +480,69 @@ const createUploadedTemplateAsset = (
   } satisfies TemplateAsset;
 };
 
-const analyzeUploadedTemplate = async (file: File) => {
-  uploadedTemplateFile.value = file;
+const createTemplateSummary = (template: TemplateAsset, file: File): CreatedTemplateSummary => {
+  const fieldCount = Math.max(template.requiredFields.length, 0);
+  return {
+    id: template.id,
+    name: template.name,
+    fileName: file.name,
+    fileSize: file.size,
+    extension: file.name.split('.').pop()?.toUpperCase() || 'DOC',
+    sectionCount: Math.max(template.documentSections?.length ?? 0, 1),
+    fieldCount,
+    placeholderCount: Math.max(1, Math.round(fieldCount * 0.67)),
+  };
+};
+
+const analyzeUploadedTemplates = async (files: File[]) => {
+  if (!files.length) return;
+
   extractionError.value = '';
   extractionNote.value = '';
+  createdTemplateSummaries.value = [];
   extractionState.value = 'reading';
+  selectedSource.value = 'personal';
 
   try {
-    const originalText = await readUploadedTemplateText(file);
-    const templateId = `uploaded-template-${Date.now()}`;
-    const placeholderTemplate = createUploadedTemplateAsset(file, originalText, null, templateId, 'generating');
+    const summaries: CreatedTemplateSummary[] = [];
 
-    upsertCustomTemplate(placeholderTemplate, {
-      originalFile: {
+    for (const [index, file] of files.entries()) {
+      const originalText = await readUploadedTemplateText(file);
+      const templateId = `uploaded-template-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 7)}`;
+      const placeholderTemplate = createUploadedTemplateAsset(file, originalText, null, templateId, 'generating');
+      const originalFile = {
         fileName: file.name,
         fileSize: file.size,
         fileType: file.type,
         originalText,
-      },
-      extractionState: 'analyzing',
-      extractionMessage: '生成模板中...',
-    });
-    selectedSource.value = 'personal';
-    selectedTemplate.value = placeholderTemplate;
-    closeCreateModal();
+      };
 
-    extractionState.value = 'analyzing';
+      upsertCustomTemplate(placeholderTemplate, {
+        originalFile,
+        extractionState: 'analyzing',
+        extractionMessage: '生成模板中...',
+      });
 
-    let payload: AiExtractedTemplatePayload | null = null;
-    try {
-      payload = await runAiExtraction(file, originalText);
-      extractionNote.value = payload ? '已完成 AI 结构提取，原件已随模板保留。' : '已完成结构化提取，原件已随模板保留。';
-    } catch {
-      extractionNote.value = 'AI 服务暂不可用，已先使用本地结构化提取并保留原件。';
+      extractionState.value = 'analyzing';
+
+      let payload: AiExtractedTemplatePayload | null = null;
+      try {
+        payload = await runAiExtraction(file, originalText);
+        extractionNote.value = payload ? '已完成 AI 结构提取，原件已随模板保留。' : '已完成结构化提取，原件已随模板保留。';
+      } catch {
+        extractionNote.value = 'AI 服务暂不可用，已先使用本地结构化提取并保留原件。';
+      }
+
+      const template = createUploadedTemplateAsset(file, originalText, payload, templateId, 'done');
+      upsertCustomTemplate(template, {
+        originalFile,
+        extractionState: 'done',
+        extractionMessage: extractionNote.value,
+      });
+      summaries.push(createTemplateSummary(template, file));
+      createdTemplateSummaries.value = [...summaries];
     }
 
-    const template = createUploadedTemplateAsset(file, originalText, payload, templateId, 'done');
-    upsertCustomTemplate(template, {
-      originalFile: originalFilesByTemplateId.value[templateId],
-      extractionState: 'done',
-      extractionMessage: extractionNote.value,
-    });
-    if (selectedTemplate.value?.id === templateId) {
-      selectedTemplate.value = template;
-    }
     extractionState.value = 'done';
   } catch (error) {
     extractionError.value = error instanceof Error ? error.message : '模板读取失败，请重新上传。';
@@ -585,6 +641,11 @@ const handleBackdropClick = (event: MouseEvent) => {
 };
 
 const openTemplate = (template: TemplateAsset) => {
+  if (!isTemplateReady(template)) {
+    setStatus(`请先订阅「${template.name}」后查看或使用`);
+    return;
+  }
+
   selectedTemplate.value = template;
   activeSectionId.value = 'section-0';
 };
@@ -596,7 +657,21 @@ const backToList = () => {
 
 const selectTemplate = (template = selectedTemplate.value) => {
   if (!template) return;
+  if (!isTemplateReady(template)) {
+    setStatus(`请先订阅「${template.name}」后查看或使用`);
+    return;
+  }
   emit('select', template);
+};
+
+const handleTemplatePrimaryAction = (template: TemplateAsset) => {
+  if (!isTemplateReady(template)) {
+    const didSubscribe = subscribeTemplate(template.id);
+    setStatus(didSubscribe ? `${template.name} 已订阅到我的模板` : `${template.name} 已在我的模板中`);
+    return;
+  }
+
+  selectTemplate(template);
 };
 
 const copyText = async (text: string, label: string) => {
@@ -698,7 +773,7 @@ onBeforeUnmount(() => {
             :key="template.id"
             class="template-market-card"
             :title="`${template.name}\n${templateFilePath(template)}`"
-            tabindex="0"
+            :tabindex="isTemplateReady(template) ? 0 : undefined"
             @click="openTemplate(template)"
             @keydown.enter.prevent="openTemplate(template)"
           >
@@ -737,9 +812,9 @@ onBeforeUnmount(() => {
                 <button
                   class="template-primary-action"
                   type="button"
-                  @click="selectTemplate(template)"
+                  @click="handleTemplatePrimaryAction(template)"
                 >
-                  使用模板
+                  {{ getTemplatePrimaryActionLabel(template) }}
                 </button>
               </div>
             </div>
@@ -840,11 +915,13 @@ onBeforeUnmount(() => {
     </section>
     <TemplateCreateModal
       v-if="showCreateModal"
-      :uploaded-file="uploadedTemplateFile"
       :extraction-state="extractionState"
       :extraction-error="extractionError"
+      :created-templates="createdTemplateSummaries"
       @close="closeCreateModal"
-      @upload="analyzeUploadedTemplate"
+      @analyze="analyzeUploadedTemplates"
+      @reset="resetCreateModalBatch"
+      @finish="finishCreateModal"
     />
   </div>
 </template>

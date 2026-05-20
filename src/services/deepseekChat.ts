@@ -36,12 +36,17 @@ type StreamCallbacks = {
   onMeta?: (model: string) => void;
 };
 
+const sanitizeProviderError = (message: string) => message
+  .replace(/DEEPSEEK_API_KEY/g, '模型服务密钥')
+  .replace(/DEEPSEEK_BASE_URL/g, '模型服务地址')
+  .replace(/DeepSeek/gi, '模型服务');
+
 const normalizeDeepSeekError = (message: string) => {
   if (/provider returned error/i.test(message)) {
-    return 'DeepSeek 上游模型返回异常，请稍后重试或切换模型';
+    return '上游模型返回异常，请稍后重试或切换模型';
   }
 
-  return message;
+  return sanitizeProviderError(message);
 };
 
 const readErrorMessage = (data: unknown, fallback: string) => {
@@ -133,7 +138,7 @@ export const streamDeepSeekMessage = async (
     timeout.clear();
 
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('DeepSeek 请求超时，请稍后重试');
+      throw new Error('AI 请求超时，请稍后重试');
     }
 
     throw error;
@@ -142,12 +147,12 @@ export const streamDeepSeekMessage = async (
   if (!response.ok) {
     timeout.clear();
     const data = await response.json().catch(() => null) as { error?: string } | null;
-    throw new Error(readErrorMessage(data, `DeepSeek 请求失败 (${response.status})`));
+    throw new Error(readErrorMessage(data, `AI 请求失败 (${response.status})`));
   }
 
   if (!response.body) {
     timeout.clear();
-    throw new Error('DeepSeek 未返回可读取的流');
+    throw new Error('模型服务未返回可读取的流');
   }
 
   const reader = response.body.getReader();
@@ -174,7 +179,7 @@ export const streamDeepSeekMessage = async (
           const payload = readStreamPayload(frame);
 
           if (payload.event === 'error') {
-            throw new Error(normalizeDeepSeekError(payload.data?.error || 'DeepSeek 调用失败'));
+            throw new Error(normalizeDeepSeekError(payload.data?.error || 'AI 调用失败'));
           }
 
           if (payload.event === 'meta' && payload.data?.model) {
@@ -198,7 +203,7 @@ export const streamDeepSeekMessage = async (
       const payload = readStreamPayload(buffer.trim());
 
       if (payload.event === 'error') {
-        throw new Error(normalizeDeepSeekError(payload.data?.error || 'DeepSeek 调用失败'));
+        throw new Error(normalizeDeepSeekError(payload.data?.error || 'AI 调用失败'));
       }
 
       if (payload.event === 'meta' && payload.data?.model) {
@@ -213,7 +218,7 @@ export const streamDeepSeekMessage = async (
     }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('DeepSeek 请求超时，请稍后重试');
+      throw new Error('AI 请求超时，请稍后重试');
     }
 
     throw error;
@@ -222,7 +227,7 @@ export const streamDeepSeekMessage = async (
   }
 
   if (!content.trim()) {
-    throw new Error('DeepSeek 返回为空');
+    throw new Error('AI 返回为空');
   }
 
   return { content, model };
@@ -251,7 +256,7 @@ export const sendDeepSeekMessage = async (
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('DeepSeek 请求超时，请稍后重试');
+      throw new Error('AI 请求超时，请稍后重试');
     }
 
     throw error;
@@ -262,11 +267,11 @@ export const sendDeepSeekMessage = async (
   const data = await response.json().catch(() => null) as DeepSeekChatResult | { error?: string } | null;
 
   if (!response.ok) {
-    throw new Error(readErrorMessage(data, `DeepSeek 请求失败 (${response.status})`));
+    throw new Error(readErrorMessage(data, `AI 请求失败 (${response.status})`));
   }
 
   if (!data || !('content' in data) || !data.content?.trim()) {
-    throw new Error('DeepSeek 返回为空');
+    throw new Error('AI 返回为空');
   }
 
   return data;

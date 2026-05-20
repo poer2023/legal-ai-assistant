@@ -137,6 +137,9 @@ const toClientItem = (item) => ({
 });
 
 const normalizeText = (value) => typeof value === 'string' ? value.trim() : '';
+const isSkillCreatorPrompt = (prompt) => /\/skill-creator\b/i.test(prompt);
+const hasCompletedSkillCreatorAnswer = (content) =>
+  /技能已经创建完成|\[\[skill-package:|<skill_json>|技能完整度校验通过|已保存为个人草稿|已整理成一个可预览的技能包/i.test(content || '');
 
 const normalizeOrganizationId = (value) => {
   const organizationId = normalizeText(value);
@@ -231,6 +234,9 @@ const upsertHistoryItem = async (payload, organizationId) => {
 
   const answer = payload.answer && typeof payload.answer === 'object' ? payload.answer : null;
   const answerContent = normalizeText(answer?.content);
+  const answerCreatedSkillId = isSkillCreatorPrompt(prompt) && !hasCompletedSkillCreatorAnswer(answerContent)
+    ? ''
+    : normalizeText(answer?.createdSkillId);
   const now = new Date().toISOString();
   const row = {
     id,
@@ -242,7 +248,7 @@ const upsertHistoryItem = async (payload, organizationId) => {
     answer_content: answerContent || null,
     answer_model: normalizeText(answer?.model) || null,
     answer_cached_at: answerContent ? normalizeDate(answer?.cachedAt || now) : null,
-    answer_created_skill_id: normalizeText(answer?.createdSkillId) || null,
+    answer_created_skill_id: answerCreatedSkillId || null,
     answer_thinking_content: normalizeText(answer?.thinkingContent) || null,
   };
   const config = getSupabaseConfig();

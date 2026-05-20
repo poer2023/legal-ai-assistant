@@ -53,12 +53,26 @@ export const skillAssets: SkillAsset[] = nonLitigationDocuments.map((document, i
   recent: isDefaultDocument(document.id) && index < 4,
 }));
 
-export const templateAssets: TemplateAsset[] = nonLitigationDocuments.flatMap((document) =>
+const demoTemplateSourceCycle = [
+  '小组共享',
+  '团队共享',
+  '官方推荐',
+  '模板市场',
+  '官方推荐',
+  '模板市场',
+] as const;
+
+const getDemoTemplateSource = (document: (typeof nonLitigationDocuments)[number], index: number) => {
+  if (isDefaultDocument(document.id)) return '默认模板';
+  return demoTemplateSourceCycle[index % demoTemplateSourceCycle.length]!;
+};
+
+export const templateAssets: TemplateAsset[] = nonLitigationDocuments.flatMap((document, documentIndex) =>
   getDocumentTemplateEntries(document).map((template) => ({
     id: template.id,
     name: template.name,
     docType: document.category,
-    source: isDefaultDocument(document.id) ? '默认模板' : '官方推荐',
+    source: getDemoTemplateSource(document, documentIndex),
     applicableSkills: [document.skillName],
     agent: document.skillName,
     requiredFields: template.requiredFields,

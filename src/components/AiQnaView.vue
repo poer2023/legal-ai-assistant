@@ -3,13 +3,16 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router';
 import {
   AlertCircle,
+  ArrowLeft,
+  BookOpen,
   Brain,
   ChevronDown,
   Check,
+  CornerDownLeft,
   Copy,
   FileText,
+  History,
   Image as ImageIcon,
-  MessageSquareText,
   Mic,
   Pencil,
   Plus,
@@ -27,9 +30,17 @@ import SkillManageModal from './SkillManageModal.vue';
 import TemplateDropdownContent from './TemplateDropdownContent.vue';
 import TemplateManageModal from './TemplateManageModal.vue';
 import { defaultTemplateAssets, type TemplateAsset } from '../data/legalAssets';
-import { getAnySkillByNameOrId, getSkillByNameOrId, isSkillEnabled, markSkillUsed, persistCustomSkillNow, setSkillEnabled, upsertCustomSkill, type SkillCatalogItem } from '../data/skillCatalog';
+import { getAnySkillByNameOrId, getSkillByNameOrId, isSkillEnabled, markSkillUsed, persistCustomSkillNow, setSkillEnabled, upsertCustomSkill, type SkillCatalogItem, type SkillFile } from '../data/skillCatalog';
 import { docxLegalResearchMock } from '../data/docxLegalResearchMock';
 import { streamSkillWithSkillCreator, type SkillCreatorAnswers } from '../services/skillCreator';
+import {
+  evaluateSkillCreatorIntake,
+  type SkillCreatorGuideAnswer,
+  type SkillCreatorGuideAssetSlot,
+  type SkillCreatorGuideOption,
+  type SkillCreatorGuideStep,
+  type SkillCreatorIntakeEvaluationResult,
+} from '../services/skillCreatorGuide';
 import { generateDeepSeekConversationTitle, streamDeepSeekMessage } from '../services/deepseekChat';
 import { useChatHistory } from '../stores/chatHistory';
 
@@ -38,6 +49,28 @@ type PromptPart = {
   value: string;
   assetKind?: 'template' | 'knowledge-file' | 'local-file';
   sourceLabel?: string;
+};
+
+type SkillCreatorMaterialKind = 'local-file' | 'knowledge-file' | 'template' | 'history-output' | 'example-output' | 'team-rule';
+
+type SkillCreatorMaterialOption = {
+  id: string;
+  label: string;
+  description: string;
+  name: string;
+  sourceLabel: string;
+  kind: SkillCreatorMaterialKind;
+  slotId?: string;
+  slotTitle?: string;
+};
+
+type SkillCreatorCompletionAction = 'enable-and-use' | 'inspect-skill' | 'edit-references' | 'publish-settings';
+
+type SkillCreatorCompletionOption = {
+  id: SkillCreatorCompletionAction;
+  label: string;
+  description: string;
+  recommended?: boolean;
 };
 
 type InlineSegment = {
@@ -107,6 +140,7 @@ const {
   findHistoryItem,
   getCachedConversation,
   loadHistory,
+  recentHistory,
   updateConversationAnswer,
 } = useChatHistory();
 const inputValue = ref('');
@@ -142,8 +176,20 @@ const skillValidationMessage = ref('');
 const createdSkillResult = ref<SkillCatalogItem | null>(null);
 const activeCreatedSkillId = ref('');
 const lastAutoOpenedArtifactId = ref('');
+const pendingSkillCreatorPrompt = ref('');
+const isSkillCreatorFlowActive = ref(false);
+const pendingSkillCreatorStep = ref<SkillCreatorGuideStep | null>(null);
+const pendingSkillCreatorMaterialStep = ref<SkillCreatorGuideStep | null>(null);
+const pendingSkillCreatorMaterialPrompt = ref('');
+const skillCreatorIntakeAnswers = ref<SkillCreatorGuideAnswer[]>([]);
+const isSkillCreatorOtherOpen = ref(false);
+const skillCreatorOtherInput = ref('');
+const isSkillCreatorSelectorDismissed = ref(false);
+const isSkillCreatorCompletionSelectorDismissed = ref(false);
+const skillCreatorOtherInputRef = ref<HTMLInputElement | null>(null);
 const answerScrollRef = ref<HTMLElement | null>(null);
 const artifactPreviewScrollRef = ref<HTMLElement | null>(null);
+const chatPageRef = ref<HTMLElement | null>(null);
 const isArtifactEditing = ref(false);
 const isSavingArtifactEdit = ref(false);
 const artifactEditContent = ref('');
@@ -163,6 +209,10 @@ const publishSettings = ref<SkillPublishSettings>({
 const publishIconInputRef = ref<HTMLInputElement | null>(null);
 let toastTimer: number | undefined;
 let liveAutoScrollFrame: number | undefined;
+const previewPanelRatio = ref(0.5);
+const isPreviewResizing = ref(false);
+const chatMainMinWidth = 420;
+const previewPanelMinWidth = 420;
 const pendingAutoScrollTargets = new Set<'answer' | 'artifact'>();
 const selectedDialogMode = ref('research');
 const enabledSearchModes = ref<Set<string>>(new Set(['legal']));
@@ -277,6 +327,21 @@ const renderMarkdownTable = (rows: string[]): string => {
   ].join('');
 };
 
+const renderSelectionNoticeHtml = (text: string): string =>
+  text
+    .split('\n')
+    .map((line) => {
+      const match = line.match(/^(.*?)(\s*已选择\s+)(.+?)([。.]?)$/);
+      if (!match) return renderInlineMarkdown(line);
+      return [
+        `<span class="live-selection-question">${renderInlineMarkdown((match[1] || '').trimEnd())}</span>`,
+        `<span class="live-selection-action">${escapeHtml(match[2] || '')}</span>`,
+        `<span class="live-selection-choice">${renderInlineMarkdown(match[3] || '')}</span>`,
+        escapeHtml(match[4] || ''),
+      ].join('');
+    })
+    .join('<br>');
+
 const hideSkillCreatorArtifactList = (content: string) => {
   const listHeadingPattern = /^##\s*2\.\s*生成物清单\s*$/im;
   const listMatch = listHeadingPattern.exec(content);
@@ -296,17 +361,6 @@ const hideSkillCreatorArtifactList = (content: string) => {
     : content.slice(listEnd).replace(/\n##\s*3\.\s*逐个生成生成物\s*$/im, '\n## 2. 生成技能');
 
   return `${content.slice(0, listStart).trimEnd()}\n\n${rest.trimStart()}`;
-};
-
-const stripSkillCreatorProcessNarrative = (content: string) => {
-  const generatedHeading = content.match(/^##\s*2\.\s*生成技能\s*$/im);
-  if (generatedHeading?.index !== undefined) {
-    return content.slice(generatedHeading.index);
-  }
-
-  const firstArtifactHeading = generatedArtifactHeadingGlobalPattern.exec(content);
-  generatedArtifactHeadingGlobalPattern.lastIndex = 0;
-  return firstArtifactHeading?.index === undefined ? content : content.slice(firstArtifactHeading.index);
 };
 
 const formatSkillCreatorProcessContent = (content: string): string => {
@@ -339,25 +393,42 @@ const formatSkillCreatorProcessContent = (content: string): string => {
 };
 
 const formatSkillCreatorDisplayContent = (content: string): string => {
-  let text = normalizeGeneratedArtifactBoundaries(content.replace(/\r\n/g, '\n'));
+  let text = normalizeGeneratedArtifactBoundaries(content.replace(/\r\n/g, '\n'))
+    .split(skillCompletionDismissedMarker).join('');
   const trimmed = text.trimStart().toLowerCase();
 
   if (!text.match(/<generation_markdown>/i) && '<generation_markdown>'.startsWith(trimmed)) {
     return '';
   }
 
-  const generationStart = text.search(/<generation_markdown>/i);
-  if (generationStart >= 0) {
-    text = text.slice(generationStart).replace(/^<generation_markdown>/i, '');
-  }
-
-  text = text
-    .replace(/<\/generation_markdown>/ig, '')
-    .replace(/\n*##\s*4\.\s*待系统解析[\s\S]*?(?=<skill_json>|$)/i, '');
-
   const partialGenerationEnd = text.match(/\s*<\/[^>\n]*$/i);
   if (partialGenerationEnd && '</generation_markdown>'.startsWith(partialGenerationEnd[0].trim().toLowerCase())) {
     text = text.slice(0, partialGenerationEnd.index);
+  }
+
+  while (true) {
+    const generationStart = text.search(/<generation_markdown>/i);
+    if (generationStart < 0) break;
+
+    const beforeGeneration = text.slice(0, generationStart);
+    const rest = text.slice(generationStart);
+    const endMatch = rest.match(/<\/generation_markdown>/i);
+    if (!endMatch) {
+      text = beforeGeneration;
+      break;
+    }
+
+    text = beforeGeneration + rest.slice((endMatch.index ?? 0) + endMatch[0].length);
+  }
+
+  const partialSkillJsonStart = text.match(/\s*<[^>\n]*$/i);
+  if (partialSkillJsonStart && '<skill_json>'.startsWith(partialSkillJsonStart[0].trim().toLowerCase())) {
+    text = text.slice(0, partialSkillJsonStart.index);
+  }
+
+  const partialGenerationStart = text.match(/\s*<[^>\n]*$/i);
+  if (partialGenerationStart && '<generation_markdown>'.startsWith(partialGenerationStart[0].trim().toLowerCase())) {
+    text = text.slice(0, partialGenerationStart.index);
   }
 
   while (true) {
@@ -375,12 +446,7 @@ const formatSkillCreatorDisplayContent = (content: string): string => {
     text = beforeJson + rest.slice((endMatch.index ?? 0) + endMatch[0].length);
   }
 
-  const partialSkillJsonStart = text.match(/\s*<[^>\n]*$/i);
-  if (partialSkillJsonStart && '<skill_json>'.startsWith(partialSkillJsonStart[0].trim().toLowerCase())) {
-    text = text.slice(0, partialSkillJsonStart.index);
-  }
-
-  return stripSkillCreatorProcessNarrative(hideSkillCreatorArtifactList(text.trimStart()).trimStart());
+  return hideSkillCreatorArtifactList(text.trimStart()).trimStart();
 };
 
 const extractCreatedSkillIdFromContent = (content: string): string => {
@@ -507,6 +573,24 @@ const createArtifactId = (title: string) => {
 
   return `artifact-${slug || 'file'}`;
 };
+
+const createArtifactFromSkillFile = (file: SkillFile, index: number): ChatArtifact => {
+  const language = file.type || getArtifactExtension(file.path || file.name, 'markdown');
+  const title = file.path || file.name || `生成文件 ${index + 1}`;
+  return {
+    id: createArtifactId(title),
+    title,
+    kind: getArtifactKind(title, language),
+    language,
+    content: file.content || '',
+    summary: getArtifactSummary(file.content || ''),
+    sourceStart: -1,
+    sourceEnd: -1,
+  };
+};
+
+const createArtifactsFromSkill = (skill: SkillCatalogItem | null | undefined): ChatArtifact[] =>
+  (skill?.files || []).map((file, index) => createArtifactFromSkillFile(file, index));
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -656,6 +740,49 @@ const renderArtifactCardHtml = (artifact: ChatArtifact): string => {
   ].join('');
 };
 
+const skillCreatorThinkingAnchor = '[[skill-creator-thinking-anchor]]';
+const skillCompletionDismissedMarker = '[[skill-completion-selector-dismissed]]';
+const skillPackageMarkerPattern = /^\[\[skill-package:([^|\]]+)\|([^|\]]*)\|(\d+)\]\]$/;
+const hasSkillCompletionSelectorDismissed = (content: string) =>
+  content.includes(skillCompletionDismissedMarker);
+const hasSkillCreatorCompletionMarker = (content: string) =>
+  /技能已经创建完成|\[\[skill-package:|<skill_json>|技能完整度校验通过|已保存为个人草稿|已整理成一个可预览的技能包/i.test(content);
+
+const createSkillPackageMarker = (skill: SkillCatalogItem, fileCount: number) =>
+  `[[skill-package:${encodeURIComponent(skill.id)}|${encodeURIComponent(skill.name)}|${fileCount}]]`;
+
+const renderSkillPackageCardHtml = (id: string, encodedName: string, fileCount: string) => {
+  const decodedName = (() => {
+    try {
+      return decodeURIComponent(encodedName);
+    } catch {
+      return encodedName;
+    }
+  })();
+  const decodedId = (() => {
+    try {
+      return decodeURIComponent(id);
+    } catch {
+      return id;
+    }
+  })();
+  const count = Number(fileCount) || 0;
+
+  return [
+    `<div class="skill-package-card" data-skill-package="${escapeAttribute(decodedId)}" data-skill-package-name="${escapeAttribute(decodedName)}">`,
+    '<span class="skill-package-icon" aria-hidden="true"><span>SK</span></span>',
+    '<span class="skill-package-main">',
+    `<strong>${escapeHtml(decodedName || '技能包')}</strong>`,
+    `<small>${escapeHtml(decodedId)} · ${count || 1} 个技能文件</small>`,
+    '</span>',
+    '<span class="skill-package-actions">',
+    `<button type="button" class="skill-package-action secondary" data-skill-package-download="${escapeAttribute(decodedId)}">下载</button>`,
+    `<button type="button" class="skill-package-action primary" data-skill-package-save="${escapeAttribute(decodedId)}">保存</button>`,
+    '</span>',
+    '</div>',
+  ].join('');
+};
+
 const isOutputArtifact = (artifact: ChatArtifact) =>
   /(^|[/_.-])(output|outputs|pattern|patterns|template|report|draft|document)([/_.-]|$)/i.test(artifact.title);
 
@@ -674,113 +801,6 @@ const getSkillArtifactTypeMeta = (artifact: ChatArtifact) => {
     return { label: '规则类', className: 'rule', description: '补充输入、检查或边界规则', presentation: 'plain' };
   }
   return { label: '支持文件', className: 'support', description: '技能运行所需的辅助内容', presentation: 'plain' };
-};
-
-const renderSkillArtifactPlainFileHtml = (artifact: ChatArtifact): string => {
-  const typeMeta = getSkillArtifactTypeMeta(artifact);
-  const iconLabel = typeMeta.className === 'rule' ? '规' : typeMeta.className === 'main' ? '入' : '文';
-  return [
-    `<button type="button" class="skill-file-link ${escapeAttribute(typeMeta.className)}" data-artifact-id="${escapeAttribute(artifact.id)}">`,
-    `<span class="skill-plain-file-icon" aria-hidden="true">${escapeHtml(iconLabel)}</span>`,
-    '<span>',
-    `<strong>${escapeHtml(artifact.title)}</strong>`,
-    '</span>',
-    '<span class="skill-file-action">查看</span>',
-    '</button>',
-  ].join('');
-};
-
-const renderSkillArtifactCardHtml = (artifact: ChatArtifact): string => {
-  const fileMeta = getArtifactFileMeta(artifact);
-  return [
-    `<button type="button" class="skill-template-file-card" data-artifact-id="${escapeAttribute(artifact.id)}">`,
-    '<span class="skill-template-file-icon" aria-hidden="true">',
-    `<span class="artifact-file-icon ${escapeAttribute(fileMeta.className)}"><span>${escapeHtml(fileMeta.label)}</span></span>`,
-    '</span>',
-    '<span class="skill-template-file-main">',
-    `<small>输出模板文件</small>`,
-    `<strong>${escapeHtml(artifact.title)}</strong>`,
-    '</span>',
-    '<span class="skill-file-action primary">查看</span>',
-    '</button>',
-  ].join('');
-};
-
-const renderSkillCreatorFileListHtml = (artifacts: ChatArtifact[]) => {
-  if (!artifacts.length) return '<p class="live-answer-paragraph">正在生成技能文件...</p>';
-
-  const sections: Array<{
-    key: string;
-    label: string;
-    description: string;
-    className: string;
-    presentation: string;
-    artifacts: ChatArtifact[];
-  }> = [];
-
-  artifacts.forEach((artifact) => {
-    const typeMeta = getSkillArtifactTypeMeta(artifact);
-    let section = sections.find((item) => item.key === typeMeta.className);
-    if (!section) {
-      section = {
-        key: typeMeta.className,
-        label: typeMeta.label,
-        description: typeMeta.description,
-        className: typeMeta.className,
-        presentation: typeMeta.presentation,
-        artifacts: [],
-      };
-      sections.push(section);
-    }
-    section.artifacts.push(artifact);
-  });
-
-  return sections.map((section, index) => {
-    const fileHtml = section.artifacts
-      .map((artifact) =>
-        section.presentation === 'card'
-          ? renderSkillArtifactCardHtml(artifact)
-          : renderSkillArtifactPlainFileHtml(artifact),
-      )
-      .join('');
-
-    return [
-      `<section class="skill-file-section ${escapeAttribute(section.className)}">`,
-      '<div class="skill-file-section-heading">',
-      `<span>${index + 1}.</span>`,
-      `<strong>${escapeHtml(section.label)}</strong>`,
-      `<small>${escapeHtml(section.description)}</small>`,
-      '</div>',
-      `<div class="skill-file-section-body">${fileHtml}</div>`,
-      '</section>',
-    ].join('');
-  }).join('');
-};
-
-const renderSkillCreatorSummaryMarkdown = (skill: SkillCatalogItem | null, artifacts: ChatArtifact[]) => {
-  const skillName = skill?.name || createdSkillIdFromAnswer.value || '新技能';
-  const skillId = skill?.id || createdSkillIdFromAnswer.value;
-  const usageLine = skillId
-    ? `后续可以在「技能」弹窗或技能管理页查看和编辑；需要共享时可到技能管理中发布；启用后可在输入框输入 \`/${skillId}\` 调用。`
-    : '后续可以在「技能」弹窗或技能管理页查看和编辑；需要共享时可到技能管理中发布；启用后可在输入框中通过技能名调用。';
-
-  return [
-    `已生成「${skillName}」技能。`,
-    '',
-    '生成文件：',
-    '',
-    usageLine,
-  ].join('\n');
-};
-
-const renderSkillCreatorSummaryHtml = (skill: SkillCatalogItem | null, artifacts: ChatArtifact[]) => {
-  const [intro = '', outro = ''] = renderSkillCreatorSummaryMarkdown(skill, artifacts).split(/\n生成文件：\n/);
-
-  return [
-    renderMarkdownBlocks(`${intro.trim()}\n\n生成文件：`),
-    `<div class="skill-result-file-list" aria-label="生成文件">${renderSkillCreatorFileListHtml(artifacts)}</div>`,
-    renderMarkdownBlocks(outro.trim()),
-  ].join('');
 };
 
 type MarkdownRenderOptions = {
@@ -833,6 +853,26 @@ const renderMarkdownBlocks = (text: string, options: MarkdownRenderOptions = {})
     if (!line) {
       flushParagraph();
       flushList();
+      index += 1;
+      continue;
+    }
+
+    if (line === skillCreatorThinkingAnchor) {
+      flushParagraph();
+      flushList();
+      index += 1;
+      continue;
+    }
+
+    const skillPackageMatch = line.match(skillPackageMarkerPattern);
+    if (skillPackageMatch) {
+      flushParagraph();
+      flushList();
+      html.push(renderSkillPackageCardHtml(
+        skillPackageMatch[1] || '',
+        skillPackageMatch[2] || '',
+        skillPackageMatch[3] || '1',
+      ));
       index += 1;
       continue;
     }
@@ -921,7 +961,14 @@ const renderMarkdownBlocks = (text: string, options: MarkdownRenderOptions = {})
         quoteLines.push(nextQuote[1] || '');
         index += 1;
       }
-      html.push(`<blockquote class="live-answer-quote">${renderInlineMarkdown(quoteLines.join('\n')).replace(/\n/g, '<br>')}</blockquote>`);
+      const quoteText = quoteLines.join('\n');
+      const quoteClass = /^“.+”\s*已(?:选择|补充|跳过)/.test(quoteText.trim())
+        ? ' live-selection-notice'
+        : '';
+      const quoteHtml = quoteClass
+        ? renderSelectionNoticeHtml(quoteText)
+        : renderInlineMarkdown(quoteText).replace(/\n/g, '<br>');
+      html.push(`<blockquote class="live-answer-quote${quoteClass}">${quoteHtml}</blockquote>`);
       continue;
     }
 
@@ -1023,6 +1070,9 @@ const extractSkillCreatorBrief = (prompt: string) => {
   return withoutCommand || '创建一个可复用的法律工作流技能';
 };
 
+const extractInitialSkillCreatorBrief = (prompt: string) =>
+  extractSkillCreatorBrief(prompt.split(/\n\n用户补充：/)[0] ?? prompt);
+
 const inferSkillCreatorAnswers = (prompt: string): SkillCreatorAnswers => {
   const normalized = prompt.toLowerCase();
 
@@ -1062,11 +1112,538 @@ const inferSkillCreatorAnswers = (prompt: string): SkillCreatorAnswers => {
   };
 };
 
+const buildSkillCreatorGenerationAnswers = (
+  prompt: string,
+  answers: SkillCreatorGuideAnswer[],
+): SkillCreatorAnswers => {
+  const inferred = inferSkillCreatorAnswers(prompt);
+  const intakeSummary = answers.map((answer) => {
+    const assetText = answer.assets?.length
+      ? `；参考材料：${answer.assets.map((asset) => `${asset.sourceLabel} - ${asset.name}`).join('、')}`
+      : '';
+    return `${answer.title}：${answer.label}${answer.description ? `（${answer.description}）` : ''}${assetText}`;
+  });
+  const materials = answers.flatMap((answer) =>
+    answer.assets?.map((asset) => `${asset.sourceLabel} - ${asset.name}（${asset.kind}）`) ?? []
+  );
+  const outputHints = answers
+    .flatMap((answer) => answer.assets ?? [])
+    .filter((asset) => /template|example|history/i.test(asset.kind))
+    .map((asset) => `${asset.sourceLabel} - ${asset.name}`);
+
+  return {
+    ...inferred,
+    source: Array.from(new Set([inferred.source, ...materials])).filter(Boolean).join('；'),
+    output: Array.from(new Set([inferred.output, ...outputHints])).filter(Boolean).join('；'),
+    intakeSummary,
+    materials,
+    outputHints,
+  };
+};
+
+const getSkillCreatorIntakeClosingLine = (roundIndex: number, hasMaterialSuggestion: boolean) => {
+  if (hasMaterialSuggestion) {
+    return '先回答这个问题；如果需要补参考材料，我会在下一步单独给材料入口。';
+  }
+
+  if (roundIndex <= 0) return '请选择最接近的一项；如果都不合适，可以用“其他补充”。';
+  if (roundIndex === 1) return '继续选一个最贴近实际工作的选项即可。';
+  if (roundIndex === 2) return '这一轮只确认最常见的处理方式，特殊情况可以写在“其他补充”。';
+  return '直接补这一项即可，提交后我会再次判断是否已经可以创建。';
+};
+
+const getSkillCreatorIntakeLeadLine = (roundIndex: number, focusText: string, currentText: string) => {
+  const brief = trimSkillCreatorNoticeText(currentText, 30);
+  if (roundIndex <= 0) {
+    return brief
+      ? `我已经收到「${brief}」这个技能创建需求。先确认${focusText}，避免后面生成的触发条件和目标跑偏。`
+      : `我已经收到你的技能创建需求。先确认${focusText}，避免后面生成的触发条件和目标跑偏。`;
+  }
+
+  if (roundIndex === 1) {
+    return `刚才的选择已经记录。接下来确认${focusText}，这样技能才能知道运行时该参考什么、按什么依据判断。`;
+  }
+
+  if (roundIndex === 2) {
+    return `前面的场景和依据已经基本清楚了。现在补${focusText}，主要是为了把工作流和交付标准写实。`;
+  }
+
+  return `还差${focusText}这一块。补完后如果信息已经够，我会直接进入技能文件生成。`;
+};
+
+const renderSkillCreatorIntakeReply = (
+  result: SkillCreatorIntakeEvaluationResult,
+  context: {
+    currentText: string;
+    answers: SkillCreatorGuideAnswer[];
+  },
+) => {
+  const question = result.nextStep;
+  const focusItems = [
+    ...(result.missing.length ? result.missing : []),
+    question?.title,
+  ]
+    .filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+    .map((item) => item
+      .replace(/[？?。.\s]+$/g, '')
+      .replace(/\//g, '和')
+      .trim())
+    .filter(Boolean);
+  const focusText = Array.from(new Set(focusItems)).slice(0, 2).join('、') || '使用场景和输出要求';
+  const roundIndex = context.answers.length;
+
+  return [
+    getSkillCreatorIntakeLeadLine(roundIndex, focusText, context.currentText),
+    '',
+    getSkillCreatorIntakeClosingLine(roundIndex, Boolean(question?.assetSlots?.length)),
+  ].join('\n');
+};
+
 const renderCreatedSkillAnswer = (skill: SkillCatalogItem) => [
   `技能草稿已生成：${skill.name}`,
   `当前保存范围：${skill.scope === 'team' ? '本团队' : '仅自己'}。右侧仅展示生成文件内容；启用技能后可输入 \`/${skill.id}\` 调用。`,
   `技能 ID：${skill.id}`,
 ].join('\n');
+
+const renderSkillCreatorReadyToGenerateReply = () =>
+  '信息已经收集完整，已经足够开始创建这个技能。接下来我会生成技能文件，并完成必要的结构校验。';
+
+const renderSkillCreatorCompletionReply = (skill: SkillCatalogItem) => [
+  `技能已经创建完成，已整理成一个可预览的技能包。`,
+  '',
+  createSkillPackageMarker(skill, skill.files?.length || generatedArtifacts.value.length || 1),
+].join('\n');
+
+const formatSkillCreatorOptionAnswer = (option: SkillCreatorGuideOption) =>
+  option.description ? `${option.label}：${option.description}` : option.label;
+
+const skillCreatorMaterialAnswerPrefix = '材料补充：';
+
+const formatSkillCreatorMaterialAnswer = (option: SkillCreatorMaterialOption) =>
+  `${skillCreatorMaterialAnswerPrefix}${JSON.stringify({
+    label: option.label,
+    description: option.description,
+    name: option.name,
+    sourceLabel: option.sourceLabel,
+    kind: option.kind,
+    slotId: option.slotId,
+    slotTitle: option.slotTitle,
+  })}`;
+
+const formatSkillCreatorCombinedMaterialAnswer = (
+  basePrompt: string,
+  option: SkillCreatorMaterialOption,
+) => [
+  basePrompt.trim(),
+  formatSkillCreatorMaterialAnswer(option),
+].filter(Boolean).join('\n');
+
+const parseSkillCreatorMaterialAnswer = (prompt: string) => {
+  const prefixIndex = prompt.indexOf(skillCreatorMaterialAnswerPrefix);
+  if (prefixIndex < 0) return null;
+  const rawPayload = prompt.slice(prefixIndex + skillCreatorMaterialAnswerPrefix.length).trim();
+  if (!rawPayload) return null;
+
+  try {
+    const payload = JSON.parse(rawPayload) as Partial<SkillCreatorMaterialOption>;
+    const name = typeof payload.name === 'string' && payload.name.trim()
+      ? payload.name.trim()
+      : typeof payload.label === 'string' ? payload.label.trim() : '';
+    const sourceLabel = typeof payload.sourceLabel === 'string' && payload.sourceLabel.trim()
+      ? payload.sourceLabel.trim()
+      : '补充材料';
+    const kind = typeof payload.kind === 'string' && payload.kind.trim()
+      ? payload.kind.trim()
+      : 'local-file';
+    if (!name) return null;
+
+    return {
+      label: typeof payload.label === 'string' && payload.label.trim() ? payload.label.trim() : name,
+      description: typeof payload.description === 'string' && payload.description.trim()
+        ? payload.description.trim()
+        : `${sourceLabel}：${name}`,
+      asset: {
+        name,
+        sourceLabel,
+        kind,
+      },
+    };
+  } catch {
+    return null;
+  }
+};
+
+const createSkillCreatorAnswerFromPrompt = (
+  prompt: string,
+  step: SkillCreatorGuideStep | null,
+): SkillCreatorGuideAnswer | null => {
+  if (!step) return null;
+
+  const normalizedPrompt = prompt.trim();
+  if (!normalizedPrompt) return null;
+  const materialAnswer = parseSkillCreatorMaterialAnswer(normalizedPrompt);
+  const promptWithoutMaterial = materialAnswer
+    ? normalizedPrompt.slice(0, normalizedPrompt.indexOf(skillCreatorMaterialAnswerPrefix)).trim()
+    : normalizedPrompt;
+  if (materialAnswer && !promptWithoutMaterial) {
+    return {
+      field: step.field,
+      title: step.title,
+      label: materialAnswer.label,
+      description: materialAnswer.description,
+      assets: [materialAnswer.asset],
+    };
+  }
+
+  const customAnswerPrefix = '自定义补充：';
+  if (promptWithoutMaterial.startsWith(customAnswerPrefix)) {
+    const customLabel = promptWithoutMaterial.slice(customAnswerPrefix.length).trim();
+    if (!customLabel) return null;
+
+    return {
+      field: step.field,
+      title: step.title,
+      label: customLabel,
+      description: materialAnswer
+        ? `用户在其他补充中直接填写；参考材料：${materialAnswer.description}`
+        : '用户在其他补充中直接填写。',
+      assets: materialAnswer ? [materialAnswer.asset] : undefined,
+    };
+  }
+
+  const matchedOption = step.options.find((option) =>
+    promptWithoutMaterial.includes(option.label)
+    || (option.description && promptWithoutMaterial.includes(option.description))
+  );
+
+  return {
+    field: step.field,
+    title: step.title,
+    label: matchedOption?.label || promptWithoutMaterial || materialAnswer?.label || normalizedPrompt,
+    description: [
+      matchedOption?.description || (matchedOption ? undefined : '用户直接输入的补充信息。'),
+      materialAnswer ? `参考材料：${materialAnswer.description}` : '',
+    ].filter(Boolean).join('；') || undefined,
+    assets: materialAnswer ? [materialAnswer.asset] : undefined,
+  };
+};
+
+const inferRestoredSkillCreatorField = (title: string, index: number) => {
+  if (/触发|场景|目标|根本/.test(title)) return 'trigger-scenario';
+  if (/合同类型|审查范围|文书类型|技能类型|范围/.test(title)) return 'scope';
+  if (/依据|材料|读取|上传|参考|知识库|底稿|规则/.test(title)) return 'runtime-materials';
+  if (/输出|标准|格式|交付|成果/.test(title)) return 'output-quality';
+  if (/流程|步骤|工作流|处理方式/.test(title)) return 'workflow';
+  if (/边界|复核|验收|红线|失败|质量/.test(title)) return 'quality-boundaries';
+  return `restored-${index + 1}`;
+};
+
+const parseSkillCreatorSelectionAnswers = (content: string): SkillCreatorGuideAnswer[] => {
+  const answers: SkillCreatorGuideAnswer[] = [];
+  const selectionPattern = /^>\s*[“"]([^”"]+)[”"]\s*已(?:选择|补充|跳过)\s*(?:\*\*)?(.+?)(?:\*\*)?[。.]?\s*$/gm;
+  const seen = new Set<string>();
+
+  for (const match of content.matchAll(selectionPattern)) {
+    const title = (match[1] || '').trim();
+    const label = (match[2] || '').replace(/\*\*/g, '').trim();
+    if (!title || !label) continue;
+
+    const key = `${title}::${label}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    answers.push({
+      field: inferRestoredSkillCreatorField(title, answers.length),
+      title,
+      label,
+      description: '从历史对话中的选择记录恢复。',
+    });
+  }
+
+  return answers;
+};
+
+const hasPendingSkillCreatorMaterialSelector = computed(() =>
+  Boolean(pendingSkillCreatorMaterialStep.value && pendingSkillCreatorMaterialPrompt.value.trim())
+);
+
+const isSkillCreatorGenerationFinalized = computed(() =>
+  isSkillCreatorConversation.value
+  && (
+    skillValidationStatus.value === 'complete'
+    || Boolean(createdSkillResult.value)
+    || hasSkillCreatorCompletionMarker(generatedAnswer.value)
+  )
+);
+
+const shouldShowSkillCreatorSelector = computed(() =>
+  Boolean(pendingSkillCreatorStep.value)
+  && isSkillCreatorConversation.value
+  && !isGeneratingAnswer.value
+  && !isSkillCreatorGenerationFinalized.value
+  && !createdSkillResult.value
+  && !isSkillCreatorSelectorDismissed.value
+  && !hasPendingSkillCreatorMaterialSelector.value
+);
+
+const shouldOfferDraftMaterials = (slot: SkillCreatorGuideAssetSlot) =>
+  slot.type !== 'template' && (slot.allowLocal || slot.allowKnowledge || slot.type === 'draft' || slot.type === 'knowledge' || slot.type === 'rule');
+
+const shouldOfferTemplateMaterials = (slot: SkillCreatorGuideAssetSlot) =>
+  slot.allowTemplate || slot.type === 'template' || slot.type === 'example' || slot.type === 'history';
+
+const createMaterialOption = (
+  option: Omit<SkillCreatorMaterialOption, 'slotId' | 'slotTitle'>,
+  slot: SkillCreatorGuideAssetSlot,
+): SkillCreatorMaterialOption => ({
+  ...option,
+  id: `${slot.id}-${option.id}`,
+  slotId: slot.id,
+  slotTitle: slot.title,
+});
+
+const createSkillCreatorMaterialOptions = (step: SkillCreatorGuideStep | null) => {
+  const slots = step?.assetSlots ?? [];
+  if (!step || !slots.length) return [];
+
+  const options: SkillCreatorMaterialOption[] = [];
+  slots.forEach((slot) => {
+    if (shouldOfferDraftMaterials(slot)) {
+      options.push(
+        createMaterialOption({
+          id: 'local-draft',
+          label: '本地底稿',
+          description: '按典型合同、事实说明或证据材料抽象输入要求。',
+          name: '待上传本地底稿',
+          sourceLabel: '本地底稿',
+          kind: 'local-file',
+        }, slot),
+        createMaterialOption({
+          id: 'team-rules',
+          label: '团队规则',
+          description: '把内部规范、审批口径或条线 Playbook 写成判断依据。',
+          name: '律所内部规范 / 条线 Playbook',
+          sourceLabel: '团队规则',
+          kind: 'team-rule',
+        }, slot),
+        createMaterialOption({
+          id: 'knowledge-base',
+          label: '知识库引用',
+          description: '把案例库、法规库、合同范本库等转成检索和引用规则。',
+          name: '团队知识库资料',
+          sourceLabel: '知识库',
+          kind: 'knowledge-file',
+        }, slot),
+      );
+    }
+
+    if (shouldOfferTemplateMaterials(slot)) {
+      defaultTemplateAssets.slice(0, 2).forEach((template) => {
+        options.push(createMaterialOption({
+          id: `template-${template.id}`,
+          label: template.name,
+          description: `使用「${template.source}」中的模板结构作为输出约束。`,
+          name: template.name,
+          sourceLabel: template.source,
+          kind: 'template',
+        }, slot));
+      });
+
+      const historyItem = recentHistory.value.find((item) =>
+        item.answer?.content?.trim()
+        && item.id !== activeHistoryId.value
+      );
+      if (historyItem) {
+        options.push(createMaterialOption({
+          id: `history-${historyItem.id}`,
+          label: '历史输出',
+          description: `引用「${historyItem.title}」作为示例成果或格式参考。`,
+          name: historyItem.title,
+          sourceLabel: '历史会话',
+          kind: 'history-output',
+        }, slot));
+      }
+
+        options.push(createMaterialOption({
+          id: 'example-output',
+          label: '示例成果',
+          description: '由我按当前需求拟定示例输入和示例输出，约束交付质量。',
+          name: '待补充示例成果',
+          sourceLabel: '示例输出',
+          kind: 'example-output',
+      }, slot));
+    }
+  });
+
+  const seen = new Set<string>();
+  return options.filter((option) => {
+    const key = `${option.kind}:${option.name}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, 6);
+};
+
+const getSkillCreatorMaterialOptionsForStep = (step: SkillCreatorGuideStep | null) =>
+  createSkillCreatorMaterialOptions(step);
+
+const skillCreatorMaterialOptions = computed(() =>
+  createSkillCreatorMaterialOptions(pendingSkillCreatorMaterialStep.value)
+);
+
+const skillCreatorMaterialDecisionText = computed(() => {
+  const text = pendingSkillCreatorMaterialPrompt.value
+    .replace(/^自定义补充：/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!text) return '';
+  return text.length > 42 ? `${text.slice(0, 42)}...` : text;
+});
+
+const trimSkillCreatorNoticeText = (value: string, maxLength = 44) => {
+  const text = value.replace(/\s+/g, ' ').trim();
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+};
+
+const appendSkillCreatorSelectionNotice = (title: string, label: string) => {
+  const question = trimSkillCreatorNoticeText(title.replace(/[?？。.\s]+$/g, ''), 54);
+  const selection = trimSkillCreatorNoticeText(label || '跳过', 54);
+  if (!question || !selection) return;
+
+  const notice = `> “${question}” 已选择 **${selection}**。`;
+  const baseContent = generatedAnswer.value.trimEnd();
+  const nextContent = baseContent ? `${baseContent}\n\n${notice}` : notice;
+  syncAnswerContent(nextContent);
+  scheduleLiveOutputScroll('answer');
+
+  updateConversationAnswer(activeHistoryId.value, completedQuestion.value, {
+    content: nextContent,
+    model: answerModel.value,
+    cachedAt: new Date().toISOString(),
+    thinkingContent: liveThinkingContent.value,
+  });
+};
+
+const shouldShowSkillCreatorMaterials = computed(() =>
+  hasPendingSkillCreatorMaterialSelector.value
+  && isSkillCreatorConversation.value
+  && !isGeneratingAnswer.value
+  && !isSkillCreatorGenerationFinalized.value
+  && !createdSkillResult.value
+  && skillCreatorMaterialOptions.value.length > 0
+);
+
+const shouldAskForSkillCreatorMaterial = (step: SkillCreatorGuideStep | null) =>
+  getSkillCreatorMaterialOptionsForStep(step).length > 0;
+
+const queueSkillCreatorMaterialSelector = (
+  answerPrompt: string,
+  notice?: { title: string; label: string },
+) => {
+  if (!pendingSkillCreatorStep.value || !shouldAskForSkillCreatorMaterial(pendingSkillCreatorStep.value)) return false;
+  if (notice) appendSkillCreatorSelectionNotice(notice.title, notice.label);
+  pendingSkillCreatorMaterialStep.value = pendingSkillCreatorStep.value;
+  pendingSkillCreatorMaterialPrompt.value = answerPrompt.trim();
+  isSkillCreatorOtherOpen.value = false;
+  skillCreatorOtherInput.value = '';
+  isSkillCreatorSelectorDismissed.value = false;
+  return true;
+};
+
+const submitSkillCreatorAnswerPrompt = (
+  answerPrompt: string,
+  notice?: { title: string; label: string },
+) => {
+  if (notice) appendSkillCreatorSelectionNotice(notice.title, notice.label);
+  pendingSkillCreatorMaterialStep.value = null;
+  pendingSkillCreatorMaterialPrompt.value = '';
+  isSkillCreatorOtherOpen.value = false;
+  skillCreatorOtherInput.value = '';
+  isSkillCreatorSelectorDismissed.value = false;
+  void completeLiveConversation(answerPrompt, false, activeHistoryId.value || undefined);
+};
+
+const submitSkillCreatorSelectorOption = (option: SkillCreatorGuideOption) => {
+  if (!pendingSkillCreatorStep.value || isGeneratingAnswer.value) return;
+  const answerPrompt = formatSkillCreatorOptionAnswer(option);
+  const notice = { title: pendingSkillCreatorStep.value.title, label: option.label };
+  if (queueSkillCreatorMaterialSelector(answerPrompt, notice)) return;
+  submitSkillCreatorAnswerPrompt(answerPrompt, notice);
+};
+
+const submitSkillCreatorMaterialOption = (option: SkillCreatorMaterialOption) => {
+  if (!pendingSkillCreatorStep.value || isGeneratingAnswer.value || !pendingSkillCreatorMaterialPrompt.value.trim()) return;
+  submitSkillCreatorAnswerPrompt(formatSkillCreatorCombinedMaterialAnswer(
+    pendingSkillCreatorMaterialPrompt.value,
+    option,
+  ), { title: '是否补充一份参考材料？', label: option.label });
+};
+
+const createCustomSkillCreatorMaterialOption = (value: string): SkillCreatorMaterialOption => ({
+  id: 'custom-material',
+  label: '其他材料',
+  description: value,
+  name: value,
+  sourceLabel: '用户补充',
+  kind: 'local-file',
+  slotId: pendingSkillCreatorMaterialStep.value?.assetSlots?.[0]?.id,
+  slotTitle: pendingSkillCreatorMaterialStep.value?.assetSlots?.[0]?.title,
+});
+
+const submitSkillCreatorMaterialText = (value: string) => {
+  if (!pendingSkillCreatorStep.value || isGeneratingAnswer.value || !pendingSkillCreatorMaterialPrompt.value.trim()) return;
+  submitSkillCreatorAnswerPrompt(formatSkillCreatorCombinedMaterialAnswer(
+    pendingSkillCreatorMaterialPrompt.value,
+    createCustomSkillCreatorMaterialOption(value),
+  ), { title: '是否补充一份参考材料？', label: value });
+};
+
+const openSkillCreatorOtherInput = () => {
+  if (isGeneratingAnswer.value) return;
+  isSkillCreatorOtherOpen.value = true;
+  void nextTick(() => {
+    skillCreatorOtherInputRef.value?.focus();
+  });
+};
+
+const dismissSkillCreatorSelector = () => {
+  isSkillCreatorOtherOpen.value = false;
+  skillCreatorOtherInput.value = '';
+  isSkillCreatorSelectorDismissed.value = true;
+};
+
+const submitSkillCreatorOtherInput = () => {
+  if (!pendingSkillCreatorStep.value || isGeneratingAnswer.value) return;
+  const value = skillCreatorOtherInput.value.trim();
+  if (!value) {
+    openSkillCreatorOtherInput();
+    return;
+  }
+  const answerPrompt = `自定义补充：${value}`;
+  if (hasPendingSkillCreatorMaterialSelector.value) {
+    submitSkillCreatorMaterialText(value);
+    return;
+  }
+  const notice = { title: pendingSkillCreatorStep.value.title, label: value };
+  if (queueSkillCreatorMaterialSelector(answerPrompt, notice)) return;
+  submitSkillCreatorAnswerPrompt(answerPrompt, notice);
+};
+
+const submitSkillCreatorSkip = () => {
+  if (!pendingSkillCreatorStep.value || isGeneratingAnswer.value) return;
+  submitSkillCreatorAnswerPrompt('暂时跳过这个问题，请按默认判断继续。', {
+    title: pendingSkillCreatorStep.value.title,
+    label: '跳过',
+  });
+};
+
+const submitSkillCreatorMaterialSkip = () => {
+  if (!pendingSkillCreatorStep.value || isGeneratingAnswer.value || !pendingSkillCreatorMaterialPrompt.value.trim()) return;
+  submitSkillCreatorAnswerPrompt(pendingSkillCreatorMaterialPrompt.value, {
+    title: '是否补充一份参考材料？',
+    label: '跳过',
+  });
+};
 
 type StoredPublishSettings = Partial<Omit<SkillPublishSettings, 'visibility' | 'scopePermissions'>> & {
   visibility?: SkillPublishVisibility | 'public';
@@ -1235,6 +1812,14 @@ const syncAnswerContent = (content: string) => {
   generatedAnswer.value = content;
 };
 
+const mergeSkillCreatorGeneratedContent = (existingContent: string, generatedContent: string) => {
+  const existing = existingContent.trimEnd();
+  const generated = generatedContent.trim();
+  if (!generated) return existing;
+  if (!existing || generated.startsWith(existing)) return generated;
+  return `${existing}\n\n${generated}`;
+};
+
 const hasComposerContent = computed(() => inputValue.value.length > 0 || Boolean(selectedTemplate.value));
 const reportMock = docxLegalResearchMock;
 const isLiveConversation = computed(() =>
@@ -1243,7 +1828,9 @@ const isLiveConversation = computed(() =>
   || Boolean(answerError.value)
   || Boolean(answerNotice.value)
 );
-const isSkillCreatorConversation = computed(() => /\/skill-creator\b/i.test(completedQuestion.value));
+const isSkillCreatorConversation = computed(() =>
+  isSkillCreatorFlowActive.value || /\/skill-creator\b/i.test(completedQuestion.value)
+);
 const renderableAnswerContent = computed(() =>
   isSkillCreatorConversation.value
     ? formatSkillCreatorDisplayContent(generatedAnswer.value)
@@ -1252,53 +1839,94 @@ const renderableAnswerContent = computed(() =>
 const generatedArtifacts = computed(() => {
   if (!isLiveConversation.value) return [];
 
-  return extractArtifactsFromAnswer(renderableAnswerContent.value, {
+  const artifactSource = isSkillCreatorConversation.value
+    ? formatSkillCreatorProcessContent(generatedAnswer.value)
+    : renderableAnswerContent.value;
+
+  const extractedArtifacts = extractArtifactsFromAnswer(artifactSource, {
     generatedOnly: isSkillCreatorConversation.value,
   });
+
+  if (extractedArtifacts.length || !isSkillCreatorConversation.value) {
+    return extractedArtifacts;
+  }
+
+  const skillId = activeCreatedSkillId.value || extractCreatedSkillIdFromContent(generatedAnswer.value);
+  const skill = createdSkillResult.value ?? (skillId ? getAnySkillByNameOrId(skillId) : null);
+  return createArtifactsFromSkill(skill);
 });
-const skillCreatorSummaryContent = computed(() =>
-  isSkillCreatorConversation.value
-    ? renderSkillCreatorSummaryMarkdown(skillCompletionSkill.value, generatedArtifacts.value)
-    : ''
+const extractSkillCreatorPostThinkingVisible = (content: string): string => {
+  const markerIndex = content.lastIndexOf('[[skill-package:');
+  if (markerIndex < 0) return '';
+
+  const markerEnd = content.indexOf('\n', markerIndex);
+  const markerLine = content.slice(markerIndex, markerEnd < 0 ? content.length : markerEnd).trim();
+  if (!skillPackageMarkerPattern.test(markerLine)) return '';
+
+  const beforeMarker = content.slice(0, markerIndex).trimEnd();
+  const completionParagraph = beforeMarker
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .reverse()
+    .find((paragraph) => /技能已经创建完成|可预览的技能包/.test(paragraph))
+    || '技能已经创建完成，已整理成一个可预览的技能包。';
+
+  return `${completionParagraph}\n\n${markerLine}`;
+};
+const liveAnswerParts = computed(() => {
+  const text = renderableAnswerContent.value;
+  const anchorIndex = text.indexOf(skillCreatorThinkingAnchor);
+  if (anchorIndex < 0) {
+    return { before: text, after: '' };
+  }
+
+  const postThinkingContent = text.slice(anchorIndex + skillCreatorThinkingAnchor.length).trimStart();
+
+  return {
+    before: text.slice(0, anchorIndex).trimEnd(),
+    after: isSkillCreatorConversation.value
+      ? extractSkillCreatorPostThinkingVisible(postThinkingContent)
+      : postThinkingContent,
+  };
+});
+const liveAnswerBeforeThinkingHtml = computed(() =>
+  renderLiveAnswerMarkdown(liveAnswerParts.value.before),
 );
-const liveAnswerHtml = computed(() =>
-  isSkillCreatorConversation.value
-    ? renderSkillCreatorSummaryHtml(skillCompletionSkill.value, generatedArtifacts.value)
-    : renderLiveAnswerMarkdown(renderableAnswerContent.value),
+const liveAnswerAfterThinkingHtml = computed(() =>
+  renderLiveAnswerMarkdown(liveAnswerParts.value.after),
 );
-const hasLiveThinking = computed(() =>
-  isSkillCreatorConversation.value
-  && (isLiveConversation.value || Boolean(liveThinkingContent.value.trim()))
-);
-const isLiveThinkingStreaming = computed(() =>
+const shouldShowSkillCreatorThinking = computed(() =>
   isSkillCreatorConversation.value
   && isGeneratingAnswer.value
-  && !generatedAnswer.value.trim()
+);
+const hasLiveThinking = computed(() =>
+  Boolean(liveThinkingContent.value.trim()) || shouldShowSkillCreatorThinking.value
+);
+const isLiveThinkingStreaming = computed(() =>
+  hasLiveThinking.value
+  && isGeneratingAnswer.value
+  && (isSkillCreatorConversation.value || !generatedAnswer.value.trim())
   && skillValidationStatus.value === 'idle'
 );
 const canToggleLiveThinking = computed(() =>
-  hasLiveThinking.value && !isLiveThinkingStreaming.value
+  hasLiveThinking.value
 );
 const shouldShowLiveThinkingBody = computed(() =>
-  isLiveThinkingStreaming.value || (canToggleLiveThinking.value && isLiveThinkingExpanded.value)
+  hasLiveThinking.value && isLiveThinkingExpanded.value
 );
 const shouldShowSkillGenerationStatus = computed(() =>
-  isSkillCreatorConversation.value
-  && isGeneratingAnswer.value
-  && Boolean(generatedAnswer.value.trim())
-  && skillValidationStatus.value === 'idle'
+  false
 );
 const liveThinkingLabel = computed(() =>
-  isSkillCreatorConversation.value
-    ? isLiveThinkingStreaming.value ? '正在创建' : '创建过程'
-    : isLiveThinkingStreaming.value ? '正在思考' : '思考过程'
+  isGeneratingAnswer.value ? '正在思考' : '思考过程'
 );
 const liveThinkingHint = computed(() => {
-  const processName = isSkillCreatorConversation.value ? '创建过程' : '思考过程';
-  if (isLiveThinkingStreaming.value) return isSkillCreatorConversation.value ? '正在创建' : '正在思考';
+  const processName = '思考过程';
   if (isLiveThinkingExpanded.value) return `收起${processName}`;
+  if (isGeneratingAnswer.value) return `点击展开查看实时${processName}`;
   if (liveThinkingContent.value.trim()) return `点击展开查看完整${processName}`;
-  return isGeneratingAnswer.value ? `点击展开查看流式${processName}` : `本次历史暂未保存${processName}`;
+  return `本次历史暂未保存${processName}`;
 });
 const liveThinkingBodyHtml = computed(() =>
   renderLiveAnswerMarkdown(
@@ -1307,8 +1935,8 @@ const liveThinkingBodyHtml = computed(() =>
       : isSkillCreatorConversation.value && generatedAnswer.value.trim()
         ? formatSkillCreatorProcessContent(generatedAnswer.value)
       : isGeneratingAnswer.value
-        ? `正在等待模型返回${isSkillCreatorConversation.value ? '创建过程' : '思考内容'}...`
-        : `这条历史没有保存到${isSkillCreatorConversation.value ? '创建过程' : '思考过程'}；后续生成会自动保留。`,
+        ? '正在等待模型返回思考内容...'
+        : '这条历史没有保存到思考过程；后续生成会自动保留。',
   )
 );
 
@@ -1368,13 +1996,37 @@ const canSavePublishSettings = computed(() =>
   Boolean(skillCompletionSkill.value && publishSettings.value.name.trim() && publishSettings.value.description.trim())
 );
 const shouldShowSkillValidation = computed(() =>
-  isSkillCreatorConversation.value && skillValidationStatus.value === 'checking'
+  false
 );
 const shouldShowSkillCompletion = computed(() =>
   isSkillCreatorConversation.value
   && skillValidationStatus.value === 'complete'
   && Boolean(skillCompletionSkill.value)
 );
+const skillCreatorCompletionOptions: SkillCreatorCompletionOption[] = [
+  {
+    id: 'enable-and-use',
+    label: '启用后马上使用',
+    description: '启用这个技能，并回到对话输入框中通过技能名调用。',
+    recommended: true,
+  },
+  {
+    id: 'inspect-skill',
+    label: '查看 SKILL.md',
+    description: '先检查主入口说明、触发条件、工作流和边界规则。',
+  },
+  {
+    id: 'edit-references',
+    label: '调整 references',
+    description: '打开参考文件，继续改输入规则、检查清单或输出格式。',
+  },
+  {
+    id: 'publish-settings',
+    label: '发布或共享',
+    description: '进入发布设置，决定先保留个人草稿还是共享给小组或团队。',
+  },
+];
+const shouldShowSkillCreatorCompletionSelector = computed(() => false);
 const activeArtifact = computed(() =>
   generatedArtifacts.value.find((artifact) => artifact.id === activeArtifactId.value)
     ?? generatedArtifacts.value[0]
@@ -1384,8 +2036,23 @@ const isSkillArtifactWorkspace = computed(() =>
   isSkillCreatorConversation.value && generatedArtifacts.value.length > 0
 );
 const hasPreviewPanel = computed(() => isDocxPreviewOpen.value || (isArtifactPreviewOpen.value && Boolean(activeArtifact.value)));
+const previewSplitStyle = computed(() =>
+  hasPreviewPanel.value
+    ? `--preview-panel-width: ${(previewPanelRatio.value * 100).toFixed(2)}%;`
+    : ''
+);
+const isSkillCreatorAwaitingMoreInput = computed(() =>
+  isSkillCreatorConversation.value
+  && !createdSkillResult.value
+  && (
+    Boolean(pendingSkillCreatorStep.value)
+    || Boolean(pendingSkillCreatorMaterialStep.value)
+    || skillValidationStatus.value === 'checking'
+  )
+);
 const shouldShowAnswerActions = computed(() =>
   !isGeneratingAnswer.value
+  && !isSkillCreatorAwaitingMoreInput.value
   && (Boolean(generatedAnswer.value) || Boolean(answerError.value) || Boolean(answerNotice.value) || !isLiveConversation.value)
 );
 
@@ -1395,11 +2062,78 @@ const headerTitle = computed(() => {
   if (!hasCompletedMock.value) return '新提问';
   return isLiveConversation.value ? liveHeaderTitle.value : reportMock.title;
 });
-const headerTime = computed(() => {
-  if (!hasCompletedMock.value) return currentTime.value;
-  return isLiveConversation.value ? currentTime.value : reportMock.createdAt;
-});
 const completedQuestionParts = computed(() => tokenizePromptText(completedQuestion.value));
+const formatHeaderTime = (value: string) => {
+  const fallback = value.trim();
+  const timestamp = Date.parse(fallback.includes('T') ? fallback : fallback.replace(' ', 'T'));
+  if (Number.isNaN(timestamp)) return fallback;
+
+  const date = new Date(timestamp);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const time = new Intl.DateTimeFormat('zh-CN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+
+  if (startOfDate === startOfToday) return `今天 ${time}`;
+  if (startOfDate === startOfToday - 24 * 60 * 60 * 1000) return `昨天 ${time}`;
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${date.getMonth() + 1}月${date.getDate()}日 ${time}`;
+  }
+
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day} ${time}`;
+};
+const headerCreatedAt = computed(() => {
+  if (!hasCompletedMock.value) return new Date().toISOString();
+  if (!isLiveConversation.value) return reportMock.createdAt;
+  return activeHistoryItem.value?.createdAt || new Date().toISOString();
+});
+const headerTime = computed(() => formatHeaderTime(headerCreatedAt.value));
+const formatHeaderSkillName = (value: string) => {
+  if (/^skill-creator$/i.test(value)) return '技能创建';
+  return getAnySkillByNameOrId(value)?.name || value;
+};
+const headerSubtitle = computed(() => {
+  const metaItems: string[] = [];
+
+  if (hasCompletedMock.value) {
+    if (isLiveConversation.value) {
+      const assetParts = completedQuestionParts.value.filter((part) => part.type === 'asset');
+      const draftCount = assetParts.filter((part) => part.assetKind === 'local-file').length;
+      const knowledgeCount = assetParts.filter((part) => part.assetKind === 'knowledge-file').length;
+      const templateNames = Array.from(new Set(
+        assetParts
+          .filter((part) => part.assetKind === 'template')
+          .map((part) => part.value.trim())
+          .filter(Boolean),
+      ));
+      const skillNames = Array.from(new Set(
+        completedQuestionParts.value
+          .filter((part) => part.type === 'skill')
+          .map((part) => {
+            const value = part.value.replace(/^\//, '').trim();
+            return formatHeaderSkillName(value);
+          })
+          .filter(Boolean),
+      ));
+
+      if (draftCount) metaItems.push(`底稿 ${draftCount} 份`);
+      if (knowledgeCount) metaItems.push(`知识库 ${knowledgeCount} 份`);
+      if (skillNames.length) metaItems.push(`技能 ${skillNames.slice(0, 2).join('、')}`);
+      if (templateNames.length) metaItems.push(`模板 ${templateNames.slice(0, 2).join('、')}`);
+    } else {
+      metaItems.push('模板 保密协议 / 保密承诺函');
+    }
+  }
+
+  metaItems.push(headerTime.value);
+  return metaItems.join(' · ');
+});
 const processToolCount = computed(() =>
   reportMock.timeline.reduce((count, node) => count + (node.tools?.length ?? 0), 0)
 );
@@ -1409,23 +2143,12 @@ const processSummaryText = computed(() =>
 const answerStatusLabel = computed(() => {
   if (shouldShowSkillValidation.value) return '正在校验技能';
   if (isSkillCreatorConversation.value && isGeneratingAnswer.value) return '正在创建技能';
-  if (isGeneratingAnswer.value && generatedAnswer.value) return '正在流式生成';
-  if (isGeneratingAnswer.value) return '正在生成回答';
-  if (answerError.value) return '调用异常';
+  if (isGeneratingAnswer.value && generatedAnswer.value) return '正在生成';
+  if (isGeneratingAnswer.value) return '正在思考';
+  if (answerError.value) return '生成异常';
   if (answerNotice.value) return '暂无缓存';
   if (isSkillCreatorConversation.value && generatedAnswer.value) return '已创建技能';
   return '已完成回答';
-});
-
-const currentTime = computed(() => {
-  return new Intl.DateTimeFormat('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(new Date()).replace(/\//g, '-');
 });
 
 const selectedThinkingMode = ref('thinking');
@@ -1459,6 +2182,14 @@ const appendPromptToInput = (prompt: string) => {
 };
 
 const triggerSkillAction = (skillName?: string) => {
+  if (skillName && /\/skill-creator\b/i.test(skillName) && skillName.trim().includes('\n')) {
+    showSkillMenu.value = false;
+    showSkillManageModal.value = false;
+    inputValue.value = '';
+    void completeLiveConversation(skillName.trim());
+    return;
+  }
+
   if (skillName) {
     appendPromptToInput(skillName === 'skill-creator' ? skillCreatorPrompt : createSkillPrompt(skillName));
   }
@@ -1478,6 +2209,9 @@ const promptAssetLabelMap: Record<string, NonNullable<PromptPart['assetKind']>> 
   模板: 'template',
   关联知识库: 'knowledge-file',
   关联底稿: 'local-file',
+  种子文件: 'local-file',
+  交付模板: 'template',
+  检索文件: 'knowledge-file',
 };
 
 const assetBadgeLabel = (kind: NonNullable<PromptPart['assetKind']>) => {
@@ -1558,6 +2292,43 @@ const appendPromptInlineParts = (parts: PromptPart[], text: string) => {
   }
 };
 
+const tokenizeSkillCreatorUploadedFiles = (text: string): PromptPart[] | null => {
+  if (!/\/skill-creator\b/i.test(text) || !text.includes('参考文件：')) return null;
+
+  const referenceIndex = text.indexOf('参考文件：');
+  const beforeReference = text.slice(0, referenceIndex + '参考文件：'.length);
+  const fileSection = text.slice(referenceIndex + '参考文件：'.length);
+  const headingPattern = /##\s*(种子文件|交付模板|检索文件)：\s*([\s\S]*?)(?=\s+文件类型：)/g;
+  const headings = Array.from(fileSection.matchAll(headingPattern));
+  if (!headings.length) return null;
+
+  const parts: PromptPart[] = [];
+  appendPromptInlineParts(parts, beforeReference.trimEnd());
+  parts.push({ type: 'text', value: '\n' });
+
+  headings.forEach((match, index) => {
+    const label = match[1] ?? '种子文件';
+    const name = (match[2] ?? '').trim();
+    const blockStart = match.index ?? 0;
+    const nextHeading = headings[index + 1];
+    const blockEnd = nextHeading?.index ?? fileSection.length;
+    const block = fileSection.slice(blockStart, blockEnd);
+    const type = block.match(/文件类型：\s*([\s\S]*?)(?=\s+文件大小：)/)?.[1]?.trim();
+    const size = block.match(/文件大小：\s*([0-9.]+\s*[KMGT]?B|[^\s#]+)/i)?.[1]?.trim();
+    const sourceLabel = [label, size, type].filter(Boolean).join(' · ');
+
+    if (index > 0) parts.push({ type: 'text', value: '、' });
+    parts.push({
+      type: 'asset',
+      value: name,
+      assetKind: promptAssetLabelMap[label] ?? 'local-file',
+      sourceLabel,
+    });
+  });
+
+  return parts;
+};
+
 const appendPromptAssetGroup = (parts: PromptPart[], label: string, content: string) => {
   const assetKind = promptAssetLabelMap[label] ?? 'local-file';
   const normalizedContent = content.trimEnd();
@@ -1589,6 +2360,9 @@ const appendPromptAssetGroup = (parts: PromptPart[], label: string, content: str
 };
 
 const tokenizePromptText = (text: string): PromptPart[] => {
+  const skillCreatorUploadedFiles = tokenizeSkillCreatorUploadedFiles(text);
+  if (skillCreatorUploadedFiles) return skillCreatorUploadedFiles;
+
   const parts: PromptPart[] = [];
   const assetGroupPattern = /(关联模板|关联知识库|关联底稿)[：:]\s*([^；;\n]*?)(?=(?:\s*(?:关联模板|关联知识库|关联底稿)[：:])|[；;\n]|$)/g;
   let lastIndex = 0;
@@ -1615,15 +2389,14 @@ const syncConversationRoute = (historyId: string, prompt: string) => {
 
   const normalizedPrompt = prompt.trim();
   if (!historyId || !normalizedPrompt) return;
-  if (route.query.historyId === historyId && route.query.prompt === normalizedPrompt) return;
+  if (route.query.historyId === historyId && !route.query.prompt) return;
 
   handledRoutePromptKey.value = `${historyId}:${normalizedPrompt}`;
-  const { mock: _mock, ...query } = route.query;
+  const { mock: _mock, prompt: _prompt, ...query } = route.query;
   void router.replace({
     name: 'chat',
     query: {
       ...query,
-      prompt: normalizedPrompt,
       historyId,
     },
   });
@@ -1684,7 +2457,60 @@ const resolveCreatedSkillIdFromHistory = (
   return availableCandidate || candidates[0] || '';
 };
 
+let skillCreatorRestoreToken = 0;
+
+const restoreSkillCreatorPendingStateFromCache = async (
+  historyId: string,
+  prompt: string,
+  content: string,
+) => {
+  if (!/\/skill-creator\b/i.test(prompt) || hasSkillCreatorCompletionMarker(content)) return;
+
+  const restoredAnswers = parseSkillCreatorSelectionAnswers(content);
+  if (!restoredAnswers.length) return;
+
+  const restoreToken = ++skillCreatorRestoreToken;
+
+  try {
+    const intakeResult = await evaluateSkillCreatorIntake({
+      currentText: extractSkillCreatorBrief(prompt),
+      answers: restoredAnswers,
+    });
+
+    if (
+      restoreToken !== skillCreatorRestoreToken
+      || activeHistoryId.value !== historyId
+      || completedQuestion.value !== prompt
+      || hasSkillCreatorCompletionMarker(generatedAnswer.value)
+    ) {
+      return;
+    }
+
+    if (intakeResult.complete || !intakeResult.nextStep) {
+      pendingSkillCreatorPrompt.value = '';
+      pendingSkillCreatorStep.value = null;
+      skillCreatorIntakeAnswers.value = restoredAnswers;
+      return;
+    }
+
+    pendingSkillCreatorPrompt.value = prompt;
+    pendingSkillCreatorStep.value = intakeResult.nextStep;
+    pendingSkillCreatorMaterialStep.value = null;
+    pendingSkillCreatorMaterialPrompt.value = '';
+    skillCreatorIntakeAnswers.value = restoredAnswers;
+    isSkillCreatorFlowActive.value = true;
+    isSkillCreatorSelectorDismissed.value = false;
+    isSkillCreatorCompletionSelectorDismissed.value = false;
+    answerModel.value = intakeResult.model || answerModel.value;
+  } catch {
+    pendingSkillCreatorPrompt.value = prompt;
+    skillCreatorIntakeAnswers.value = restoredAnswers;
+  }
+};
+
 const hydrateCachedConversation = (prompt: string, historyId?: string) => {
+  if (!historyId) return false;
+
   const cached = getCachedConversation(historyId, prompt);
   if (!cached?.answer) return false;
 
@@ -1696,11 +2522,16 @@ const hydrateCachedConversation = (prompt: string, historyId?: string) => {
   generatedAnswer.value = normalizedCachedContent;
   liveThinkingContent.value = cached.answer.thinkingContent || '';
   isLiveThinkingExpanded.value = false;
-  const restoredSkillId = resolveCreatedSkillIdFromHistory(
-    normalizedCachedContent,
-    cached.prompt,
-    cached.answer.createdSkillId,
-  );
+  const isCachedSkillCreatorPrompt = /\/skill-creator\b/i.test(cached.prompt);
+  const hasCompletedSkillCreatorGeneration = !isCachedSkillCreatorPrompt
+    || hasSkillCreatorCompletionMarker(normalizedCachedContent);
+  const restoredSkillId = hasCompletedSkillCreatorGeneration
+    ? resolveCreatedSkillIdFromHistory(
+      normalizedCachedContent,
+      cached.prompt,
+      cached.answer.createdSkillId,
+    )
+    : '';
   activeCreatedSkillId.value = restoredSkillId;
   createdSkillResult.value = restoredSkillId ? getAnySkillByNameOrId(restoredSkillId) : null;
   syncPublishSettingsFromSkill(createdSkillResult.value);
@@ -1708,18 +2539,30 @@ const hydrateCachedConversation = (prompt: string, historyId?: string) => {
   skillValidationMessage.value = createdSkillResult.value
     ? `技能完整度校验通过，当前发布范围为${createdSkillResult.value.scope === 'team' ? '本团队' : '仅自己'}。`
     : '';
+  isSkillCreatorCompletionSelectorDismissed.value = hasSkillCompletionSelectorDismissed(normalizedCachedContent);
   answerError.value = '';
   answerNotice.value = '';
   isGeneratingAnswer.value = false;
-  if (normalizedCachedContent !== cached.answer.content || (restoredSkillId && !cached.answer.createdSkillId)) {
+  const shouldClearStaleSkillId = isCachedSkillCreatorPrompt
+    && !hasCompletedSkillCreatorGeneration
+    && Boolean(cached.answer.createdSkillId);
+  if (
+    normalizedCachedContent !== cached.answer.content
+    || (restoredSkillId && !cached.answer.createdSkillId)
+    || shouldClearStaleSkillId
+  ) {
     updateConversationAnswer(cached.id, cached.prompt, {
       ...cached.answer,
       content: normalizedCachedContent,
-      createdSkillId: restoredSkillId || cached.answer.createdSkillId,
+      createdSkillId: restoredSkillId || undefined,
       cachedAt: new Date().toISOString(),
     });
   }
-  void nextTick(openFirstGeneratedArtifact);
+  if (!isCachedSkillCreatorPrompt) {
+    void nextTick(openFirstGeneratedArtifact);
+  } else if (!hasCompletedSkillCreatorGeneration) {
+    void restoreSkillCreatorPendingStateFromCache(cached.id, cached.prompt, normalizedCachedContent);
+  }
   return true;
 };
 
@@ -1770,6 +2613,16 @@ const beginConversation = (
   skillValidationMessage.value = '';
   createdSkillResult.value = null;
   activeCreatedSkillId.value = '';
+  isSkillCreatorFlowActive.value = false;
+  pendingSkillCreatorPrompt.value = '';
+  pendingSkillCreatorStep.value = null;
+  pendingSkillCreatorMaterialStep.value = null;
+  pendingSkillCreatorMaterialPrompt.value = '';
+  skillCreatorIntakeAnswers.value = [];
+  isSkillCreatorOtherOpen.value = false;
+  skillCreatorOtherInput.value = '';
+  isSkillCreatorSelectorDismissed.value = false;
+  isSkillCreatorCompletionSelectorDismissed.value = false;
   activePublishSkillId.value = '';
   artifactPanelMode.value = 'preview';
   lastAutoOpenedArtifactId.value = '';
@@ -1805,45 +2658,132 @@ const completeLiveConversation = async (
   shouldRecord = true,
   historyId?: string,
 ) => {
-  if (hydrateCachedConversation(prompt, historyId)) return;
+  const isSkillCreatorContinuation = Boolean(pendingSkillCreatorPrompt.value) && !/\/skill-creator\b/i.test(prompt);
+  const previousSkillCreatorPrompt = pendingSkillCreatorPrompt.value;
+  const previousSkillCreatorStep = pendingSkillCreatorStep.value;
+  const previousSkillCreatorAnswers = [...skillCreatorIntakeAnswers.value];
+  const skillCreatorPromptForRun = isSkillCreatorContinuation
+    ? `${previousSkillCreatorPrompt}\n\n用户补充：${prompt}`
+    : prompt;
+  const isSkillCreatorPrompt = /\/skill-creator\b/i.test(skillCreatorPromptForRun);
 
-  if (historyId && !findHistoryItem(historyId, prompt)) {
+  if (!isSkillCreatorContinuation && hydrateCachedConversation(prompt, historyId)) return;
+
+  if (!isSkillCreatorContinuation && historyId && !findHistoryItem(historyId, prompt)) {
     hydrateMissingCachedConversation(prompt, historyId);
     return;
   }
 
-  if (/\/skill-creator\b/i.test(prompt)) {
-    const historyItem = beginConversation(prompt, shouldRecord, historyId, shouldRecord || !historyId);
+  if (isSkillCreatorPrompt) {
+    const historyPrompt = isSkillCreatorContinuation
+      ? completedQuestion.value || previousSkillCreatorPrompt
+      : prompt;
+    const historyItem = isSkillCreatorContinuation
+      ? findHistoryItem(activeHistoryId.value, historyPrompt)
+      : beginConversation(prompt, shouldRecord, historyId, shouldRecord || !historyId);
+    const nextSkillCreatorAnswer = isSkillCreatorContinuation
+      ? createSkillCreatorAnswerFromPrompt(prompt, previousSkillCreatorStep)
+      : null;
+    const nextSkillCreatorAnswers = isSkillCreatorContinuation
+      ? [...previousSkillCreatorAnswers, ...(nextSkillCreatorAnswer ? [nextSkillCreatorAnswer] : [])]
+      : [];
+
+    if (isSkillCreatorContinuation) {
+      inputValue.value = '';
+      selectedTemplate.value = null;
+      closeDropdown();
+    }
+
+    isSkillCreatorFlowActive.value = true;
     isDocxPreviewOpen.value = false;
+    pendingSkillCreatorStep.value = null;
+    pendingSkillCreatorMaterialStep.value = null;
+    pendingSkillCreatorMaterialPrompt.value = '';
+    isSkillCreatorSelectorDismissed.value = false;
+    isSkillCreatorCompletionSelectorDismissed.value = false;
     isGeneratingAnswer.value = true;
     answerModel.value = 'deepseek-v4-flash';
     liveThinkingContent.value = '';
-    isLiveThinkingExpanded.value = true;
+    isLiveThinkingExpanded.value = false;
     skillValidationStatus.value = 'idle';
     skillValidationMessage.value = '';
     createdSkillResult.value = null;
+    activeCreatedSkillId.value = '';
     lastAutoOpenedArtifactId.value = '';
 
     try {
+      const currentSkillCreatorText = extractSkillCreatorBrief(skillCreatorPromptForRun);
+      const intakeResult = await evaluateSkillCreatorIntake({
+        currentText: currentSkillCreatorText,
+        answers: nextSkillCreatorAnswers,
+      });
+
+      if (!intakeResult.complete) {
+        const intakeReply = renderSkillCreatorIntakeReply(intakeResult, {
+          currentText: extractInitialSkillCreatorBrief(skillCreatorPromptForRun),
+          answers: nextSkillCreatorAnswers,
+        });
+        const intakeDisplayContent = isSkillCreatorContinuation && generatedAnswer.value.trim()
+          ? `${generatedAnswer.value.trimEnd()}\n\n${intakeReply}`
+          : intakeReply;
+        pendingSkillCreatorPrompt.value = skillCreatorPromptForRun;
+        pendingSkillCreatorStep.value = intakeResult.nextStep;
+        skillCreatorIntakeAnswers.value = nextSkillCreatorAnswers;
+        isSkillCreatorOtherOpen.value = false;
+        skillCreatorOtherInput.value = '';
+        isSkillCreatorSelectorDismissed.value = false;
+        isSkillCreatorCompletionSelectorDismissed.value = false;
+        isGeneratingAnswer.value = false;
+        syncAnswerContent(intakeDisplayContent);
+
+        const cachedItem = updateConversationAnswer(activeHistoryId.value || historyItem?.id, historyPrompt, {
+          content: intakeDisplayContent,
+          model: intakeResult.model || answerModel.value,
+          cachedAt: new Date().toISOString(),
+          thinkingContent: '',
+        });
+
+        if (cachedItem) {
+          activeHistoryId.value = cachedItem.id;
+          syncConversationRoute(cachedItem.id, cachedItem.prompt);
+          void refreshGeneratedConversationTitle(cachedItem.id, cachedItem.prompt, intakeDisplayContent);
+        }
+        return;
+      }
+
+      pendingSkillCreatorPrompt.value = '';
+      pendingSkillCreatorStep.value = null;
+      skillCreatorIntakeAnswers.value = nextSkillCreatorAnswers;
+      isSkillCreatorSelectorDismissed.value = false;
+      isSkillCreatorCompletionSelectorDismissed.value = false;
+      const skillCreatorAnswersForRun = buildSkillCreatorGenerationAnswers(
+        skillCreatorPromptForRun,
+        nextSkillCreatorAnswers,
+      );
+      const preGenerationAnswerContent = [
+        generatedAnswer.value.trimEnd(),
+        renderSkillCreatorReadyToGenerateReply(),
+        skillCreatorThinkingAnchor,
+      ].filter(Boolean).join('\n\n');
+      syncAnswerContent(preGenerationAnswerContent);
+      scheduleLiveOutputScroll('answer');
       const result = await streamSkillWithSkillCreator(
-        extractSkillCreatorBrief(prompt),
-        inferSkillCreatorAnswers(prompt),
+        extractSkillCreatorBrief(skillCreatorPromptForRun),
+        skillCreatorAnswersForRun,
         {
           onFinalContent(content) {
             if (content.trim()) {
               isLiveThinkingExpanded.value = false;
             }
+            const mergedContent = mergeSkillCreatorGeneratedContent(preGenerationAnswerContent, content);
             liveThinkingContent.value = content;
-            syncAnswerContent(content);
+            syncAnswerContent(mergedContent);
             scheduleLiveOutputScroll('answer', 'artifact');
           },
           onMeta(model) {
             answerModel.value = model;
           },
           onThinking(token) {
-            if (!generatedAnswer.value.trim()) {
-              isLiveThinkingExpanded.value = true;
-            }
             liveThinkingContent.value += token;
             scheduleLiveOutputScroll('answer');
           },
@@ -1852,8 +2792,7 @@ const completeLiveConversation = async (
               isLiveThinkingExpanded.value = false;
             }
             liveThinkingContent.value += token;
-            appendAnswerToken(token);
-            scheduleLiveOutputScroll('answer', 'artifact');
+            scheduleLiveOutputScroll('answer');
           },
           onValidation(payload) {
             isLiveThinkingExpanded.value = false;
@@ -1869,6 +2808,7 @@ const completeLiveConversation = async (
       );
       skillValidationStatus.value = 'checking';
       skillValidationMessage.value = '正在写入技能库、持久化保存并完成读回校验。';
+      liveThinkingContent.value += `\n\n系统校验：${skillValidationMessage.value}`;
 
       const savedSkill = upsertCustomSkill({
         ...result.skill,
@@ -1897,20 +2837,24 @@ const completeLiveConversation = async (
 
       createdSkillResult.value = verifiedSkill;
       activeCreatedSkillId.value = verifiedSkill.id;
+      isSkillCreatorCompletionSelectorDismissed.value = false;
       syncPublishSettingsFromSkill(verifiedSkill);
       skillValidationStatus.value = 'complete';
       skillValidationMessage.value = '技能完整度校验通过，已保存为个人草稿，可在右侧查看生成文件。';
+      liveThinkingContent.value += `\n\n系统校验：${skillValidationMessage.value}`;
 
       const streamedContent = result.answerContent.trim();
-      const resultContent = streamedContent || renderCreatedSkillAnswer(verifiedSkill);
+      const resultContent = streamedContent
+        ? mergeSkillCreatorGeneratedContent(preGenerationAnswerContent, streamedContent)
+        : mergeSkillCreatorGeneratedContent(generatedAnswer.value, renderCreatedSkillAnswer(verifiedSkill));
+      const finalResultContent = `${resultContent.trimEnd()}\n\n${renderSkillCreatorCompletionReply(verifiedSkill)}`;
 
       answerModel.value = result.model || answerModel.value;
       isGeneratingAnswer.value = false;
-      syncAnswerContent(resultContent);
-      void nextTick(openFirstGeneratedArtifact);
+      syncAnswerContent(finalResultContent);
 
-      const cachedItem = updateConversationAnswer(activeHistoryId.value || historyItem?.id, prompt, {
-        content: resultContent,
+      const cachedItem = updateConversationAnswer(activeHistoryId.value || historyItem?.id, historyPrompt, {
+        content: finalResultContent,
         model: answerModel.value,
         cachedAt: new Date().toISOString(),
         createdSkillId: verifiedSkill.id,
@@ -1920,7 +2864,7 @@ const completeLiveConversation = async (
       if (cachedItem) {
         activeHistoryId.value = cachedItem.id;
         syncConversationRoute(cachedItem.id, cachedItem.prompt);
-        void refreshGeneratedConversationTitle(cachedItem.id, cachedItem.prompt, resultContent);
+        void refreshGeneratedConversationTitle(cachedItem.id, cachedItem.prompt, finalResultContent);
       }
     } catch (error) {
       isGeneratingAnswer.value = false;
@@ -1992,7 +2936,7 @@ const completeLiveConversation = async (
     }
   } catch (error) {
     isGeneratingAnswer.value = false;
-    answerError.value = error instanceof Error ? error.message : 'DeepSeek 调用失败';
+    answerError.value = error instanceof Error ? error.message : 'AI 调用失败';
   } finally {
     isGeneratingAnswer.value = false;
   }
@@ -2005,6 +2949,22 @@ const submitComposer = () => {
     || (selectedTemplate.value ? createTemplatePrompt(selectedTemplate.value) : '');
   if (!nextPrompt) return;
 
+  if (
+    isSkillCreatorConversation.value
+    && pendingSkillCreatorStep.value
+    && !isGeneratingAnswer.value
+  ) {
+    inputValue.value = '';
+    if (hasPendingSkillCreatorMaterialSelector.value) {
+      submitSkillCreatorMaterialText(nextPrompt);
+      return;
+    }
+    const notice = { title: pendingSkillCreatorStep.value.title, label: nextPrompt };
+    if (queueSkillCreatorMaterialSelector(nextPrompt, notice)) return;
+    submitSkillCreatorAnswerPrompt(nextPrompt, notice);
+    return;
+  }
+
   void completeLiveConversation(nextPrompt);
 };
 
@@ -2016,17 +2976,34 @@ const submitSharedComposer = (value: string, options?: { thinkingMode?: string }
     selectedThinkingMode.value = options.thinkingMode;
   }
 
+  if (
+    isSkillCreatorConversation.value
+    && pendingSkillCreatorStep.value
+    && !isGeneratingAnswer.value
+  ) {
+    inputValue.value = '';
+    if (hasPendingSkillCreatorMaterialSelector.value) {
+      submitSkillCreatorMaterialText(nextValue);
+      return;
+    }
+    const notice = { title: pendingSkillCreatorStep.value.title, label: nextValue };
+    if (queueSkillCreatorMaterialSelector(nextValue, notice)) return;
+    submitSkillCreatorAnswerPrompt(nextValue, notice);
+    return;
+  }
+
   void completeLiveConversation(nextValue);
 };
 
 const openRoutePrompt = async () => {
   await loadHistory();
 
-  const prompt = typeof route.query.prompt === 'string' ? route.query.prompt.trim() : '';
-  if (!prompt) return;
-
   const rawHistoryId = typeof route.query.historyId === 'string' ? route.query.historyId : undefined;
   const historyId = rawHistoryId && !deprecatedMockHistoryIds.has(rawHistoryId) ? rawHistoryId : undefined;
+  const routePrompt = typeof route.query.prompt === 'string' ? route.query.prompt.trim() : '';
+  const prompt = routePrompt || findHistoryItem(historyId)?.prompt || '';
+  if (!prompt.trim()) return;
+
   const routeKey = `${String(historyId ?? '')}:${prompt}`;
   if (handledRoutePromptKey.value === routeKey) return;
   handledRoutePromptKey.value = routeKey;
@@ -2236,9 +3213,268 @@ const openArtifactPreview = (artifactId: string) => {
   isArtifactPreviewOpen.value = true;
 };
 
+const zipTextEncoder = new TextEncoder();
+const zipCrcTable = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < table.length; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) {
+      value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+    }
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
+const calculateZipCrc32 = (bytes: Uint8Array) => {
+  let crc = 0xffffffff;
+  bytes.forEach((byte) => {
+    crc = (zipCrcTable[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
+  });
+  return (crc ^ 0xffffffff) >>> 0;
+};
+
+const createStoredZipBlob = (files: Array<{ path: string; content: string }>) => {
+  const localParts: Uint8Array[] = [];
+  const centralParts: Uint8Array[] = [];
+  let offset = 0;
+
+  files.forEach((file) => {
+    const nameBytes = zipTextEncoder.encode(file.path.replace(/^\/+/, '') || 'SKILL.md');
+    const contentBytes = zipTextEncoder.encode(file.content || '');
+    const crc = calculateZipCrc32(contentBytes);
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    localView.setUint32(0, 0x04034b50, true);
+    localView.setUint16(4, 20, true);
+    localView.setUint16(6, 0x0800, true);
+    localView.setUint16(8, 0, true);
+    localView.setUint16(10, 0, true);
+    localView.setUint16(12, 0, true);
+    localView.setUint32(14, crc, true);
+    localView.setUint32(18, contentBytes.length, true);
+    localView.setUint32(22, contentBytes.length, true);
+    localView.setUint16(26, nameBytes.length, true);
+    localView.setUint16(28, 0, true);
+    localHeader.set(nameBytes, 30);
+
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(centralHeader.buffer);
+    centralView.setUint32(0, 0x02014b50, true);
+    centralView.setUint16(4, 20, true);
+    centralView.setUint16(6, 20, true);
+    centralView.setUint16(8, 0x0800, true);
+    centralView.setUint16(10, 0, true);
+    centralView.setUint16(12, 0, true);
+    centralView.setUint16(14, 0, true);
+    centralView.setUint32(16, crc, true);
+    centralView.setUint32(20, contentBytes.length, true);
+    centralView.setUint32(24, contentBytes.length, true);
+    centralView.setUint16(28, nameBytes.length, true);
+    centralView.setUint16(30, 0, true);
+    centralView.setUint16(32, 0, true);
+    centralView.setUint16(34, 0, true);
+    centralView.setUint16(36, 0, true);
+    centralView.setUint32(38, 0, true);
+    centralView.setUint32(42, offset, true);
+    centralHeader.set(nameBytes, 46);
+
+    localParts.push(localHeader, contentBytes);
+    centralParts.push(centralHeader);
+    offset += localHeader.length + contentBytes.length;
+  });
+
+  const centralOffset = offset;
+  const centralSize = centralParts.reduce((total, part) => total + part.length, 0);
+  const endRecord = new Uint8Array(22);
+  const endView = new DataView(endRecord.buffer);
+  endView.setUint32(0, 0x06054b50, true);
+  endView.setUint16(4, 0, true);
+  endView.setUint16(6, 0, true);
+  endView.setUint16(8, files.length, true);
+  endView.setUint16(10, files.length, true);
+  endView.setUint32(12, centralSize, true);
+  endView.setUint32(16, centralOffset, true);
+  endView.setUint16(20, 0, true);
+
+  const blobParts = [...localParts, ...centralParts, endRecord].map((part) =>
+    part.buffer.slice(part.byteOffset, part.byteOffset + part.byteLength) as ArrayBuffer
+  );
+  return new Blob(blobParts, { type: 'application/zip' });
+};
+
+const getSkillPackageById = (skillId?: string | null) =>
+  (skillId ? getAnySkillByNameOrId(skillId) : null)
+  ?? skillCompletionSkill.value
+  ?? createdSkillResult.value
+  ?? (activeCreatedSkillId.value ? getAnySkillByNameOrId(activeCreatedSkillId.value) : null);
+
+const normalizeSkillFileTypeFromArtifact = (artifact: ChatArtifact): SkillFile['type'] => {
+  if (artifact.language === 'typescript' || artifact.language === 'json' || artifact.language === 'yaml') {
+    return artifact.language;
+  }
+  return 'markdown';
+};
+
+const extractSkillPackageMetadataFromArtifacts = (artifacts: ChatArtifact[]) => {
+  const skillMarkdown = artifacts.find((artifact) => artifact.title === 'SKILL.md')?.content || '';
+  const frontmatterName = skillMarkdown.match(/^name\s*:\s*['"]?([^'"\n]+)['"]?/m)?.[1]?.trim() || '';
+  const headingName = skillMarkdown.match(/^#\s+(.+)$/m)?.[1]?.trim() || '';
+  const descriptionMatch = skillMarkdown.match(/^description\s*:\s*(?:>-\s*)?(.+)$/m);
+  const description = descriptionMatch?.[1]?.trim()
+    || skillMarkdown
+      .replace(/^---[\s\S]*?---\s*/m, '')
+      .replace(/^#\s+.+$/m, '')
+      .split(/\n{2,}/)
+      .map((item) => item.trim())
+      .find(Boolean)
+    || '由技能创建器生成的个人技能。';
+
+  return {
+    id: frontmatterName,
+    name: headingName || frontmatterName,
+    description,
+  };
+};
+
+const buildSkillPackageFromArtifacts = (
+  skillId?: string | null,
+  skillName?: string | null,
+): SkillCatalogItem | null => {
+  const artifacts = generatedArtifacts.value;
+  if (!artifacts.length) return null;
+
+  const metadata = extractSkillPackageMetadataFromArtifacts(artifacts);
+  const id = (skillId || activeCreatedSkillId.value || createdSkillIdFromAnswer.value || metadata.id || 'generated-skill')
+    .trim()
+    .replace(/\s+/g, '-')
+    .toLowerCase();
+  const name = (skillName || metadata.name || id).trim();
+
+  return {
+    id,
+    name,
+    description: metadata.description,
+    category: '自建技能',
+    routeName: 'custom-skill',
+    tags: ['自建技能'],
+    files: artifacts.map((artifact, index) => ({
+      id: `${id}-file-${index + 1}`,
+      name: artifact.title.split('/').pop() || artifact.title,
+      path: artifact.title,
+      type: normalizeSkillFileTypeFromArtifact(artifact),
+      content: artifact.content,
+    })),
+    source: 'custom',
+    scope: 'personal',
+    status: 'active',
+  };
+};
+
+const getSkillPackage = (skillId?: string | null, skillName?: string | null) =>
+  getSkillPackageById(skillId) ?? buildSkillPackageFromArtifacts(skillId, skillName);
+
+const getSkillPackageFiles = (skillId?: string | null, skillName?: string | null) => {
+  const skill = getSkillPackage(skillId, skillName);
+  if (skill?.files?.length) {
+    return skill.files.map((file) => ({
+      path: file.path || file.name || 'SKILL.md',
+      content: file.content || '',
+    }));
+  }
+
+  return generatedArtifacts.value.map((artifact) => ({
+    path: artifact.title,
+    content: artifact.content,
+  }));
+};
+
+const downloadSkillPackageZip = (skillId?: string | null, skillName?: string | null) => {
+  const files = getSkillPackageFiles(skillId, skillName);
+  if (!files.length) {
+    showToast('当前没有可下载的技能文件');
+    return;
+  }
+
+  const skill = getSkillPackage(skillId, skillName);
+  const zipBlob = createStoredZipBlob(files);
+  const url = URL.createObjectURL(zipBlob);
+  const link = document.createElement('a');
+  const filename = `${(skill?.name || skill?.id || 'skill-package').replace(/[\\/:*?"<>|]+/g, '-')}.zip`;
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showToast('技能包已开始下载');
+};
+
+const saveSkillPackageToPersonal = async (skillId?: string | null, skillName?: string | null) => {
+  const skill = getSkillPackage(skillId, skillName);
+  if (!skill) {
+    showToast('当前没有可保存的技能包');
+    return;
+  }
+
+  const localSkill = upsertCustomSkill({
+    ...skill,
+    scope: 'personal',
+    status: 'active',
+  }, { persist: false });
+
+  if (!localSkill) {
+    showToast('保存到个人技能失败');
+    return;
+  }
+
+  try {
+    const persistedSkill = await persistCustomSkillNow(localSkill);
+    const savedSkill = upsertCustomSkill({
+      ...persistedSkill,
+      scope: 'personal',
+      status: 'active',
+    }, { persist: false }) ?? localSkill;
+    const enabledSkill = setSkillEnabled(savedSkill.id, true) ?? savedSkill;
+    createdSkillResult.value = enabledSkill;
+    activeCreatedSkillId.value = enabledSkill.id;
+    skillValidationStatus.value = 'complete';
+    skillValidationMessage.value = '技能已保存到个人技能。';
+    showToast('已保存到个人技能');
+  } catch {
+    showToast('已保存到本地个人技能，远端同步失败');
+  }
+};
+
 const handleLiveAnswerClick = (event: MouseEvent) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
+
+  const downloadButton = target.closest<HTMLElement>('[data-skill-package-download]');
+  if (downloadButton) {
+    const packageRoot = downloadButton.closest<HTMLElement>('[data-skill-package]');
+    downloadSkillPackageZip(
+      packageRoot?.dataset.skillPackage || downloadButton.dataset.skillPackageDownload,
+      packageRoot?.dataset.skillPackageName,
+    );
+    return;
+  }
+
+  const saveButton = target.closest<HTMLElement>('[data-skill-package-save]');
+  if (saveButton) {
+    const packageRoot = saveButton.closest<HTMLElement>('[data-skill-package]');
+    void saveSkillPackageToPersonal(
+      packageRoot?.dataset.skillPackage || saveButton.dataset.skillPackageSave,
+      packageRoot?.dataset.skillPackageName,
+    );
+    return;
+  }
+
+  const packageCard = target.closest<HTMLElement>('[data-skill-package]');
+  if (packageCard) {
+    openFirstGeneratedArtifact();
+    return;
+  }
 
   const card = target.closest<HTMLElement>('[data-artifact-id]');
   const artifactId = card?.dataset.artifactId;
@@ -2434,6 +3670,77 @@ const enableCreatedSkill = () => {
   showToast('技能已启用');
 };
 
+const openSkillArtifactMatching = (
+  matcher: (artifact: ChatArtifact) => boolean,
+  options: { edit?: boolean } = {},
+) => {
+  const artifact = generatedArtifacts.value.find(matcher) ?? generatedArtifacts.value[0];
+  if (!artifact) {
+    showToast('当前没有可查看的技能文件');
+    return;
+  }
+
+  openArtifactPreview(artifact.id);
+  if (options.edit) {
+    void nextTick(() => {
+      artifactEditContent.value = activeArtifact.value?.content || '';
+      isArtifactEditing.value = true;
+      artifactEditorRef.value?.focus();
+    });
+  }
+};
+
+const persistSkillCreatorCompletionSelectorDismissal = () => {
+  isSkillCreatorCompletionSelectorDismissed.value = true;
+
+  const currentAnswer = activeHistoryItem.value?.answer;
+  const baseContent = (generatedAnswer.value || currentAnswer?.content || '').trimEnd();
+  if (!baseContent) return;
+
+  const nextContent = hasSkillCompletionSelectorDismissed(baseContent)
+    ? baseContent
+    : `${baseContent}\n\n${skillCompletionDismissedMarker}`;
+
+  syncAnswerContent(nextContent);
+
+  if (!activeHistoryId.value || !completedQuestion.value.trim()) return;
+  updateConversationAnswer(activeHistoryId.value, completedQuestion.value, {
+    content: nextContent,
+    model: answerModel.value || currentAnswer?.model,
+    cachedAt: new Date().toISOString(),
+    createdSkillId: activeCreatedSkillId.value || createdSkillIdFromAnswer.value || currentAnswer?.createdSkillId,
+    thinkingContent: liveThinkingContent.value || currentAnswer?.thinkingContent,
+  });
+};
+
+const dismissSkillCreatorCompletionSelector = () => {
+  persistSkillCreatorCompletionSelectorDismissal();
+};
+
+const submitSkillCreatorCompletionOption = (option: SkillCreatorCompletionOption) => {
+  if (!skillCompletionSkill.value) return;
+  persistSkillCreatorCompletionSelectorDismissal();
+
+  if (option.id === 'inspect-skill') {
+    openSkillArtifactMatching((artifact) => artifact.title === 'SKILL.md');
+    return;
+  }
+
+  if (option.id === 'edit-references') {
+    openSkillArtifactMatching((artifact) => artifact.title.startsWith('references/'), { edit: true });
+    return;
+  }
+
+  if (option.id === 'publish-settings') {
+    openSkillPublishSettings();
+    showToast('已打开技能文件，发布设置可在技能管理中继续完成');
+    return;
+  }
+
+  enableCreatedSkill();
+  useCreatedSkillNow();
+};
+
 const closeArtifactPreview = () => {
   isArtifactEditing.value = false;
   artifactEditContent.value = '';
@@ -2543,7 +3850,7 @@ const getShareUrl = () => {
 
 const getAnswerPlainText = () => {
   if (isLiveConversation.value) {
-    return generatedAnswer.value || answerError.value || answerNotice.value;
+    return renderableAnswerContent.value || answerError.value || answerNotice.value;
   }
 
   return [
@@ -2557,6 +3864,18 @@ const getAnswerPlainText = () => {
   ].join('\n\n');
 };
 
+const getConversationPlainText = () => {
+  if (!hasCompletedMock.value) return '';
+  const question = completedQuestion.value.trim();
+  const answer = getAnswerPlainText().trim();
+
+  return [
+    headerTitle.value,
+    question ? `用户：${question}` : '',
+    answer ? `AI：${answer}` : '',
+  ].filter(Boolean).join('\n\n');
+};
+
 const copyQuestion = () => {
   void copyText(completedQuestion.value, '问题已复制');
 };
@@ -2565,8 +3884,73 @@ const copyAnswer = () => {
   void copyText(getAnswerPlainText(), '回答已复制');
 };
 
+const copyConversation = () => {
+  void copyText(getConversationPlainText(), '全文已复制');
+};
+
 const copyShareLink = () => {
   void copyText(getShareUrl(), '分享链接已复制');
+};
+
+const goBackFromConversation = () => {
+  if (typeof window !== 'undefined' && window.history.length > 1) {
+    router.back();
+    return;
+  }
+
+  void router.push({ name: 'home' });
+};
+
+const clampPreviewRatio = (ratio: number, totalWidth: number) => {
+  if (!Number.isFinite(ratio)) return previewPanelRatio.value;
+  if (totalWidth <= chatMainMinWidth + previewPanelMinWidth) {
+    return Math.min(0.62, Math.max(0.38, ratio));
+  }
+
+  const minRatio = previewPanelMinWidth / totalWidth;
+  const maxRatio = (totalWidth - chatMainMinWidth) / totalWidth;
+  return Math.min(maxRatio, Math.max(minRatio, ratio));
+};
+
+const updatePreviewPanelRatioFromClientX = (clientX: number) => {
+  const rect = chatPageRef.value?.getBoundingClientRect();
+  if (!rect?.width) return;
+
+  const rightWidth = rect.right - clientX;
+  previewPanelRatio.value = clampPreviewRatio(rightWidth / rect.width, rect.width);
+};
+
+const adjustPreviewPanelRatio = (delta: number) => {
+  const rect = chatPageRef.value?.getBoundingClientRect();
+  previewPanelRatio.value = clampPreviewRatio(previewPanelRatio.value + delta, rect?.width || window.innerWidth);
+};
+
+const handlePreviewResizeMove = (event: PointerEvent) => {
+  if (!isPreviewResizing.value) return;
+  event.preventDefault();
+  updatePreviewPanelRatioFromClientX(event.clientX);
+};
+
+const stopPreviewResize = () => {
+  if (!isPreviewResizing.value) return;
+  isPreviewResizing.value = false;
+  window.removeEventListener('pointermove', handlePreviewResizeMove);
+  window.removeEventListener('pointerup', stopPreviewResize);
+  window.removeEventListener('pointercancel', stopPreviewResize);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+};
+
+const startPreviewResize = (event: PointerEvent) => {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  isPreviewResizing.value = true;
+  updatePreviewPanelRatioFromClientX(event.clientX);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  window.addEventListener('pointermove', handlePreviewResizeMove, { passive: false });
+  window.addEventListener('pointerup', stopPreviewResize);
+  window.addEventListener('pointercancel', stopPreviewResize);
 };
 
 const deleteCurrentConversation = () => {
@@ -2604,6 +3988,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', closeDropdown);
+  stopPreviewResize();
   if (toastTimer) {
     window.clearTimeout(toastTimer);
   }
@@ -2618,10 +4003,9 @@ watch(generatedArtifacts, (artifacts) => {
 
   if (isSkillCreatorConversation.value) {
     const preferredArtifact = artifacts.find((artifact) => /^SKILL\.md$/i.test(artifact.title)) ?? artifacts[0];
-    if (preferredArtifact && preferredArtifact.id !== lastAutoOpenedArtifactId.value) {
+    if (preferredArtifact && !activeArtifactId.value) {
       lastAutoOpenedArtifactId.value = preferredArtifact.id;
-      openArtifactPreview(preferredArtifact.id);
-      scheduleLiveOutputScroll('answer', 'artifact');
+      activeArtifactId.value = preferredArtifact.id;
     }
     return;
   }
@@ -2713,20 +4097,38 @@ watch(
 </script>
 
 <template>
-  <div class="chat-page" :class="{ 'preview-split': hasPreviewPanel }" @click.self="closeDropdown">
+  <div
+    ref="chatPageRef"
+    class="chat-page"
+    :class="{ 'preview-split': hasPreviewPanel, 'is-preview-resizing': isPreviewResizing }"
+    :style="previewSplitStyle"
+    @click.self="closeDropdown"
+  >
     <main class="chat-main">
       <header class="chat-header">
-        <div class="header-title-icon">
-          <MessageSquareText :size="24" />
-        </div>
+        <button class="header-back-button" type="button" aria-label="返回上一页" @click="goBackFromConversation">
+          <ArrowLeft :size="18" />
+        </button>
         <div class="header-meta">
           <h1>{{ headerTitle }}</h1>
-          <p>{{ headerTime }}</p>
+          <p>{{ headerSubtitle }}</p>
         </div>
-        <button class="share-button" disabled>
-          <Share2 :size="14" />
-          分享
-        </button>
+        <div class="header-actions" aria-label="会话操作">
+          <button
+            class="header-action-button"
+            type="button"
+            aria-label="复制全文"
+            :disabled="!hasCompletedMock"
+            @click="copyConversation"
+          >
+            <Copy :size="14" />
+            复制全文
+          </button>
+          <button class="header-action-button" type="button" aria-label="分享" @click="copyShareLink">
+            <Share2 :size="14" />
+            分享
+          </button>
+        </div>
       </header>
 
       <section v-if="!hasCompletedMock" class="empty-conversation" aria-label="新提问">
@@ -2790,10 +4192,39 @@ watch(
             </header>
 
             <div class="answer-content">
-              <section v-if="isLiveConversation" class="live-answer-section" aria-label="DeepSeek 生成结果">
-                <div v-if="isGeneratingAnswer && !generatedAnswer && !isSkillCreatorConversation" class="live-loading">
+              <section v-if="isLiveConversation" class="live-answer-section" aria-label="AI 生成结果">
+                <div v-if="isGeneratingAnswer && !generatedAnswer && !hasLiveThinking" class="live-loading">
                   <Brain :size="17" />
-                  <span>正在调用 DeepSeek 生成回答...</span>
+                  <span>正在思考</span>
+                </div>
+                <div v-if="shouldShowSkillGenerationStatus" class="live-generation-status" aria-label="正在生成技能">
+                  <Puzzle :size="16" aria-hidden="true" />
+                  <strong class="live-status-shine">正在生成技能</strong>
+                </div>
+                <div
+                  v-if="liveAnswerBeforeThinkingHtml"
+                  class="live-answer-text"
+                  v-html="liveAnswerBeforeThinkingHtml"
+                  @click="handleLiveAnswerClick"
+                ></div>
+                <div v-if="generatedArtifacts.length && !isSkillCreatorConversation" class="artifact-list" aria-label="生成文件">
+                  <button
+                    v-for="artifact in generatedArtifacts"
+                    :key="artifact.id"
+                    type="button"
+                    class="artifact-card"
+                    :class="{ active: activeArtifact?.id === artifact.id && isArtifactPreviewOpen }"
+                    @click="openArtifactPreview(artifact.id)"
+                  >
+                    <span class="artifact-file-icon" :class="getArtifactFileMeta(artifact).className" aria-hidden="true">
+                      <span>{{ getArtifactFileMeta(artifact).label }}</span>
+                    </span>
+                    <span class="artifact-card-main">
+                      <strong>{{ artifact.title }}</strong>
+                      <span>{{ artifact.summary || '已生成可预览文件' }}</span>
+                    </span>
+                    <span class="artifact-card-kind">预览</span>
+                  </button>
                 </div>
                 <div
                   v-if="hasLiveThinking"
@@ -2821,42 +4252,12 @@ watch(
                   </button>
                   <div v-if="shouldShowLiveThinkingBody" class="live-thinking-body" v-html="liveThinkingBodyHtml"></div>
                 </div>
-                <div v-if="shouldShowSkillGenerationStatus" class="live-generation-status" aria-label="正在生成技能">
-                  <Puzzle :size="16" aria-hidden="true" />
-                  <strong class="live-status-shine">正在生成技能</strong>
-                </div>
                 <div
-                  v-if="generatedAnswer"
+                  v-if="liveAnswerAfterThinkingHtml"
                   class="live-answer-text"
-                  v-html="liveAnswerHtml"
+                  v-html="liveAnswerAfterThinkingHtml"
                   @click="handleLiveAnswerClick"
                 ></div>
-                <div v-if="generatedArtifacts.length && !isSkillCreatorConversation" class="artifact-list" aria-label="生成文件">
-                  <button
-                    v-for="artifact in generatedArtifacts"
-                    :key="artifact.id"
-                    type="button"
-                    class="artifact-card"
-                    :class="{ active: activeArtifact?.id === artifact.id && isArtifactPreviewOpen }"
-                    @click="openArtifactPreview(artifact.id)"
-                  >
-                    <span class="artifact-file-icon" :class="getArtifactFileMeta(artifact).className" aria-hidden="true">
-                      <span>{{ getArtifactFileMeta(artifact).label }}</span>
-                    </span>
-                    <span class="artifact-card-main">
-                      <strong>{{ artifact.title }}</strong>
-                      <span>{{ artifact.summary || '已生成可预览文件' }}</span>
-                    </span>
-                    <span class="artifact-card-kind">预览</span>
-                  </button>
-                </div>
-                <div v-if="shouldShowSkillValidation" class="skill-validation-inline">
-                  <div class="skill-validation-copy">
-                    <strong class="live-status-shine">正在校验技能完整度</strong>
-                    <span>{{ skillValidationMessage || '正在解析技能结构、文件完整性和持久化状态。' }}</span>
-                  </div>
-                  <span class="skill-validation-bar" aria-hidden="true"></span>
-                </div>
                 <p v-if="answerNotice" class="live-notice">{{ answerNotice }}</p>
                 <p v-if="answerError" class="live-error">{{ answerError }}</p>
               </section>
@@ -2967,17 +4368,218 @@ watch(
       </section>
 
       <footer class="composer-wrap" :class="{ 'with-source-drawer': isReferenceDrawerOpen && !isLiveConversation }">
+        <section
+          v-if="shouldShowSkillCreatorSelector && pendingSkillCreatorStep"
+          class="skill-intake-selector"
+          aria-label="技能创建补充选项"
+        >
+          <header class="skill-intake-selector-header">
+            <h2>{{ pendingSkillCreatorStep.title }}</h2>
+            <button
+              type="button"
+              class="skill-intake-close"
+              aria-label="关闭补充选项"
+              @click="dismissSkillCreatorSelector"
+            >
+              <X :size="18" />
+            </button>
+          </header>
+          <div class="skill-intake-options">
+            <button
+              v-for="(option, index) in pendingSkillCreatorStep.options"
+              :key="option.id"
+              type="button"
+              class="skill-intake-option"
+              :class="{ recommended: option.recommended }"
+              @click="submitSkillCreatorSelectorOption(option)"
+            >
+              <span class="skill-intake-option-index">{{ index + 1 }}</span>
+              <span class="skill-intake-option-main">
+                <span class="skill-intake-option-label">{{ option.label }}</span>
+                <span v-if="option.description" class="skill-intake-option-desc">{{ option.description }}</span>
+              </span>
+              <CornerDownLeft v-if="option.recommended" :size="18" class="skill-intake-enter" />
+            </button>
+          </div>
+          <footer class="skill-intake-selector-footer">
+            <button
+              v-if="!isSkillCreatorOtherOpen"
+              type="button"
+              class="skill-intake-other"
+              aria-label="填写其他补充"
+              @click="openSkillCreatorOtherInput"
+            >
+              <span class="skill-intake-other-icon"><Pencil :size="17" /></span>
+              <span>其他补充</span>
+            </button>
+            <form
+              v-else
+              class="skill-intake-other-form"
+              aria-label="其他补充"
+              @submit.prevent="submitSkillCreatorOtherInput"
+            >
+              <span class="skill-intake-other-icon"><Pencil :size="17" /></span>
+              <input
+                ref="skillCreatorOtherInputRef"
+                v-model="skillCreatorOtherInput"
+                class="skill-intake-other-input"
+                type="text"
+                aria-label="补充具体说明"
+                autocomplete="off"
+                placeholder="补充具体说明"
+              />
+              <button
+                type="submit"
+                class="skill-intake-other-submit"
+                aria-label="提交其他补充"
+                :disabled="!skillCreatorOtherInput.trim()"
+              >
+                <CornerDownLeft :size="16" />
+              </button>
+            </form>
+            <button type="button" class="skill-intake-skip" @click="submitSkillCreatorSkip">跳过</button>
+          </footer>
+        </section>
+        <section
+          v-if="shouldShowSkillCreatorMaterials"
+          class="skill-intake-selector skill-material-selector"
+          aria-label="技能创建参考材料"
+        >
+          <header class="skill-intake-selector-header">
+            <div class="skill-intake-material-title">
+              <h2>是否补充一份参考材料？</h2>
+              <p>
+                <span v-if="skillCreatorMaterialDecisionText">已记录：{{ skillCreatorMaterialDecisionText }}。</span>
+                这一步不是必填；选择后我会把它转成技能里的模板、示例或判断依据继续创建。
+              </p>
+            </div>
+            <button
+              type="button"
+              class="skill-intake-close"
+              aria-label="不补充材料并继续"
+              @click="submitSkillCreatorMaterialSkip"
+            >
+              <X :size="18" />
+            </button>
+          </header>
+          <section class="skill-intake-materials" aria-label="可补充材料">
+            <div class="skill-intake-material-grid">
+              <button
+                v-for="material in skillCreatorMaterialOptions"
+                :key="material.id"
+                type="button"
+                class="skill-intake-material"
+                @click="submitSkillCreatorMaterialOption(material)"
+              >
+                <span class="skill-intake-material-icon" :class="material.kind">
+                  <Upload v-if="material.kind === 'local-file'" :size="15" />
+                  <BookOpen v-else-if="material.kind === 'knowledge-file' || material.kind === 'team-rule'" :size="15" />
+                  <History v-else-if="material.kind === 'history-output'" :size="15" />
+                  <FileText v-else :size="15" />
+                </span>
+                <span class="skill-intake-material-copy">
+                  <strong>{{ material.label }}</strong>
+                  <small>{{ material.description }}</small>
+                </span>
+              </button>
+            </div>
+          </section>
+          <footer class="skill-intake-selector-footer">
+            <button
+              v-if="!isSkillCreatorOtherOpen"
+              type="button"
+              class="skill-intake-other"
+              aria-label="填写其他材料"
+              @click="openSkillCreatorOtherInput"
+            >
+              <span class="skill-intake-other-icon"><Pencil :size="17" /></span>
+              <span>其他补充</span>
+            </button>
+            <form
+              v-else
+              class="skill-intake-other-form"
+              aria-label="其他材料补充"
+              @submit.prevent="submitSkillCreatorOtherInput"
+            >
+              <span class="skill-intake-other-icon"><Pencil :size="17" /></span>
+              <input
+                ref="skillCreatorOtherInputRef"
+                v-model="skillCreatorOtherInput"
+                class="skill-intake-other-input"
+                type="text"
+                aria-label="补充材料说明"
+                autocomplete="off"
+                placeholder="说明材料来源或希望参考的模板"
+              />
+              <button
+                type="submit"
+                class="skill-intake-other-submit"
+                aria-label="提交材料补充"
+                :disabled="!skillCreatorOtherInput.trim()"
+              >
+                <CornerDownLeft :size="16" />
+              </button>
+            </form>
+            <button type="button" class="skill-intake-skip" @click="submitSkillCreatorMaterialSkip">跳过</button>
+          </footer>
+        </section>
+        <section
+          v-if="shouldShowSkillCreatorCompletionSelector"
+          class="skill-intake-selector skill-completion-selector"
+          aria-label="技能创建完成后的下一步"
+        >
+          <header class="skill-intake-selector-header">
+            <h2>技能文件已创建完成，下一步你想怎么走？</h2>
+            <button
+              type="button"
+              class="skill-intake-close"
+              aria-label="关闭下一步选项"
+              @click="dismissSkillCreatorCompletionSelector"
+            >
+              <X :size="18" />
+            </button>
+          </header>
+          <div class="skill-intake-options">
+            <button
+              v-for="(option, index) in skillCreatorCompletionOptions"
+              :key="option.id"
+              type="button"
+              class="skill-intake-option"
+              :class="{ recommended: option.recommended }"
+              @click="submitSkillCreatorCompletionOption(option)"
+            >
+              <span class="skill-intake-option-index">{{ index + 1 }}</span>
+              <span class="skill-intake-option-main">
+                <span class="skill-intake-option-label">{{ option.label }}</span>
+                <span class="skill-intake-option-desc">{{ option.description }}</span>
+              </span>
+              <CornerDownLeft v-if="option.recommended" :size="18" class="skill-intake-enter" />
+            </button>
+          </div>
+        </section>
         <ChatInput v-model="inputValue" @submit="submitSharedComposer" />
 
         <p class="ai-note">回复的内容由AI生成，非人工编辑；其内容准确性和完整性无法保证，不代表我们的态度和观点。</p>
       </footer>
     </main>
 
+    <div
+      v-if="hasPreviewPanel"
+      class="preview-resizer"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="调整预览面板宽度"
+      tabindex="0"
+      @pointerdown="startPreviewResize"
+      @keydown.left.prevent="adjustPreviewPanelRatio(0.03)"
+      @keydown.right.prevent="adjustPreviewPanelRatio(-0.03)"
+    ></div>
+
     <SkillManageModal
       v-if="showSkillManageModal"
       create-behavior="emit"
       @close="showSkillManageModal = false"
-      @create="triggerSkillAction('skill-creator')"
+      @create="triggerSkillAction"
       @use="triggerSkillAction"
     />
     <TemplateManageModal
@@ -3082,7 +4684,12 @@ watch(
           </button>
         </nav>
         <section class="skill-artifact-source-pane" aria-label="技能文件原文">
-          <pre class="skill-artifact-source"><code>{{ activeArtifact.content }}</code></pre>
+          <article
+            v-if="isMarkdownArtifact(activeArtifact)"
+            class="artifact-document-page skill-artifact-document"
+            v-html="renderArtifactDocumentPreview(activeArtifact)"
+          ></article>
+          <pre v-else class="skill-artifact-source"><code>{{ activeArtifact.content }}</code></pre>
         </section>
       </div>
 
@@ -3203,6 +4810,10 @@ watch(
   --line: var(--border-color);
   --line-soft: var(--border-soft);
   --paper: var(--card-bg);
+  --chat-top-surface: color-mix(in srgb, var(--bg-color) 96%, var(--card-bg));
+  --preview-panel-width: 50%;
+  --preview-panel-min: 420px;
+  --chat-main-min: 420px;
   position: relative;
   display: flex;
   width: 100%;
@@ -3222,17 +4833,63 @@ watch(
 }
 
 .chat-page.preview-split .chat-main {
-  flex: 0 0 50%;
-  width: 50%;
-  border-right: 1px solid var(--border-color);
+  flex: 1 1 auto;
+  width: auto;
+  min-width: var(--chat-main-min);
+  border-right: 0;
+}
+
+.preview-resizer {
+  position: relative;
+  z-index: 12;
+  flex: 0 0 12px;
+  width: 12px;
+  min-width: 12px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+  background: #fff;
+}
+
+.preview-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 1px;
+  background: var(--border-color);
+}
+
+.preview-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 3px;
+  background: var(--primary-color);
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.preview-resizer:hover::after,
+.chat-page.is-preview-resizing .preview-resizer::after {
+  opacity: 0.5;
+}
+
+.chat-page.is-preview-resizing,
+.chat-page.is-preview-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
 }
 
 .chat-page.preview-split .chat-header {
-  padding: 0 18px;
+  padding: 0 16px;
 }
 
 .chat-page.preview-split .header-meta h1 {
-  font-size: clamp(18px, 2vw, 22px);
+  font-size: 16px;
   line-height: 1.25;
 }
 
@@ -3240,51 +4897,93 @@ watch(
   height: 64px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 24px;
+  gap: 14px;
+  padding: 0 18px 0 28px;
   border-bottom: 1px solid var(--line);
-  background: color-mix(in srgb, var(--bg-color) 94%, transparent);
+  background: var(--chat-top-surface);
 }
 
-.header-title-icon {
+.header-back-button {
   width: 36px;
   height: 36px;
-  border-radius: 10px;
-  background: var(--primary-soft);
-  color: var(--primary-color);
+  flex: 0 0 36px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.header-back-button:hover {
+  color: var(--text-strong);
+  background: var(--surface-soft);
 }
 
 .header-meta {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .header-meta h1 {
   margin: 0;
-  font-size: 22px;
-  font-weight: 650;
-  color: var(--text-main);
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 17px;
+  font-weight: 640;
+  line-height: 1.22;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-meta p {
   margin: 3px 0 0;
-  font-size: 13px;
+  overflow: hidden;
   color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.share-button {
+.header-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-action-button {
+  min-width: 0;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 34px;
   padding: 0 12px;
+  border: 1px solid transparent;
   border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-soft) 86%, var(--card-bg));
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  transition: border-color 0.16s ease, background-color 0.16s ease, color 0.16s ease;
+}
+
+.header-action-button:hover:not(:disabled) {
+  border-color: var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-strong);
+}
+
+.header-action-button:disabled {
   color: var(--text-muted);
-  background: var(--surface-soft);
   cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .empty-conversation {
@@ -3307,6 +5006,7 @@ watch(
 }
 
 .composer-wrap :deep(.chat-input-container),
+.skill-intake-selector,
 .ai-note {
   width: min(850px, 100%);
   margin-left: auto;
@@ -3314,6 +5014,7 @@ watch(
 }
 
 .chat-page.preview-split .composer-wrap :deep(.chat-input-container),
+.chat-page.preview-split .skill-intake-selector,
 .chat-page.preview-split .ai-note {
   width: min(620px, 100%);
 }
@@ -3328,6 +5029,381 @@ watch(
 
 .composer-wrap.with-source-drawer {
   margin-right: clamp(0px, calc(100vw - 1180px), 560px);
+}
+
+.skill-intake-selector {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 26%, var(--border-color));
+  border-radius: 16px;
+  background: var(--card-bg);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045);
+}
+
+.skill-intake-selector-header {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px;
+}
+
+.skill-intake-selector-header h2 {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.skill-intake-close {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.skill-intake-close:hover {
+  background: var(--surface-soft);
+  color: var(--text-strong);
+}
+
+.skill-intake-options {
+  display: grid;
+  gap: 0;
+}
+
+.skill-intake-option {
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 9px 4px 7px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-color) 84%, transparent);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.skill-intake-option.recommended {
+  margin-bottom: 4px;
+  border-bottom: 0;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--surface-soft) 82%, var(--card-bg));
+}
+
+.skill-intake-option:hover,
+.skill-intake-option:focus-visible {
+  background: var(--surface-soft);
+}
+
+.skill-intake-option:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.skill-intake-option-index,
+.skill-intake-other-icon {
+  width: 27px;
+  height: 27px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-soft) 90%, var(--card-bg));
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.skill-intake-option.recommended .skill-intake-option-index {
+  background: color-mix(in srgb, var(--text-muted) 9%, var(--card-bg));
+  color: var(--text-strong);
+}
+
+.skill-intake-option-main {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.skill-intake-option-label {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-intake-option-desc {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.skill-intake-enter {
+  justify-self: end;
+  color: var(--text-muted);
+}
+
+.skill-material-selector {
+  gap: 10px;
+}
+
+.skill-intake-material-title {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.skill-intake-material-title p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.skill-intake-materials {
+  display: grid;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.skill-intake-materials-header {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.skill-intake-materials-header strong {
+  flex: 0 0 auto;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.skill-intake-materials-header span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-intake-material-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.skill-intake-material {
+  min-width: 0;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 72%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-soft) 45%, var(--card-bg));
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+}
+
+.skill-intake-material:hover,
+.skill-intake-material:focus-visible {
+  border-color: color-mix(in srgb, var(--text-muted) 34%, transparent);
+  background: var(--surface-soft);
+}
+
+.skill-intake-material:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.skill-intake-material-icon {
+  width: 27px;
+  height: 27px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--text-muted);
+  background: var(--card-bg);
+}
+
+.skill-intake-material-icon.template,
+.skill-intake-material-icon.example-output {
+  color: var(--primary-color);
+  background: var(--primary-soft);
+}
+
+.skill-intake-material-icon.knowledge-file,
+.skill-intake-material-icon.team-rule {
+  color: var(--diff-added);
+  background: var(--diff-added-soft);
+}
+
+.skill-intake-material-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.skill-intake-material-copy strong {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-intake-material-copy small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-intake-selector-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 0 2px;
+}
+
+.skill-intake-other {
+  min-width: 0;
+  min-height: 32px;
+  display: inline-grid;
+  grid-template-columns: 28px minmax(0, max-content);
+  align-items: center;
+  justify-content: start;
+  gap: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.skill-intake-other:hover {
+  color: var(--text-strong);
+}
+
+.skill-intake-other-form {
+  min-width: 0;
+  min-height: 32px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 9px;
+}
+
+.skill-intake-other-input {
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 28%, transparent);
+  border-radius: 9px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 13px;
+  outline: 0;
+}
+
+.skill-intake-other-input:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 12%, transparent);
+}
+
+.skill-intake-other-input::placeholder {
+  color: var(--text-muted);
+}
+
+.skill-intake-other-submit {
+  width: 32px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--text-muted) 16%, var(--surface-soft));
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.skill-intake-other-submit:hover:not(:disabled),
+.skill-intake-other-submit:focus-visible {
+  background: color-mix(in srgb, var(--text-muted) 24%, var(--surface-soft));
+  color: var(--text-strong);
+}
+
+.skill-intake-other-submit:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.skill-intake-other-submit:disabled {
+  background: color-mix(in srgb, var(--text-muted) 12%, var(--surface-soft));
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.skill-intake-skip {
+  min-width: 58px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--text-muted) 34%, transparent);
+  border-radius: 9px;
+  background: var(--card-bg);
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.skill-intake-skip:hover {
+  background: var(--surface-soft);
 }
 
 .composer {
@@ -3627,6 +5703,7 @@ watch(
 .answer-scroll {
   height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 26px 96px 24px;
 }
 
@@ -3663,7 +5740,7 @@ watch(
   max-width: 520px;
   padding: 14px 16px 10px;
   border-radius: 12px 12px 2px 12px;
-  background: var(--primary-soft-strong);
+  background: var(--chat-top-surface);
   color: var(--text-main);
 }
 
@@ -3789,6 +5866,7 @@ watch(
 
 .answer-card {
   width: min(850px, 100%);
+  min-width: 0;
   margin: 0 auto;
   border-radius: 12px;
   background: transparent;
@@ -3837,6 +5915,9 @@ watch(
 }
 
 .answer-content {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 4px 32px 22px;
   color: var(--text-main);
   font-size: 15px;
@@ -3918,9 +5999,12 @@ watch(
 }
 
 .live-answer-section {
+  min-width: 0;
+  max-width: 100%;
   min-height: 180px;
   padding: 4px 0 8px;
   font-family: inherit;
+  overflow-wrap: anywhere;
 }
 
 .live-loading {
@@ -3947,9 +6031,17 @@ watch(
 }
 
 .live-thinking-card {
+  min-width: 0;
+  max-width: 100%;
   border: 0;
   border-radius: 0;
   background: transparent;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+}
+
+.live-answer-text + .live-thinking-card {
+  margin-top: 12px;
 }
 
 .live-thinking-header {
@@ -4015,12 +6107,17 @@ watch(
 }
 
 .live-thinking-body {
+  box-sizing: border-box;
+  max-width: 100%;
   margin: 6px 0 12px;
   padding: 2px 0 2px 12px;
   border-left: 2px solid #d1d5db;
   color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.65;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .live-generation-status {
@@ -4081,6 +6178,81 @@ watch(
 
 .live-thinking-body :deep(.live-answer-paragraph) {
   margin: 0 0 10px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.live-thinking-body :deep(.live-answer-code) {
+  display: inline;
+  max-width: 100%;
+  margin: 0 2px;
+  padding: 0 5px;
+  border-radius: 5px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.94em;
+  font-weight: 600;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.live-thinking-body :deep(.live-answer-codeblock) {
+  position: relative;
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  overflow-x: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--text-main);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.live-thinking-body :deep(.live-answer-codeblock > span) {
+  display: block;
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.live-thinking-body :deep(.live-answer-codeblock code) {
+  display: block;
+  max-width: 100%;
+  font-family: inherit;
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
+}
+
+.live-thinking-body :deep(.live-answer-table-wrap) {
+  width: 100%;
+  margin: 0 0 12px;
+  overflow-x: hidden;
+}
+
+.live-thinking-body :deep(.live-answer-table) {
+  min-width: 0;
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.live-thinking-body :deep(.live-answer-table th),
+.live-thinking-body :deep(.live-answer-table td) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 @keyframes thinking-shine {
@@ -4343,6 +6515,11 @@ watch(
 }
 
 .live-answer-text {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   color: var(--text-main);
   font-family: inherit;
   font-size: 15px;
@@ -4405,7 +6582,8 @@ watch(
 }
 
 .live-answer-text :deep(.live-answer-code) {
-  display: inline-flex;
+  display: inline;
+  max-width: 100%;
   align-items: center;
   min-height: 24px;
   margin: 0 2px;
@@ -4417,6 +6595,8 @@ watch(
   font-size: 0.94em;
   font-weight: 600;
   line-height: 22px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .live-answer-text :deep(.live-answer-link) {
@@ -4437,10 +6617,11 @@ watch(
 .live-answer-text :deep(.live-answer-codeblock) {
   position: relative;
   box-sizing: border-box;
+  max-width: 100%;
   width: 100%;
   margin: 0 0 12px;
   padding: 14px 16px;
-  overflow-x: auto;
+  overflow-x: hidden;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -4448,7 +6629,9 @@ watch(
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   line-height: 1.7;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .live-answer-text :deep(.live-answer-codeblock > span) {
@@ -4461,18 +6644,24 @@ watch(
 }
 
 .live-answer-text :deep(.live-answer-codeblock code) {
+  display: block;
+  max-width: 100%;
   font-family: inherit;
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
 }
 
 .live-answer-text :deep(.live-answer-table-wrap) {
   width: 100%;
   margin: 0 0 14px;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .live-answer-text :deep(.live-answer-table) {
-  min-width: 520px;
+  min-width: 0;
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   color: var(--text-main);
   font-size: 14px;
@@ -4485,6 +6674,8 @@ watch(
   border: 1px solid var(--border-color);
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .live-answer-text :deep(.live-answer-table th) {
@@ -4498,6 +6689,39 @@ watch(
   padding: 8px 0 8px 14px;
   border-left: 3px solid var(--primary-color);
   color: var(--text-secondary);
+}
+
+.live-answer-text :deep(.live-selection-notice) {
+  display: inline-flex;
+  max-width: 100%;
+  margin: 0 0 8px;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  line-height: inherit;
+}
+
+.live-answer-text :deep(.live-selection-notice .live-answer-strong) {
+  color: var(--sidebar-active-text);
+  font-weight: 650;
+}
+
+.live-answer-text :deep(.live-selection-question) {
+  color: var(--text-main);
+  font-weight: 650;
+}
+
+.live-answer-text :deep(.live-selection-action) {
+  color: var(--text-main);
+  font-weight: 400;
+}
+
+.live-answer-text :deep(.live-selection-choice) {
+  color: var(--sidebar-active-text);
+  font-weight: 650;
 }
 
 .live-answer-text :deep(.live-answer-rule) {
@@ -4691,183 +6915,116 @@ watch(
   margin: 10px 0 14px;
 }
 
-.live-answer-text :deep(.skill-result-file-list) {
-  width: min(100%, 560px);
+.live-answer-text :deep(.skill-package-card) {
+  width: min(560px, 100%);
+  min-height: 78px;
   display: grid;
-  gap: 16px;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
   margin: 12px 0 16px;
-}
-
-.live-answer-text :deep(.skill-file-section) {
-  display: grid;
-  gap: 5px;
-}
-
-.live-answer-text :deep(.skill-file-section-heading) {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  color: var(--text-strong);
-}
-
-.live-answer-text :deep(.skill-file-section-heading > span) {
-  min-width: 20px;
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 850;
-  line-height: 1.35;
-}
-
-.live-answer-text :deep(.skill-file-section-heading strong) {
-  color: var(--text-strong);
-  font-size: 14px;
-  font-weight: 850;
-  line-height: 1.35;
-}
-
-.live-answer-text :deep(.skill-file-section-heading small) {
-  overflow: hidden;
-  color: var(--text-muted);
-  font-size: 12px;
-  line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.live-answer-text :deep(.skill-file-section-body) {
-  display: grid;
-  gap: 8px;
-  padding-left: 26px;
-}
-
-.live-answer-text :deep(.skill-file-link) {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  min-height: 26px;
-  padding: 1px 0;
-  border: 0;
-  background: transparent;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--card-bg);
   color: var(--text-main);
-  font-family: inherit;
   text-align: left;
-  cursor: pointer;
-}
-
-.live-answer-text :deep(.skill-plain-file-icon) {
-  width: 18px;
-  height: 18px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  border-radius: 5px;
-  background: var(--surface-soft);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 850;
-  line-height: 1;
-}
-
-.live-answer-text :deep(.skill-file-link.rule .skill-plain-file-icon) {
-  background: color-mix(in srgb, var(--primary-soft) 52%, var(--surface-soft));
-  color: var(--primary-color);
-}
-
-.live-answer-text :deep(.skill-file-link > span:nth-child(2)) {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-}
-
-.live-answer-text :deep(.skill-file-link strong) {
-  flex: 0 0 auto;
-  max-width: 58%;
-  overflow: hidden;
-  color: var(--text-main);
-  font-size: 13px;
-  font-weight: 760;
-  line-height: 1.32;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.live-answer-text :deep(.skill-file-link:hover strong) {
-  color: var(--primary-color);
-}
-
-.live-answer-text :deep(.skill-template-file-card) {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 11px;
-  min-height: 64px;
-  padding: 11px 12px;
-  border: 1px solid color-mix(in srgb, var(--primary-color) 26%, var(--border-color));
-  border-radius: 8px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--primary-soft) 44%, var(--card-bg)), var(--card-bg));
-  color: var(--text-main);
   font-family: inherit;
-  text-align: left;
   cursor: pointer;
   transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
 }
 
-.live-answer-text :deep(.skill-template-file-card:hover) {
-  border-color: var(--primary-border);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+.live-answer-text :deep(.skill-package-card:hover),
+.live-answer-text :deep(.skill-package-card:focus-visible) {
+  border-color: color-mix(in srgb, var(--text-muted) 26%, var(--border-color));
+  background: color-mix(in srgb, var(--surface-soft) 36%, var(--card-bg));
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.045);
 }
 
-.live-answer-text :deep(.skill-template-file-icon) {
+.live-answer-text :deep(.skill-package-card:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.live-answer-text :deep(.skill-package-icon) {
+  width: 44px;
+  height: 48px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-soft) 54%, var(--card-bg));
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
 }
 
-.live-answer-text :deep(.skill-template-file-main) {
+.live-answer-text :deep(.skill-package-main) {
   min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
-.live-answer-text :deep(.skill-template-file-main small) {
-  color: var(--primary-color);
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.live-answer-text :deep(.skill-template-file-main strong) {
+.live-answer-text :deep(.skill-package-main strong) {
   overflow: hidden;
   color: var(--text-strong);
-  font-size: 14px;
-  font-weight: 850;
-  line-height: 1.32;
+  font-size: 14.5px;
+  font-weight: 750;
+  line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.live-answer-text :deep(.skill-file-action) {
-  min-height: 26px;
-  display: inline-flex;
-  align-items: center;
-  padding: 0 8px;
-  border-radius: 8px;
-  background: var(--surface-soft);
+.live-answer-text :deep(.skill-package-main small) {
+  overflow: hidden;
   color: var(--text-muted);
   font-size: 12px;
-  font-weight: 800;
+  line-height: 1.35;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.live-answer-text :deep(.skill-file-action.primary) {
-  background: var(--primary-color);
-  color: var(--on-primary);
+.live-answer-text :deep(.skill-package-actions) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-answer-text :deep(.skill-package-action) {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.live-answer-text :deep(.skill-package-action:hover),
+.live-answer-text :deep(.skill-package-action:focus-visible) {
+  border-color: color-mix(in srgb, var(--text-muted) 30%, var(--border-color));
+  color: var(--text-main);
+  background: color-mix(in srgb, var(--surface-soft) 52%, var(--card-bg));
+}
+
+.live-answer-text :deep(.skill-package-action.primary) {
+  border-color: var(--border-color);
+  color: var(--text-main);
+  background: var(--card-bg);
+}
+
+.live-answer-text :deep(.skill-package-action:focus-visible) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .live-notice {
@@ -5469,14 +7626,19 @@ watch(
 
 .docx-preview-panel,
 .artifact-preview-panel {
-  flex: 0 0 50%;
-  width: 50%;
-  min-width: 0;
+  flex: 0 0 var(--preview-panel-width);
+  width: var(--preview-panel-width);
+  min-width: var(--preview-panel-min);
+  max-width: calc(100% - var(--chat-main-min) - 12px);
   height: 100%;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--border-color);
+  border-left: 0;
   background: var(--bg-color);
+}
+
+.artifact-preview-panel {
+  background: #fff;
 }
 
 .docx-preview-header,
@@ -5491,6 +7653,10 @@ watch(
   border-bottom: 1px solid var(--border-color);
   background: rgba(248, 250, 253, 0.96);
   backdrop-filter: blur(10px);
+}
+
+.artifact-preview-header {
+  background: #fff;
 }
 
 .docx-preview-title,
@@ -5640,6 +7806,7 @@ watch(
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .docx-preview-scroll {
@@ -5663,7 +7830,7 @@ watch(
   overflow-y: auto;
   padding: 14px 10px;
   border-right: 1px solid var(--border-color);
-  background: var(--surface-soft);
+  background: #fff;
 }
 
 .skill-artifact-tree-item {
@@ -5681,12 +7848,12 @@ watch(
 }
 
 .skill-artifact-tree-item:hover {
-  background: var(--card-bg);
+  background: #fff;
 }
 
 .skill-artifact-tree-item.active {
   border-color: var(--primary-border);
-  background: var(--card-bg);
+  background: #fff;
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
 }
 
@@ -5697,7 +7864,7 @@ watch(
   align-items: center;
   justify-content: center;
   border-radius: 7px;
-  background: var(--card-bg);
+  background: #fff;
   color: var(--text-muted);
   font-size: 12px;
   font-weight: 850;
@@ -5706,17 +7873,17 @@ watch(
 
 .skill-tree-file-icon.main {
   color: var(--primary-color);
-  background: var(--primary-soft);
+  background: #fff;
 }
 
 .skill-tree-file-icon.rule {
   color: var(--diff-added);
-  background: var(--diff-added-soft);
+  background: #fff;
 }
 
 .skill-tree-file-icon.template {
   color: var(--primary-color);
-  background: color-mix(in srgb, var(--primary-soft) 72%, var(--card-bg));
+  background: #fff;
 }
 
 .skill-tree-file-copy {
@@ -5747,21 +7914,31 @@ watch(
 .skill-artifact-source-pane {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
-  background: var(--bg-color);
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #fff;
 }
 
 .skill-artifact-source {
+  box-sizing: border-box;
+  max-width: 100%;
   min-height: 100%;
   margin: 0;
   padding: 22px 24px;
   color: var(--text-main);
-  background: var(--bg-color);
+  background: #fff;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   font-size: 12px;
   line-height: 1.62;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.skill-artifact-source-pane .skill-artifact-document {
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 28px 36px 36px;
+  background: #fff;
 }
 
 .artifact-preview-scroll.is-editing {
@@ -6120,6 +8297,8 @@ watch(
 }
 
 .artifact-document-page {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   padding: 0 0 28px;
   color: var(--text-main);
   font-size: 14px;
@@ -6174,7 +8353,8 @@ watch(
 }
 
 .artifact-document-page :deep(.live-answer-code) {
-  display: inline-flex;
+  display: inline;
+  max-width: 100%;
   align-items: center;
   min-height: 22px;
   margin: 0 2px;
@@ -6186,6 +8366,8 @@ watch(
   font-size: 0.94em;
   font-weight: 600;
   line-height: 20px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .artifact-document-page :deep(.live-answer-link) {
@@ -6197,10 +8379,11 @@ watch(
 .artifact-document-page :deep(.live-answer-codeblock) {
   position: relative;
   box-sizing: border-box;
+  max-width: 100%;
   width: 100%;
   margin: 0 0 14px;
   padding: 14px 16px;
-  overflow-x: auto;
+  overflow-x: hidden;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: var(--surface-soft);
@@ -6208,7 +8391,9 @@ watch(
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   line-height: 1.7;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .artifact-document-page :deep(.live-answer-codeblock > span) {
@@ -6223,12 +8408,13 @@ watch(
 .artifact-document-page :deep(.live-answer-table-wrap) {
   width: 100%;
   margin: 0 0 14px;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .artifact-document-page :deep(.live-answer-table) {
-  min-width: 520px;
+  min-width: 0;
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   color: var(--text-main);
   font-size: 13px;
@@ -6241,6 +8427,8 @@ watch(
   border: 1px solid var(--border-color);
   text-align: left;
   vertical-align: top;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .artifact-document-page :deep(.live-answer-table th) {
@@ -6265,18 +8453,27 @@ watch(
 }
 
 .artifact-code-page {
+  box-sizing: border-box;
+  max-width: 100%;
   margin: 0;
   padding: 0 0 28px;
-  overflow: auto;
+  overflow-x: hidden;
   color: var(--text-main);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 13px;
   line-height: 1.72;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .artifact-code-page code {
+  display: block;
+  max-width: 100%;
   font-family: inherit;
+  white-space: inherit;
+  overflow-wrap: inherit;
+  word-break: inherit;
 }
 
 .artifact-html-frame {
@@ -6411,6 +8608,10 @@ watch(
     margin-right: 0;
   }
 
+  .preview-resizer {
+    display: none;
+  }
+
   .source-drawer,
   .docx-preview-panel,
   .artifact-preview-panel {
@@ -6421,6 +8622,8 @@ watch(
     left: 64px;
     z-index: 40;
     width: auto;
+    min-width: 0;
+    max-width: none;
     height: 100%;
   }
 
@@ -6523,7 +8726,40 @@ watch(
 
 @media (max-width: 768px) {
   .chat-header {
-    padding: 0 16px;
+    gap: 8px;
+    padding: 0 10px;
+  }
+
+  .header-back-button {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .header-meta h1 {
+    font-size: 15px;
+  }
+
+  .header-meta p {
+    font-size: 11px;
+  }
+
+  .header-actions {
+    gap: 6px;
+  }
+
+  .header-action-button {
+    width: 34px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .header-action-button svg {
+    flex-shrink: 0;
+  }
+
+  .header-action-button {
+    font-size: 0;
   }
 
   .composer-wrap {
