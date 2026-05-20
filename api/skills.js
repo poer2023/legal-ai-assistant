@@ -192,6 +192,9 @@ const normalizePublishSettings = (settings, fallbackDestinations) => {
     price: pricing === 'paid' ? normalizeText(settings.price) : '',
     tags: normalizeStringList(settings.tags, 3),
     publishedAt: normalizeDate(settings.publishedAt),
+    ...(settings.presentation && typeof settings.presentation === 'object'
+      ? { presentation: settings.presentation }
+      : {}),
   };
 };
 
@@ -235,10 +238,12 @@ const toClientSkill = (row, organizationId) => ({
   source: 'custom',
   scope: row.scope === 'team' ? 'team' : 'personal',
   status: row.status === 'draft' ? 'draft' : 'active',
-  iconDataUrl: row.icon_data_url || undefined,
-  publisherName: row.publisher_name || undefined,
-  publisherAvatarUrl: row.publisher_avatar_url || undefined,
-  useProfileIdentity: typeof row.use_profile_identity === 'boolean' ? row.use_profile_identity : true,
+  iconDataUrl: row.icon_data_url || row.publish_settings?.presentation?.iconDataUrl || undefined,
+  publisherName: row.publisher_name || row.publish_settings?.presentation?.publisherName || undefined,
+  publisherAvatarUrl: row.publisher_avatar_url || row.publish_settings?.presentation?.publisherAvatarUrl || undefined,
+  useProfileIdentity: typeof row.use_profile_identity === 'boolean'
+    ? row.use_profile_identity
+    : row.publish_settings?.presentation?.useProfileIdentity ?? true,
   publishDestinations: normalizePublishDestinations(row.publish_destinations),
   publishSettings: normalizePublishSettings(row.publish_settings, row.publish_destinations) || undefined,
   createdAt: row.created_at,
@@ -254,6 +259,34 @@ const withLocalPresentationFields = (row, payload) => ({
   publisher_avatar_url: normalizeText(payload.publisherAvatarUrl) || null,
   use_profile_identity: typeof payload.useProfileIdentity === 'boolean' ? payload.useProfileIdentity : true,
 });
+
+const createPresentationSettings = (payload) => {
+  const iconDataUrl = normalizeText(payload.iconDataUrl);
+  const publisherName = normalizeText(payload.publisherName);
+  const publisherAvatarUrl = normalizeText(payload.publisherAvatarUrl);
+  const useProfileIdentity = typeof payload.useProfileIdentity === 'boolean' ? payload.useProfileIdentity : true;
+
+  if (!iconDataUrl && !publisherName && !publisherAvatarUrl && useProfileIdentity) return null;
+
+  return {
+    iconDataUrl,
+    publisherName,
+    publisherAvatarUrl,
+    useProfileIdentity,
+  };
+};
+
+const createStoragePublishSettings = (payload) => {
+  const settings = normalizePublishSettings(payload.publishSettings, payload.publishDestinations);
+  const presentation = createPresentationSettings(payload);
+
+  if (!settings && !presentation) return null;
+
+  return {
+    ...(settings || {}),
+    ...(presentation ? { presentation } : {}),
+  };
+};
 
 const toStorageRow = (payload, organizationId) => {
   const id = getStorageId(organizationId, payload.id);
@@ -281,12 +314,8 @@ const toStorageRow = (payload, organizationId) => {
     source: 'custom',
     status: payload.status === 'draft' ? 'draft' : 'active',
     files,
-    icon_data_url: normalizeText(payload.iconDataUrl) || null,
-    publisher_name: normalizeText(payload.publisherName) || null,
-    publisher_avatar_url: normalizeText(payload.publisherAvatarUrl) || null,
-    use_profile_identity: typeof payload.useProfileIdentity === 'boolean' ? payload.useProfileIdentity : true,
     publish_destinations: normalizePublishDestinations(payload.publishDestinations),
-    publish_settings: normalizePublishSettings(payload.publishSettings, payload.publishDestinations),
+    publish_settings: createStoragePublishSettings(payload),
     usage_count: Number.isFinite(payload.usageCount) ? payload.usageCount : 0,
     last_used_at: payload.lastUsedAt ? normalizeDate(payload.lastUsedAt) : null,
     created_at: payload.createdAt ? normalizeDate(payload.createdAt) : now,
@@ -317,10 +346,6 @@ const readSkills = async (organizationId) => {
     'last_used_at',
     'created_at',
     'updated_at',
-    'icon_data_url',
-    'publisher_name',
-    'publisher_avatar_url',
-    'use_profile_identity',
     'publish_destinations',
     'publish_settings',
   ].join(',');
