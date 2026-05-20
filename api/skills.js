@@ -258,6 +258,8 @@ const withLocalPresentationFields = (row, payload) => ({
   publisher_name: normalizeText(payload.publisherName) || null,
   publisher_avatar_url: normalizeText(payload.publisherAvatarUrl) || null,
   use_profile_identity: typeof payload.useProfileIdentity === 'boolean' ? payload.useProfileIdentity : true,
+  publish_destinations: normalizePublishDestinations(payload.publishDestinations),
+  publish_settings: createStoragePublishSettings(payload),
 });
 
 const createPresentationSettings = (payload) => {
@@ -314,8 +316,6 @@ const toStorageRow = (payload, organizationId) => {
     source: 'custom',
     status: payload.status === 'draft' ? 'draft' : 'active',
     files,
-    publish_destinations: normalizePublishDestinations(payload.publishDestinations),
-    publish_settings: createStoragePublishSettings(payload),
     usage_count: Number.isFinite(payload.usageCount) ? payload.usageCount : 0,
     last_used_at: payload.lastUsedAt ? normalizeDate(payload.lastUsedAt) : null,
     created_at: payload.createdAt ? normalizeDate(payload.createdAt) : now,
@@ -346,8 +346,6 @@ const readSkills = async (organizationId) => {
     'last_used_at',
     'created_at',
     'updated_at',
-    'publish_destinations',
-    'publish_settings',
   ].join(',');
   let rows = [];
   try {
