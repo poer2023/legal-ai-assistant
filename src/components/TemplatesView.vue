@@ -83,6 +83,7 @@ const sourceTabsKeys: SourceFilter[] = [
   'group-shared',
   'team-shared',
   'recommended',
+  'public-hub',
 ];
 
 const templateModeCopy: Record<SourceFilter, { name: string; emptyTitle: string; emptyDescription: string }> = {
@@ -102,21 +103,21 @@ const templateModeCopy: Record<SourceFilter, { name: string; emptyTitle: string;
     emptyDescription: '团队发布的通用模板会集中展示在这里。',
   },
   'public-hub': {
-    name: '推荐',
-    emptyTitle: '暂无推荐模板',
-    emptyDescription: '推荐模板同步后会展示在这里。',
+    name: '市场',
+    emptyTitle: '暂无市场模板',
+    emptyDescription: '公开发布到市场的模板会集中展示在这里。',
   },
   recommended: {
-    name: '推荐',
-    emptyTitle: '暂无推荐模板',
-    emptyDescription: '推荐模板会集中展示在这里。',
+    name: '官方',
+    emptyTitle: '暂无官方模板',
+    emptyDescription: '官方模板会集中展示在这里。',
   },
 };
 
 const getTemplateStaticSourceKind = (template: TemplateAsset): SourceFilter => {
   if (template.source.includes('小组')) return 'group-shared';
   if (template.source.includes('团队')) return 'team-shared';
-  if (template.source.includes('公共')) return 'public-hub';
+  if (template.source.includes('公共') || template.source.includes('市场')) return 'public-hub';
   if (template.source.includes('推荐') || template.source.includes('官方')) return 'recommended';
   return 'personal';
 };
@@ -133,7 +134,7 @@ const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter
   }
   if (source === 'recommended') {
     const staticSource = getTemplateStaticSourceKind(template);
-    return staticSource === 'recommended' || staticSource === 'public-hub' || hasTemplatePublishDestination(template.id, 'public');
+    return staticSource === 'recommended';
   }
   return getTemplateStaticSourceKind(template) === source;
 };
@@ -158,6 +159,7 @@ const sourceTabs = computed(() => {
     { key: 'group-shared' as const, name: templateModeCopy['group-shared'].name, count: counts['group-shared'] },
     { key: 'team-shared' as const, name: templateModeCopy['team-shared'].name, count: counts['team-shared'] },
     { key: 'recommended' as const, name: templateModeCopy.recommended.name, count: counts.recommended },
+    { key: 'public-hub' as const, name: templateModeCopy['public-hub'].name, count: counts['public-hub'] },
   ];
 });
 
@@ -176,8 +178,8 @@ const sourceChipCopy: Record<SourceFilter, string> = {
   personal: '来自 个人',
   'group-shared': '来自 小组',
   'team-shared': '来自 团队',
-  recommended: '来自 推荐',
-  'public-hub': '来自 推荐',
+  recommended: '来自 官方',
+  'public-hub': '来自 市场',
 };
 
 const getStableHash = (value: string) => {
@@ -202,9 +204,12 @@ const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
   }
   if (selectedSource.value === 'recommended') {
     const staticSource = getTemplateStaticSourceKind(template);
-    if (staticSource === 'recommended' || staticSource === 'public-hub' || hasTemplatePublishDestination(template.id, 'public')) {
+    if (staticSource === 'recommended') {
       return 'recommended';
     }
+  }
+  if (selectedSource.value === 'public-hub' && hasTemplatePublishDestination(template.id, 'public')) {
+    return 'public-hub';
   }
   return getTemplateStaticSourceKind(template);
 };
@@ -878,10 +883,7 @@ onBeforeUnmount(() => {
                     <User v-if="getTemplateDisplaySource(template) === 'personal'" :size="11" />
                     <Users v-else-if="getTemplateDisplaySource(template) === 'group-shared'" :size="11" />
                     <Building2 v-else-if="getTemplateDisplaySource(template) === 'team-shared'" :size="11" />
-                    <ShieldCheck
-                      v-else-if="getTemplateDisplaySource(template) === 'recommended' || getTemplateDisplaySource(template) === 'public-hub'"
-                      :size="11"
-                    />
+                    <ShieldCheck v-else-if="getTemplateDisplaySource(template) === 'recommended'" :size="11" />
                     <Store v-else :size="11" />
                     {{ sourceChipCopy[getTemplateDisplaySource(template)] }}
                   </span>
