@@ -11,6 +11,8 @@ export type MockOrganization = {
   name: string;
   shortName: string;
   avatarText: string;
+  avatarDataUrl?: string;
+  description?: string;
   role: string;
   memberCount: number;
   planName: string;
@@ -283,6 +285,48 @@ export const useOrgSession = () => {
     return true;
   };
 
+  const updateOrganizationProfile = (
+    organizationId: string,
+    profile: {
+      name?: string;
+      shortName?: string;
+      avatarText?: string;
+      avatarDataUrl?: string;
+      description?: string;
+    },
+  ) => {
+    const targetIndex = state.value.organizations.findIndex((org) => org.id === organizationId);
+    if (targetIndex < 0) return false;
+
+    const current = state.value.organizations[targetIndex]!;
+    const name = profile.name?.trim() || current.name;
+    const shortName = profile.shortName?.trim() || current.shortName;
+    const avatarText = profile.avatarText?.trim().slice(0, 1) || name.slice(0, 1) || current.avatarText;
+    const avatarDataUrl = profile.avatarDataUrl !== undefined
+      ? profile.avatarDataUrl.trim() || undefined
+      : current.avatarDataUrl;
+    const description = profile.description !== undefined
+      ? profile.description.trim()
+      : current.description;
+
+    const nextOrganizations = [...state.value.organizations];
+    nextOrganizations[targetIndex] = {
+      ...current,
+      name,
+      shortName,
+      avatarText,
+      avatarDataUrl,
+      description: description || undefined,
+    };
+
+    state.value = {
+      ...state.value,
+      organizations: nextOrganizations,
+    };
+    persistSession();
+    return true;
+  };
+
   const updateUserProfile = (profile: {
     displayName: string;
     avatarDataUrl?: string;
@@ -339,5 +383,6 @@ export const useOrgSession = () => {
     removeOrganization,
     selectOrganization,
     updateUserProfile,
+    updateOrganizationProfile,
   };
 };

@@ -25,6 +25,7 @@ import {
   Zap,
 } from 'lucide-vue-next';
 import ChatInput from './ChatInput.vue';
+import type { ComposerPickedAsset } from './ChatInput.vue';
 import SkillDropdownContent from './SkillDropdownContent.vue';
 import SkillManageModal from './SkillManageModal.vue';
 import TemplateDropdownContent from './TemplateDropdownContent.vue';
@@ -144,6 +145,7 @@ const {
   updateConversationAnswer,
 } = useChatHistory();
 const inputValue = ref('');
+const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null);
 const showActionMenu = ref(false);
 const showSkillMenu = ref(false);
 const showTemplateMenu = ref(false);
@@ -363,6 +365,18 @@ const hideSkillCreatorArtifactList = (content: string) => {
   return `${content.slice(0, listStart).trimEnd()}\n\n${rest.trimStart()}`;
 };
 
+const stripSkillCreatorRuntimeMarkers = (content: string): string => {
+  let text = content.replace(/\r\n/g, '\n');
+
+  text = text.replace(/\n*\[\[skill-completion-selector-dismissed\]\]\s*$/g, '');
+  text = text.replace(/\n+技能已经创建完成[^\n]*(?:\n+\[\[skill-package:[^\n]*\]\])?\s*$/g, '');
+  text = text.replace(/\n+\[\[skill-package:[^\n]*\]\]\s*$/g, '');
+  text = text.replace(/\n+已生成技能草稿：[\s\S]*?等待系统解析 skill_json、写入技能库并完成读回校验。\s*$/g, '');
+  text = text.replace(/\n+系统校验：[\s\S]*$/g, '');
+
+  return text.replace(/\s+$/g, '');
+};
+
 const formatSkillCreatorProcessContent = (content: string): string => {
   let text = normalizeGeneratedArtifactBoundaries(content.replace(/\r\n/g, '\n'));
   const generationStart = text.search(/<generation_markdown>/i);
@@ -389,7 +403,7 @@ const formatSkillCreatorProcessContent = (content: string): string => {
     text = beforeJson + rest.slice((endMatch.index ?? 0) + endMatch[0].length);
   }
 
-  return hideSkillCreatorArtifactList(text.trimStart());
+  return hideSkillCreatorArtifactList(stripSkillCreatorRuntimeMarkers(text).trimStart());
 };
 
 const formatSkillCreatorDisplayContent = (content: string): string => {
@@ -577,13 +591,14 @@ const createArtifactId = (title: string) => {
 const createArtifactFromSkillFile = (file: SkillFile, index: number): ChatArtifact => {
   const language = file.type || getArtifactExtension(file.path || file.name, 'markdown');
   const title = file.path || file.name || `生成文件 ${index + 1}`;
+  const content = stripSkillCreatorRuntimeMarkers(file.content || '');
   return {
     id: createArtifactId(title),
     title,
     kind: getArtifactKind(title, language),
     language,
-    content: file.content || '',
-    summary: getArtifactSummary(file.content || ''),
+    content,
+    summary: getArtifactSummary(content),
     sourceStart: -1,
     sourceEnd: -1,
   };
@@ -622,7 +637,7 @@ const extractGeneratedArtifactSections = (content: string): GeneratedArtifactSec
   return headings.map((heading, index) => {
     const nextGeneratedHeadingStart = headings[index + 1]?.start ?? content.length;
     const trailingContent = content.slice(heading.end, nextGeneratedHeadingStart);
-    const stopMatch = trailingContent.match(/\n(?=<\/generation_markdown>|<skill_json>|技能创建完成[:：]|系统创建完成[:：]|系统保存流程[:：]|系统保存结果[:：]|文件结构[:：]|可在「技能|##\s*系统解析)/i);
+    const stopMatch = trailingContent.match(/\n(?=<\/generation_markdown>|<skill_json>|技能已经创建完成|已整理成一个可预览的技能包|\[\[skill-package:|\[\[skill-completion-selector-dismissed\]\]|系统校验[:：]|技能创建完成[:：]|系统创建完成[:：]|系统保存流程[:：]|系统保存结果[:：]|文件结构[:：]|可在「技能|##\s*系统解析)/i);
     const sectionEnd = stopMatch?.index === undefined
       ? nextGeneratedHeadingStart
       : heading.end + stopMatch.index;
@@ -643,7 +658,9 @@ const extractGeneratedArtifactSections = (content: string): GeneratedArtifactSec
     const fenceMarker = fenceMatch[1] || '```';
     const artifactBody = content.slice(contentStart, sectionEnd);
     const closingFencePattern = new RegExp(`\\n?${escapeRegExp(fenceMarker)}\\s*$`);
-    const artifactContent = artifactBody.replace(closingFencePattern, '').replace(/\s+$/, '');
+    const artifactContent = stripSkillCreatorRuntimeMarkers(
+      artifactBody.replace(closingFencePattern, '').replace(/\s+$/, ''),
+    );
 
     return {
       start: heading.start,
@@ -667,13 +684,14 @@ const extractArtifactsFromAnswer = (content: string, options: { generatedOnly?: 
     extractGeneratedArtifactSections(content).forEach((section, index) => {
       const title = normalizeArtifactTitle(section.title, `生成文件 ${index + 1}.md`);
       const language = section.language || 'markdown';
+      const artifactContent = stripSkillCreatorRuntimeMarkers(section.content);
       const artifact: ChatArtifact = {
         id: createArtifactId(title),
         title,
         kind: getArtifactKind(title, language),
         language,
-        content: section.content,
-        summary: section.content ? getArtifactSummary(section.content) : '正在生成文件内容...',
+        content: artifactContent,
+        summary: artifactContent ? getArtifactSummary(artifactContent) : '正在生成文件内容...',
         sourceStart: section.start,
         sourceEnd: section.end,
       };
@@ -697,7 +715,7 @@ const extractArtifactsFromAnswer = (content: string, options: { generatedOnly?: 
 
   while ((match = fencePattern.exec(content)) !== null) {
     const rawInfo = (match[1] || '').trim();
-    const artifactContent = (match[2] || '').trim();
+    const artifactContent = stripSkillCreatorRuntimeMarkers((match[2] || '').trim());
     if (artifactContent.length < 24) continue;
     const heading = findGeneratedArtifactHeadingBeforeFence(content, match.index);
     if (options.generatedOnly && !heading) continue;
@@ -1037,8 +1055,8 @@ const isMarkdownArtifact = (artifact: ChatArtifact): boolean =>
 const renderArtifactDocumentPreview = (artifact: ChatArtifact): string => {
   const shouldRenderMarkdownCodeBlocks = isMarkdownArtifact(artifact);
   const content = shouldRenderMarkdownCodeBlocks
-    ? unwrapWholeMarkdownFence(artifact.content)
-    : artifact.content;
+    ? unwrapWholeMarkdownFence(stripSkillCreatorRuntimeMarkers(artifact.content))
+    : stripSkillCreatorRuntimeMarkers(artifact.content);
 
   return renderMarkdownBlocks(content, {
     renderMarkdownCodeBlocks: shouldRenderMarkdownCodeBlocks,
@@ -1536,6 +1554,131 @@ const shouldShowSkillCreatorMaterials = computed(() =>
 const shouldAskForSkillCreatorMaterial = (step: SkillCreatorGuideStep | null) =>
   getSkillCreatorMaterialOptionsForStep(step).length > 0;
 
+type PendingSkillCreatorAssetPick = {
+  basePrompt: string;
+  option: SkillCreatorMaterialOption;
+  notice?: { title: string; label: string };
+  combineMaterial: boolean;
+};
+
+const pendingSkillCreatorAssetPick = ref<PendingSkillCreatorAssetPick | null>(null);
+
+const inferUploadKindFromText = (label: string, description = ''): SkillCreatorMaterialKind | null => {
+  const text = `${label} ${description}`;
+  if (/本地|上传|电脑文件|本地文件|本地底稿/.test(text)) return 'local-file';
+  if (/知识库|案例库|法规库|监管问答|合同范本|playbook/i.test(text)) return 'knowledge-file';
+  if (/团队规则|内部规范|保密制度|制度或政策|团队共享/.test(text)) return 'team-rule';
+  if (/模板|范本|标准格式|标准模板|公司标准/.test(text)) return 'template';
+  return null;
+};
+
+const requiresMaterialAssetPicker = (kind: SkillCreatorMaterialKind) =>
+  kind === 'local-file' || kind === 'knowledge-file' || kind === 'template' || kind === 'team-rule';
+
+const guideOptionToMaterialOption = (option: SkillCreatorGuideOption): SkillCreatorMaterialOption => ({
+  id: `guide-${option.id}`,
+  label: option.label,
+  description: option.description,
+  name: option.label,
+  sourceLabel: option.label,
+  kind: inferUploadKindFromText(option.label, option.description) ?? 'local-file',
+  slotId: pendingSkillCreatorStep.value?.assetSlots?.[0]?.id,
+  slotTitle: pendingSkillCreatorStep.value?.assetSlots?.[0]?.title,
+});
+
+const buildMaterialOptionFromPickedAssets = (
+  base: SkillCreatorMaterialOption,
+  assets: ComposerPickedAsset[],
+): SkillCreatorMaterialOption => {
+  const first = assets[0];
+  if (!first) return base;
+
+  return {
+    ...base,
+    name: assets.map((asset) => asset.name).join('、'),
+    sourceLabel: first.sourceLabel,
+    kind: first.kind === 'template' ? 'template' : base.kind,
+    description: assets.length > 1
+      ? `已选择 ${assets.length} 份${first.sourceLabel}`
+      : `${first.sourceLabel}：${first.name}`,
+  };
+};
+
+const finalizeSkillCreatorAssetPick = (assets: ComposerPickedAsset[]) => {
+  const pending = pendingSkillCreatorAssetPick.value;
+  pendingSkillCreatorAssetPick.value = null;
+  if (!pending || assets.length === 0) return;
+
+  const resolvedOption = buildMaterialOptionFromPickedAssets(pending.option, assets);
+  const answerPrompt = pending.combineMaterial
+    ? formatSkillCreatorCombinedMaterialAnswer(pending.basePrompt, resolvedOption)
+    : [pending.basePrompt.trim(), formatSkillCreatorMaterialAnswer(resolvedOption)].filter(Boolean).join('\n');
+
+  pendingSkillCreatorMaterialStep.value = null;
+  pendingSkillCreatorMaterialPrompt.value = '';
+  isSkillCreatorOtherOpen.value = false;
+  skillCreatorOtherInput.value = '';
+  isSkillCreatorSelectorDismissed.value = false;
+  submitSkillCreatorAnswerPrompt(answerPrompt, pending.notice);
+};
+
+const beginSkillCreatorAssetPick = (
+  kind: SkillCreatorMaterialKind,
+  option: SkillCreatorMaterialOption,
+  basePrompt: string,
+  notice?: { title: string; label: string },
+  combineMaterial = false,
+) => {
+  const resolvedKind = kind === 'team-rule' ? 'knowledge-file' : kind;
+
+  if (!requiresMaterialAssetPicker(kind)) {
+    if (combineMaterial) {
+      submitSkillCreatorAnswerPrompt(formatSkillCreatorCombinedMaterialAnswer(basePrompt, option), notice);
+    } else {
+      submitSkillCreatorAnswerPrompt(basePrompt, notice);
+    }
+    return;
+  }
+
+  if (!chatInputRef.value) {
+    if (combineMaterial) {
+      submitSkillCreatorAnswerPrompt(formatSkillCreatorCombinedMaterialAnswer(basePrompt, option), notice);
+    } else {
+      submitSkillCreatorAnswerPrompt(basePrompt, notice);
+    }
+    return;
+  }
+
+  pendingSkillCreatorAssetPick.value = {
+    basePrompt,
+    option,
+    notice,
+    combineMaterial,
+  };
+
+  if (resolvedKind === 'local-file') {
+    chatInputRef.value.pickLocalFiles((assets) => finalizeSkillCreatorAssetPick(assets));
+    return;
+  }
+
+  if (resolvedKind === 'knowledge-file') {
+    chatInputRef.value.pickKnowledgeDrafts(
+      (assets) => finalizeSkillCreatorAssetPick(assets),
+      { collection: kind === 'team-rule' ? 'team' : 'team' },
+    );
+    return;
+  }
+
+  chatInputRef.value.pickTemplate((template) => {
+    finalizeSkillCreatorAssetPick([{
+      name: template.name,
+      sourceLabel: template.source,
+      kind: 'template',
+      templateId: template.id,
+    }]);
+  });
+};
+
 const queueSkillCreatorMaterialSelector = (
   answerPrompt: string,
   notice?: { title: string; label: string },
@@ -1567,16 +1710,33 @@ const submitSkillCreatorSelectorOption = (option: SkillCreatorGuideOption) => {
   if (!pendingSkillCreatorStep.value || isGeneratingAnswer.value) return;
   const answerPrompt = formatSkillCreatorOptionAnswer(option);
   const notice = { title: pendingSkillCreatorStep.value.title, label: option.label };
+  const uploadKind = inferUploadKindFromText(option.label, option.description);
+  if (uploadKind) {
+    beginSkillCreatorAssetPick(uploadKind, guideOptionToMaterialOption(option), answerPrompt, notice, false);
+    return;
+  }
   if (queueSkillCreatorMaterialSelector(answerPrompt, notice)) return;
   submitSkillCreatorAnswerPrompt(answerPrompt, notice);
 };
 
+const skillCreatorMaterialActionHint = (material: SkillCreatorMaterialOption) => {
+  if (material.kind === 'local-file') return '点击打开本地文件管理器';
+  if (material.kind === 'knowledge-file' || material.kind === 'team-rule') return '点击从知识库选择文件';
+  if (material.kind === 'template') return '点击打开模板库';
+  return '';
+};
+
 const submitSkillCreatorMaterialOption = (option: SkillCreatorMaterialOption) => {
   if (!pendingSkillCreatorStep.value || isGeneratingAnswer.value || !pendingSkillCreatorMaterialPrompt.value.trim()) return;
+  const notice = { title: '是否补充一份参考材料？', label: option.label };
+  if (requiresMaterialAssetPicker(option.kind)) {
+    beginSkillCreatorAssetPick(option.kind, option, pendingSkillCreatorMaterialPrompt.value, notice, true);
+    return;
+  }
   submitSkillCreatorAnswerPrompt(formatSkillCreatorCombinedMaterialAnswer(
     pendingSkillCreatorMaterialPrompt.value,
     option,
-  ), { title: '是否补充一份参考材料？', label: option.label });
+  ), notice);
 };
 
 const createCustomSkillCreatorMaterialOption = (value: string): SkillCreatorMaterialOption => ({
@@ -2215,9 +2375,8 @@ const promptAssetLabelMap: Record<string, NonNullable<PromptPart['assetKind']>> 
 };
 
 const assetBadgeLabel = (kind: NonNullable<PromptPart['assetKind']>) => {
-  if (kind === 'template') return '模';
-  if (kind === 'knowledge-file') return '库';
-  return '稿';
+  if (kind === 'template') return '模板';
+  return '底稿';
 };
 
 const splitPromptAssetEntries = (value: string) => {
@@ -2262,7 +2421,7 @@ const parsePromptAssetEntry = (entry: string) => {
 const appendPromptInlineParts = (parts: PromptPart[], text: string) => {
   if (!text) return;
 
-  const tokenPattern = /(\/[A-Za-z][\w-]*|模板：[^\s，。；;,.、]+)/g;
+  const tokenPattern = /(\/[A-Za-z][\w-]*|「(?:模板|底稿)[：:][^」\n]+」|模板：[^\s，。；;,.、]+)/g;
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 
@@ -2274,6 +2433,18 @@ const appendPromptInlineParts = (parts: PromptPart[], text: string) => {
     const value = match[0];
     if (value.startsWith('/')) {
       parts.push({ type: 'skill', value });
+    } else if (value.startsWith('「')) {
+      const inner = value.slice(1, -1);
+      const sep = inner.search(/[：:]/);
+      const label = sep > 0 ? inner.slice(0, sep) : '底稿';
+      const rawName = sep > 0 ? inner.slice(sep + 1) : inner;
+      const asset = parsePromptAssetEntry(rawName);
+      parts.push({
+        type: 'asset',
+        value: asset.name,
+        assetKind: label === '模板' ? 'template' : 'local-file',
+        sourceLabel: asset.sourceLabel,
+      });
     } else {
       const asset = parsePromptAssetEntry(value.replace(/^模板[：:]/, ''));
       parts.push({ type: 'text', value: '模板：' });
@@ -2389,10 +2560,17 @@ const syncConversationRoute = (historyId: string, prompt: string) => {
 
   const normalizedPrompt = prompt.trim();
   if (!historyId || !normalizedPrompt) return;
-  if (route.query.historyId === historyId && !route.query.prompt) return;
+  if (route.query.historyId === historyId && !route.query.prompt && !route.query.promptKey) return;
 
   handledRoutePromptKey.value = `${historyId}:${normalizedPrompt}`;
-  const { mock: _mock, prompt: _prompt, ...query } = route.query;
+  const {
+    mock: _mock,
+    prompt: _prompt,
+    promptKey: _promptKey,
+    source: _source,
+    composerTick: _composerTick,
+    ...query
+  } = route.query;
   void router.replace({
     name: 'chat',
     query: {
@@ -3000,7 +3178,14 @@ const openRoutePrompt = async () => {
 
   const rawHistoryId = typeof route.query.historyId === 'string' ? route.query.historyId : undefined;
   const historyId = rawHistoryId && !deprecatedMockHistoryIds.has(rawHistoryId) ? rawHistoryId : undefined;
-  const routePrompt = typeof route.query.prompt === 'string' ? route.query.prompt.trim() : '';
+  const routePrompt = typeof route.query.prompt === 'string'
+    ? route.query.prompt.trim()
+    : typeof route.query.promptKey === 'string'
+      ? window.sessionStorage.getItem(route.query.promptKey)?.trim() || ''
+      : '';
+  if (typeof route.query.promptKey === 'string') {
+    window.sessionStorage.removeItem(route.query.promptKey);
+  }
   const prompt = routePrompt || findHistoryItem(historyId)?.prompt || '';
   if (!prompt.trim()) return;
 
@@ -3363,7 +3548,7 @@ const buildSkillPackageFromArtifacts = (
       name: artifact.title.split('/').pop() || artifact.title,
       path: artifact.title,
       type: normalizeSkillFileTypeFromArtifact(artifact),
-      content: artifact.content,
+      content: stripSkillCreatorRuntimeMarkers(artifact.content),
     })),
     source: 'custom',
     scope: 'personal',
@@ -3379,13 +3564,13 @@ const getSkillPackageFiles = (skillId?: string | null, skillName?: string | null
   if (skill?.files?.length) {
     return skill.files.map((file) => ({
       path: file.path || file.name || 'SKILL.md',
-      content: file.content || '',
+      content: stripSkillCreatorRuntimeMarkers(file.content || ''),
     }));
   }
 
   return generatedArtifacts.value.map((artifact) => ({
     path: artifact.title,
-    content: artifact.content,
+    content: stripSkillCreatorRuntimeMarkers(artifact.content),
   }));
 };
 
@@ -3764,7 +3949,7 @@ const findTemplateByShortcutQuery = (query: string) => {
 };
 
 const handleTextareaInput = () => {
-  const match = inputValue.value.match(/(^|[\s\n])#([^\s#]+)$/u);
+  const match = inputValue.value.match(/@([^\s@]+)$/u);
   if (!match) return;
 
   const template = findTemplateByShortcutQuery(match[2] ?? '');
@@ -4089,7 +4274,7 @@ watch(
 );
 
 watch(
-  () => [route.query.prompt, route.query.historyId],
+  () => [route.query.prompt, route.query.promptKey, route.query.historyId],
   () => {
     void openRoutePrompt();
   },
@@ -4480,6 +4665,12 @@ watch(
                 <span class="skill-intake-material-copy">
                   <strong>{{ material.label }}</strong>
                   <small>{{ material.description }}</small>
+                  <small
+                    v-if="skillCreatorMaterialActionHint(material)"
+                    class="skill-intake-material-action"
+                  >
+                    {{ skillCreatorMaterialActionHint(material) }}
+                  </small>
                 </span>
               </button>
             </div>
@@ -4557,7 +4748,7 @@ watch(
             </button>
           </div>
         </section>
-        <ChatInput v-model="inputValue" @submit="submitSharedComposer" />
+        <ChatInput ref="chatInputRef" v-model="inputValue" @submit="submitSharedComposer" />
 
         <p class="ai-note">回复的内容由AI生成，非人工编辑；其内容准确性和完整性无法保证，不代表我们的态度和观点。</p>
       </footer>
@@ -5299,6 +5490,11 @@ watch(
   white-space: nowrap;
 }
 
+.skill-intake-material-action {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
 .skill-intake-selector-footer {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -5777,35 +5973,44 @@ watch(
   min-height: 28px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   margin: 0 4px;
-  padding: 0 8px 0 5px;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
-  background: var(--card-bg);
-  color: var(--text-strong);
+  padding: 2px 9px 2px 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #111827;
   font-family: inherit;
   font-size: inherit;
-  font-weight: 520;
-  line-height: 24px;
-  vertical-align: baseline;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+  font-weight: 600;
+  line-height: 1.2;
+  vertical-align: middle;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  white-space: nowrap;
 }
 
 .question-asset-chip::before {
   content: attr(data-badge);
-  width: 20px;
+  flex-shrink: 0;
   height: 20px;
+  padding: 0 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  border-radius: 6px;
-  background: var(--surface-soft);
-  color: var(--primary-color);
-  font-size: 12px;
-  font-weight: 760;
+  border-radius: 5px;
+  background: #eef1f5;
+  color: #334155;
+  box-shadow: inset 0 0 0 1px rgba(51, 65, 85, 0.18);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
   line-height: 1;
+}
+
+.question-asset-chip[data-badge="模板"]::before {
+  background: #ece9e2;
+  color: #4a4032;
+  box-shadow: inset 0 0 0 1px rgba(74, 64, 50, 0.2);
 }
 
 .question-asset-name {

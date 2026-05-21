@@ -549,6 +549,23 @@ const handleSkillCreated = (skill: SkillCatalogItem) => {
   showToast(`${skill.name} 已创建`);
 };
 
+const handleSkillCreateChatStart = (prompt: string) => {
+  const promptKey = `skill-create-prompt:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  window.sessionStorage.setItem(promptKey, prompt);
+  showSkillCreateModal.value = false;
+  selectedSkill.value = null;
+  openCardMenuId.value = null;
+
+  void router.push({
+    name: 'chat',
+    query: {
+      promptKey,
+      source: 'skill-create',
+      composerTick: Date.now().toString(),
+    },
+  });
+};
+
 const addSkill = (skill: SkillCatalogItem) => {
   const didAdd = addPersonalSkill(skill.id);
   showToast(didAdd ? `${getSkillDisplayName(skill)} 已订阅到我的技能` : `${getSkillDisplayName(skill)} 已在我的技能中`);
@@ -1379,8 +1396,10 @@ onBeforeUnmount(() => {
 
     <SkillCreateModal
       v-if="showSkillCreateModal"
+      submission-mode="chat"
       @close="showSkillCreateModal = false"
       @created="handleSkillCreated"
+      @start-chat="handleSkillCreateChatStart"
     />
   </div>
 </template>

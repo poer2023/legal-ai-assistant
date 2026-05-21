@@ -23,33 +23,34 @@ const emit = defineEmits<{
 
 const searchKeyword = ref('');
 
-const filteredTemplates = computed(() => {
-  const keywordSource = props.showSearch ? searchKeyword.value : props.inlineQuery;
-  const keyword = keywordSource.trim().toLowerCase();
+const filterKeywords = computed(() =>
+  [props.inlineQuery, props.showSearch ? searchKeyword.value : '']
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean),
+);
 
-  if (!keyword) {
+const filteredTemplates = computed(() => {
+  const keywords = filterKeywords.value;
+  if (!keywords.length) {
     return defaultTemplateAssets;
   }
 
   return defaultTemplateAssets
     .filter((template) => {
-      const searchableParts = props.showSearch
-        ? [
-            template.name,
-            template.docType,
-            template.source,
-            template.agent,
-            template.preview,
-            ...template.applicableSkills,
-            ...template.requiredFields,
-            ...template.tags,
-          ]
-        : [template.name];
-
-      return searchableParts
+      const searchable = [
+        template.name,
+        template.docType,
+        template.source,
+        template.agent,
+        template.preview,
+        ...template.applicableSkills,
+        ...template.requiredFields,
+        ...template.tags,
+      ]
         .join(' ')
-        .toLowerCase()
-        .includes(keyword);
+        .toLowerCase();
+
+      return keywords.every((keyword) => searchable.includes(keyword));
     })
     .slice(0, 12);
 });
@@ -68,7 +69,7 @@ const manageTemplates = () => {
 </script>
 
 <template>
-  <div class="template-dropdown-content">
+  <div class="template-dropdown-content" :class="{ 'inline-layout': !showManage }">
     <label v-if="showSearch" class="template-search">
       <Search :size="15" />
       <input v-model="searchKeyword" type="text" placeholder="搜索模板、字段、适用场景" />
@@ -112,7 +113,16 @@ const manageTemplates = () => {
 
 <style scoped>
 .template-dropdown-content {
+  height: min(292px, calc(100vh - 360px));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   color: var(--text-secondary);
+}
+
+.template-dropdown-content.inline-layout {
+  height: auto;
+  max-height: min(300px, calc(100vh - 260px));
 }
 
 .template-search {
@@ -139,11 +149,18 @@ const manageTemplates = () => {
 }
 
 .template-list {
+  flex: 1;
+  min-height: 0;
   max-height: 292px;
   overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.template-dropdown-content.inline-layout .template-list {
+  max-height: min(240px, calc(100vh - 320px));
 }
 
 .template-item {

@@ -26,6 +26,7 @@ import KnowledgeSearchIcon from './icons/KnowledgeSearchIcon.vue';
 import LawAgentsNavIcon from './icons/LawAgentsNavIcon.vue';
 import SkillDropdownContent from './SkillDropdownContent.vue';
 import type { SkillDropdownSelection } from './SkillDropdownContent.vue';
+import TemplateDropdownContent from './TemplateDropdownContent.vue';
 import SkillManageModal from './SkillManageModal.vue';
 import TemplateManageModal from './TemplateManageModal.vue';
 import { availableSkills, getSkillByNameOrId, isRegisteredSkillName, type SkillCatalogItem } from '../data/skillCatalog';
@@ -100,6 +101,16 @@ type SkillCreatorReferenceAsset = {
   sourceLabel: string;
   templateId?: string;
 };
+
+export type ComposerPickedAsset = {
+  name: string;
+  sourceLabel: string;
+  kind: SkillCreatorReferenceAssetKind;
+  templateId?: string;
+};
+
+type ComposerAssetPickHandler = (assets: ComposerPickedAsset[]) => void;
+type ComposerTemplatePickHandler = (template: TemplateAsset) => void;
 
 type SkillSlashMatch = {
   query: string;
@@ -471,6 +482,13 @@ const filteredKnowledgeDraftAssets = computed(() => {
 });
 const knowledgeDraftPickerTitle = '从知识库选择文件';
 const knowledgeDraftPickerConfirmText = '添加为本次底稿';
+const knowledgeDraftPickerPickModeText = '确认选择';
+let pendingAssetPickHandler: ComposerAssetPickHandler | null = null;
+let pendingTemplatePickHandler: ComposerTemplatePickHandler | null = null;
+const isExternalAssetPickMode = computed(() => Boolean(pendingAssetPickHandler || pendingTemplatePickHandler));
+const knowledgeDraftPickerConfirmLabel = computed(() =>
+  pendingAssetPickHandler ? knowledgeDraftPickerPickModeText : knowledgeDraftPickerConfirmText,
+);
 
 const makeAssetId = (prefix: string, value: string) =>
   `${prefix}-${value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 42) || Date.now().toString(36)}`;
@@ -561,11 +579,17 @@ const triggerUploadAction = (actionId: UploadActionId) => {
   inputMap[actionId]?.click();
 };
 
+const clearExternalPickHandlers = () => {
+  pendingAssetPickHandler = null;
+  pendingTemplatePickHandler = null;
+};
+
 const closeKnowledgeDraftPicker = () => {
   showKnowledgeDraftPicker.value = false;
   selectedKnowledgeDraftIds.value = [];
   activeKnowledgeDraftCollection.value = 'team';
   knowledgeDraftSearchKeyword.value = '';
+  pendingAssetPickHandler = null;
 };
 
 const toggleKnowledgeDraftAsset = (assetId: string) => {
@@ -588,14 +612,29 @@ const openKnowledgeDraftFileUpload = () => {
   fileInputRef.value?.click();
 };
 
+const toComposerPickedAssets = (assets: SkillCreatorReferenceAsset[]): ComposerPickedAsset[] =>
+  assets.map((asset) => ({
+    name: asset.name,
+    sourceLabel: asset.sourceLabel,
+    kind: asset.kind,
+    templateId: asset.templateId,
+  }));
+
 const confirmKnowledgeDraftSelection = () => {
   if (selectedKnowledgeDraftAssets.value.length === 0) return;
 
   const selectedAssets = selectedKnowledgeDraftAssets.value.map((asset) => createKnowledgeFileAsset(asset));
+  const externalHandler = pendingAssetPickHandler;
   showKnowledgeDraftPicker.value = false;
   selectedKnowledgeDraftIds.value = [];
   activeKnowledgeDraftCollection.value = 'team';
   knowledgeDraftSearchKeyword.value = '';
+  pendingAssetPickHandler = null;
+
+  if (externalHandler) {
+    externalHandler(toComposerPickedAssets(selectedAssets));
+    return;
+  }
 
   nextTick(() => {
     insertReferenceAssetTokens(selectedAssets);
@@ -608,6 +647,14 @@ const handleLocalFileSelection = (event: Event) => {
 
   const files = Array.from(input.files ?? []);
   const selectedAssets = files.slice(0, 12).map((file) => createLocalFileAsset(file));
+  const externalHandler = pendingAssetPickHandler;
+  pendingAssetPickHandler = null;
+
+  if (selectedAssets.length && externalHandler) {
+    externalHandler(toComposerPickedAssets(selectedAssets));
+    input.value = '';
+    return;
+  }
 
   if (selectedAssets.length) {
     nextTick(() => {
@@ -616,6 +663,32 @@ const handleLocalFileSelection = (event: Event) => {
   }
 
   input.value = '';
+};
+
+const pickLocalFiles = (handler: ComposerAssetPickHandler) => {
+  clearExternalPickHandlers();
+  pendingAssetPickHandler = handler;
+  fileInputRef.value?.click();
+};
+
+const pickKnowledgeDrafts = (
+  handler: ComposerAssetPickHandler,
+  options: { collection?: KnowledgeDraftCollection } = {},
+) => {
+  clearExternalPickHandlers();
+  pendingAssetPickHandler = handler;
+  if (options.collection) {
+    activeKnowledgeDraftCollection.value = options.collection;
+  }
+  selectedKnowledgeDraftIds.value = [];
+  knowledgeDraftSearchKeyword.value = '';
+  showKnowledgeDraftPicker.value = true;
+};
+
+const pickTemplate = (handler: ComposerTemplatePickHandler) => {
+  clearExternalPickHandlers();
+  pendingTemplatePickHandler = handler;
+  showTemplateManageModal.value = true;
 };
 
 function renderEditorPlainText(value: string) {
@@ -644,7 +717,12 @@ const serializeEditorNode = (node: Node, options: { includeInlineTokens?: boolea
     }
 
     if (node.matches('.asset-inline-code')) {
-      return node.dataset.assetName ?? node.textContent ?? '';
+      const kind = (node.dataset.assetKind ?? 'local-file') as SkillCreatorReferenceAssetKind;
+      const rawName = node.dataset.assetName ?? node.textContent ?? '';
+      const name = rawName.replace(/[「」]/g, '').trim();
+      if (!name) return '';
+      const label = kind === 'template' ? '模板' : '底稿';
+      return `「${label}：${name}」`;
     }
   }
 
@@ -783,28 +861,33 @@ const createTemplateToken = (template: TemplateAsset) => {
   return token;
 };
 
-const assetBadgeLabel = (kind: SkillCreatorReferenceAssetKind) => {
-  if (kind === 'template') return '模';
-  if (kind === 'knowledge-file') return '库';
-  return '稿';
+const ASSET_KIND_META: Record<SkillCreatorReferenceAssetKind, { label: string; badge: string }> = {
+  'local-file': { label: '底稿', badge: '底稿' },
+  'knowledge-file': { label: '底稿', badge: '底稿' },
+  template: { label: '模板', badge: '模板' },
 };
 
 const createReferenceAssetToken = (asset: SkillCreatorReferenceAsset) => {
+  const meta = ASSET_KIND_META[asset.kind];
   const token = document.createElement('code');
   token.className = 'asset-inline-code';
   token.contentEditable = 'false';
   token.tabIndex = 0;
   token.dataset.assetKind = asset.kind;
   token.dataset.assetName = asset.name;
-  token.dataset.badge = assetBadgeLabel(asset.kind);
   token.title = asset.name;
-  token.setAttribute('aria-label', asset.name);
+  token.setAttribute('aria-label', `${meta.label} ${asset.name}`);
+
+  const badge = document.createElement('span');
+  badge.className = 'asset-inline-badge';
+  badge.setAttribute('aria-hidden', 'true');
+  badge.textContent = meta.badge;
 
   const name = document.createElement('span');
   name.className = 'asset-inline-name';
   name.textContent = asset.name;
 
-  token.append(name);
+  token.append(badge, name);
   return token;
 };
 
@@ -957,9 +1040,8 @@ const closeSkillCreatorSurfaces = () => {
 };
 
 const insertTemplatePrompt = (template: TemplateAsset) => {
-  insertPlainTextAtCaret(selectedAssetPromptPrefix);
   insertTemplateToken(template);
-  insertPlainTextAtCaret(templatePromptSuffix);
+  insertPlainTextAtCaret(' ');
 };
 
 const getTextPositionAtOffset = (root: Node, targetOffset: number) => {
@@ -999,11 +1081,11 @@ const getActiveSkillMatch = (): SkillSlashMatch | null => {
     return null;
   }
   const beforeCaret = beforeRange.toString();
-  const match = beforeCaret.match(/(?:^|[\s\n])\/([A-Za-z0-9_-]*)$/);
+  const match = beforeCaret.match(/\/([A-Za-z0-9_-]*)$/);
   if (!match) return null;
 
   const query = match[1] ?? '';
-  const startTextOffset = beforeCaret.length - query.length - 1;
+  const startTextOffset = beforeCaret.length - match[0].length;
   const startPosition = getTextPositionAtOffset(editor, startTextOffset);
   if (!startPosition) return null;
 
@@ -1034,11 +1116,11 @@ const getActiveTemplateMatch = (): TemplateShortcutMatch | null => {
     return null;
   }
   const beforeCaret = beforeRange.toString();
-  const match = beforeCaret.match(/(?:^|[\s\n])#([^\s#/]+)?$/u);
+  const match = beforeCaret.match(/@([^\s@/]*)$/u);
   if (!match) return null;
 
   const query = match[1] ?? '';
-  const startTextOffset = beforeCaret.length - query.length - 1;
+  const startTextOffset = beforeCaret.length - match[0].length;
   const startPosition = getTextPositionAtOffset(editor, startTextOffset);
   if (!startPosition) return null;
 
@@ -1129,7 +1211,8 @@ const updateInlineTemplateMenu = () => {
 };
 
 const updateInlineShortcutMenus = () => {
-  updateInlineSkillMenu();
+  if (updateInlineSkillMenu()) return;
+  updateInlineTemplateMenu();
 };
 
 const transformCompletedShortcutAtCaret = () => {
@@ -1137,6 +1220,15 @@ const transformCompletedShortcutAtCaret = () => {
   if (skillMatch && isRegisteredSkillName(skillMatch.query)) {
     insertSkillToken(skillMatch.query, skillMatch.range);
     return true;
+  }
+
+  const templateMatch = getActiveTemplateMatch();
+  if (templateMatch) {
+    const template = findTemplateByShortcutQuery(templateMatch.query);
+    if (template) {
+      insertTemplateToken(template, templateMatch.range);
+      return true;
+    }
   }
 
   return false;
@@ -1310,6 +1402,7 @@ const handleEditorKeydown = (event: KeyboardEvent) => {
 
 const closeTemplateManageModal = () => {
   showTemplateManageModal.value = false;
+  pendingTemplatePickHandler = null;
 };
 
 const triggerSkillAction = (selection?: SkillDropdownSelection) => {
@@ -1333,7 +1426,15 @@ const triggerInlineSkillAction = (selection?: SkillDropdownSelection) => {
 };
 
 const triggerTemplateAction = (template: TemplateAsset) => {
+  const externalHandler = pendingTemplatePickHandler;
   showTemplateManageModal.value = false;
+  pendingTemplatePickHandler = null;
+
+  if (externalHandler) {
+    externalHandler(template);
+    return;
+  }
+
   if (hasSkillCreatorCommand.value) {
     nextTick(() => {
       insertReferenceAssetTokens([createTemplateReferenceAsset(template)]);
@@ -1371,6 +1472,7 @@ const createTemplateFromDropdown = () => {
   showKnowledgeDraftPicker.value = false;
   activeTemplateRange.value = null;
   inlineTemplateQuery.value = '';
+  pendingTemplatePickHandler = null;
   showTemplateManageModal.value = false;
   nextTick(() => {
     insertPlainTextAtCaret(selectedAssetPromptPrefix);
@@ -1455,6 +1557,9 @@ const handleSubmit = () => {
 defineExpose({
   createSkillFromModal,
   createTemplateFromDropdown,
+  pickLocalFiles,
+  pickKnowledgeDrafts,
+  pickTemplate,
 });
 
 // Close dropdown when clicking outside
@@ -1534,8 +1639,26 @@ onBeforeUnmount(() => {
     >
       <SkillDropdownContent
         :inline-query="inlineSkillQuery"
+        show-search
         :show-manage="false"
         @select="triggerInlineSkillAction"
+      />
+    </div>
+
+    <div
+      v-if="showInlineTemplateMenu"
+      class="inline-template-dropdown"
+      role="menu"
+      :style="{ left: `${inlineShortcutMenuPosition.left}px`, top: `${inlineShortcutMenuPosition.top}px` }"
+      @mousedown.prevent
+      @click.stop
+    >
+      <TemplateDropdownContent
+        :inline-query="inlineTemplateQuery"
+        show-search
+        :show-manage="false"
+        :show-create="false"
+        @select="triggerInlineTemplateAction"
       />
     </div>
 
@@ -1835,7 +1958,7 @@ onBeforeUnmount(() => {
               :disabled="selectedKnowledgeDraftAssets.length === 0"
               @click="confirmKnowledgeDraftSelection"
             >
-              {{ knowledgeDraftPickerConfirmText }}
+              {{ knowledgeDraftPickerConfirmLabel }}
             </button>
           </footer>
         </section>
@@ -2029,9 +2152,9 @@ onBeforeUnmount(() => {
   min-height: 28px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   margin: 0 4px;
-  padding: 0 8px 0 5px;
+  padding: 0 9px 0 4px;
   border: 1px solid var(--border-color);
   border-radius: 10px;
   background: var(--card-bg);
@@ -2045,24 +2168,33 @@ onBeforeUnmount(() => {
   user-select: all;
 }
 
-.chat-editor-row :deep(.asset-inline-code)::before {
-  content: attr(data-badge);
-  width: 20px;
+.chat-editor-row :deep(.asset-inline-badge) {
+  flex: 0 0 auto;
   height: 20px;
+  padding: 0 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  border-radius: 6px;
-  background: var(--surface-soft);
-  color: var(--primary-color);
-  font-size: 12px;
-  font-weight: 760;
+  border-radius: 5px;
+  background: #eef1f5;
+  color: #334155;
+  box-shadow: inset 0 0 0 1px rgba(51, 65, 85, 0.18);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
   line-height: 1;
+  white-space: nowrap;
+}
+
+.chat-editor-row :deep(.asset-inline-code[data-asset-kind="template"]) .asset-inline-badge {
+  background: #ece9e2;
+  color: #4a4032;
+  box-shadow: inset 0 0 0 1px rgba(74, 64, 50, 0.2);
 }
 
 .chat-editor-row :deep(.asset-inline-name) {
   min-width: 0;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2870,22 +3002,68 @@ onBeforeUnmount(() => {
     max-width: 150px;
   }
 
-  .input-actions {
-    flex-wrap: wrap;
-    gap: 8px;
+  .chat-editor-row :deep(.asset-inline-code) {
+    max-width: min(100%, calc(100vw - 52px));
+    min-height: 29px;
+    gap: 6px;
+    margin: 1px 3px;
+    padding: 2px 9px 2px 4px;
+    font-size: 14px;
   }
 
-  .left-actions,
-  .right-actions {
-    width: 100%;
+  .chat-editor-row :deep(.asset-inline-badge) {
+    height: 19px;
+    padding: 0 6px;
+    font-size: 10.5px;
   }
 
-  .left-actions {
-    flex: 0 0 100%;
+  .chat-editor-row :deep(.asset-inline-name) {
+    max-width: 150px;
   }
 
-  .right-actions {
+  .chat-input-container .input-actions {
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  .chat-input-container .input-actions .left-actions {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+    flex-wrap: nowrap;
+    gap: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .chat-input-container .input-actions .left-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat-input-container .input-actions .right-actions {
+    flex: 0 0 auto;
+    width: auto;
     justify-content: flex-end;
+    gap: 6px;
+  }
+
+  .config-btn,
+  .icon-tool-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .text-tool-btn {
+    height: 32px;
+    padding: 0 6px;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  .send-btn {
+    width: 32px;
+    height: 32px;
   }
 
   .action-dropdown,

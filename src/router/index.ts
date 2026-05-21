@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router';
+import { createRouter, createWebHashHistory, createWebHistory } from 'vue-router';
 import LoginView from '../components/LoginView.vue';
 import OrgSelectView from '../components/OrgSelectView.vue';
 import HomeView from '../components/HomeView.vue';
@@ -33,11 +33,10 @@ import SimilarCaseResultView from '../components/SimilarCaseResultView.vue';
 import AiQnaView from '../components/AiQnaView.vue';
 import HistoryView from '../components/HistoryView.vue';
 import KnowledgeBaseView from '../components/KnowledgeBaseView.vue';
-import TeamManageView from '../components/TeamManageView.vue';
-import TeamOverviewView from '../components/TeamOverviewView.vue';
-import TeamSectionShellView from '../components/team/TeamSectionShellView.vue';
-import TeamConsultingOpsView from '../components/team/TeamConsultingOpsView.vue';
-import TeamThemeView from '../components/team/TeamThemeView.vue';
+import TeamPortalView from '../components/TeamPortalView.vue';
+import TeamOverviewDashboardView from '../components/TeamOverviewDashboardView.vue';
+import TeamCreditsView from '../components/TeamCreditsView.vue';
+import TeamMembersView from '../components/TeamMembersView.vue';
 import ProfileView from '../components/ProfileView.vue';
 import GuideView from '../components/GuideView.vue';
 import InvestigationAgentDemoView from '../components/InvestigationAgentDemoView.vue';
@@ -379,18 +378,14 @@ const routes = [
   {
     path: '/team',
     name: 'team',
-    component: TeamManageView,
+    component: TeamPortalView,
     meta: { title: '团队管理', fullScreen: true },
     children: [
-      { path: '', name: 'team-overview', component: TeamOverviewView, meta: { title: '团队概览' } },
-      { path: 'members', name: 'team-members', component: TeamSectionShellView, props: { section: 'members' }, meta: { title: '成员管理' } },
-      { path: 'group', alias: 'groups', name: 'team-groups', component: TeamSectionShellView, props: { section: 'groups' }, meta: { title: '小组管理' } },
-      { path: 'agent', alias: 'agents', name: 'team-agents', component: TeamSectionShellView, props: { section: 'agents' }, meta: { title: '智能体管理' } },
-      { path: 'consulting-ops', name: 'team-consulting-ops', component: TeamConsultingOpsView, meta: { title: '咨询运营分析' } },
-      { path: 'consulting-analysis', name: 'team-consulting-analysis', component: TeamConsultingOpsView, meta: { title: '咨询运营分析' } },
-      { path: 'theme', name: 'team-theme', component: TeamThemeView, meta: { title: '主题切换' } },
-      { path: 'miniprogram', name: 'team-miniprogram', component: TeamSectionShellView, props: { section: 'miniprogram' }, meta: { title: '小程序管理' } },
-    ]
+      { path: '', name: 'team-overview', component: TeamOverviewDashboardView, meta: { title: '团队概览' } },
+      { path: 'credits', name: 'team-credits', component: TeamCreditsView, meta: { title: '积分明细' } },
+      { path: 'members', name: 'team-members', component: TeamMembersView, meta: { title: '成员管理' } },
+      { path: 'group', alias: ['groups', 'theme'], redirect: { name: 'team-overview' } },
+    ],
   },
   {
     path: '/profile',
@@ -420,7 +415,7 @@ const routes = [
 ];
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: window.location.protocol === 'file:' ? createWebHashHistory() : createWebHistory(),
   routes,
 });
 

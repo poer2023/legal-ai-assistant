@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
   Puzzle,
+  Search,
 } from 'lucide-vue-next';
 import { availableSkills, type SkillCatalogItem } from '../data/skillCatalog';
 
@@ -13,13 +14,17 @@ type SkillDropdownItem = Pick<SkillCatalogItem, 'id' | 'name' | 'description'> &
 
 const props = withDefaults(defineProps<{
   inlineQuery?: string;
+  showSearch?: boolean;
   showCreate?: boolean;
   showManage?: boolean;
 }>(), {
   inlineQuery: '',
+  showSearch: false,
   showCreate: true,
   showManage: true,
 });
+
+const searchKeyword = ref('');
 
 const emit = defineEmits<{
   (event: 'select', selection?: SkillDropdownSelection): void;
@@ -49,10 +54,15 @@ const skillItems = computed<SkillDropdownItem[]>(() => [
     })),
 ]);
 
-const filteredSkills = computed(() => {
-  const keyword = props.inlineQuery.trim().toLowerCase();
+const filterKeywords = computed(() =>
+  [props.inlineQuery, props.showSearch ? searchKeyword.value : '']
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean),
+);
 
-  if (!keyword) return skillItems.value;
+const filteredSkills = computed(() => {
+  const keywords = filterKeywords.value;
+  if (!keywords.length) return skillItems.value;
 
   return skillItems.value.filter((skill) => {
     const searchable = [
@@ -63,7 +73,7 @@ const filteredSkills = computed(() => {
       .join(' ')
       .toLowerCase();
 
-    return searchable.includes(keyword);
+    return keywords.every((keyword) => searchable.includes(keyword));
   });
 });
 
@@ -82,6 +92,11 @@ const manageSkills = () => {
 
 <template>
   <div class="skill-dropdown-content" :class="{ 'inline-layout': !showManage }">
+    <label v-if="showSearch" class="skill-search">
+      <Search :size="15" />
+      <input v-model="searchKeyword" type="text" placeholder="搜索技能、描述" />
+    </label>
+
     <section class="skill-list" aria-label="技能">
       <article
         v-for="skill in filteredSkills"
@@ -131,6 +146,34 @@ const manageSkills = () => {
 .skill-dropdown-content.inline-layout {
   height: auto;
   max-height: min(300px, calc(100vh - 260px));
+}
+
+.skill-search {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 0 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: var(--bg-color);
+  flex-shrink: 0;
+}
+
+.skill-search input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 13px;
+}
+
+.skill-search input::placeholder {
+  color: var(--text-muted);
 }
 
 .skill-list {
@@ -259,6 +302,7 @@ const manageSkills = () => {
   color: var(--text-secondary);
 }
 
+.skill-search:focus-within,
 .skill-item:focus-visible,
 .skill-main:focus-visible,
 .skill-footer-row:focus-visible {

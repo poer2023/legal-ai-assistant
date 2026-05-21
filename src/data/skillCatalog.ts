@@ -243,6 +243,16 @@ const normalizeSkillFileType = (type: unknown): SkillFileType => {
   return 'markdown';
 };
 
+const stripSkillFileRuntimeMarkers = (content: string) =>
+  content
+    .replace(/\r\n/g, '\n')
+    .replace(/\n*\[\[skill-completion-selector-dismissed\]\]\s*$/g, '')
+    .replace(/\n+技能已经创建完成[^\n]*(?:\n+\[\[skill-package:[^\n]*\]\])?\s*$/g, '')
+    .replace(/\n+\[\[skill-package:[^\n]*\]\]\s*$/g, '')
+    .replace(/\n+已生成技能草稿：[\s\S]*?等待系统解析 skill_json、写入技能库并完成读回校验。\s*$/g, '')
+    .replace(/\n+系统校验：[\s\S]*$/g, '')
+    .replace(/\s+$/g, '');
+
 const normalizeCustomSkillScope = (scope: unknown): 'personal' | 'team' =>
   scope === 'personal' ? 'personal' : 'team';
 
@@ -332,7 +342,7 @@ const normalizeCustomSkill = (skill: unknown): SkillCatalogItem | null => {
           name: candidate.name,
           path: candidate.path,
           type: normalizeSkillFileType(candidate.type),
-          content: candidate.content,
+          content: stripSkillFileRuntimeMarkers(candidate.content),
         });
         return normalizedFiles;
       }, [])

@@ -170,6 +170,15 @@ const normalizePublishDestinations = (destinations) => {
   return Array.from(new Set(normalized.length ? normalized : ['team']));
 };
 
+const stripSkillFileRuntimeMarkers = (content) => String(content || '')
+  .replace(/\r\n/g, '\n')
+  .replace(/\n*\[\[skill-completion-selector-dismissed\]\]\s*$/g, '')
+  .replace(/\n+技能已经创建完成[^\n]*(?:\n+\[\[skill-package:[^\n]*\]\])?\s*$/g, '')
+  .replace(/\n+\[\[skill-package:[^\n]*\]\]\s*$/g, '')
+  .replace(/\n+已生成技能草稿：[\s\S]*?等待系统解析 skill_json、写入技能库并完成读回校验。\s*$/g, '')
+  .replace(/\n+系统校验：[\s\S]*$/g, '')
+  .replace(/\s+$/g, '');
+
 const normalizeStringList = (value, limit = 20) => {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(
@@ -215,7 +224,7 @@ const normalizeFiles = (files) => Array.isArray(files)
         name: file.name,
         path: file.path,
         type: ['markdown', 'typescript', 'json', 'yaml'].includes(file.type) ? file.type : 'markdown',
-        content: file.content,
+        content: stripSkillFileRuntimeMarkers(file.content),
       });
       return items;
     }, [])
@@ -234,7 +243,7 @@ const toClientSkill = (row, organizationId) => ({
   category: row.category,
   routeName: row.route_name || 'chat',
   tags: Array.isArray(row.tags) ? row.tags : [],
-  files: Array.isArray(row.files) ? row.files : [],
+  files: normalizeFiles(row.files),
   source: 'custom',
   scope: row.scope === 'team' ? 'team' : 'personal',
   status: row.status === 'draft' ? 'draft' : 'active',

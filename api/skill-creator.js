@@ -123,6 +123,15 @@ const renderNumbered = (items, fallback) =>
 const stripSkillFrontmatter = (content) =>
   String(content || '').replace(/^---\n[\s\S]*?\n---\n*/, '').trim();
 
+const stripSkillFileRuntimeMarkers = (content) => String(content || '')
+  .replace(/\r\n/g, '\n')
+  .replace(/\n*\[\[skill-completion-selector-dismissed\]\]\s*$/g, '')
+  .replace(/\n+技能已经创建完成[^\n]*(?:\n+\[\[skill-package:[^\n]*\]\])?\s*$/g, '')
+  .replace(/\n+\[\[skill-package:[^\n]*\]\]\s*$/g, '')
+  .replace(/\n+已生成技能草稿：[\s\S]*?等待系统解析 skill_json、写入技能库并完成读回校验。\s*$/g, '')
+  .replace(/\n+系统校验：[\s\S]*$/g, '')
+  .replace(/\s+$/g, '');
+
 const renderCreatedSkillIntro = (skill) => [
   `已创建技能：${skill.name}`,
   '',
@@ -828,7 +837,7 @@ const normalizeCreatedSkill = (draft, brief = '', answers = {}) => {
 
   files.forEach((file, index) => {
     const path = normalizePath(file?.path, index);
-    const content = typeof file?.content === 'string' ? file.content.trim() : '';
+    const content = typeof file?.content === 'string' ? stripSkillFileRuntimeMarkers(file.content.trim()) : '';
     if (!content || !isAllowedGeneratedPath(path)) return;
     fileMap.set(path, content);
   });

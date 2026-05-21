@@ -63,6 +63,7 @@ const expandedTreeKeys = ref<Record<string, boolean>>({});
 const editMode = ref(false);
 const editBuffer = ref('');
 const fileDrafts = ref<Record<string, string>>({});
+const unsavedFileKeys = ref<Set<string>>(new Set());
 const detailPanelMode = ref<DetailPanelMode>('docs');
 const basicIconInputRef = ref<HTMLInputElement | null>(null);
 const basicInfoDraft = ref({
@@ -247,6 +248,7 @@ const resetDetailState = (skill: SkillCatalogItem) => {
   editMode.value = false;
   editBuffer.value = '';
   fileDrafts.value = {};
+  unsavedFileKeys.value = new Set();
   basicInfoDraft.value = {
     iconDataUrl: skill.iconDataUrl || '',
     name: skill.name,
@@ -277,18 +279,33 @@ const toggleExpanded = (key: string) => {
 
 const setDetailPanelMode = (mode: DetailPanelMode) => {
   if (mode === detailPanelMode.value) return;
-  if (editMode.value) {
-    setStatus('请先保存或取消当前文件编辑');
-    return;
-  }
   detailPanelMode.value = mode;
 };
 
+const stashCurrentEditBuffer = () => {
+  if (!editMode.value || !currentFileKey.value || !activeFile.value) return;
+  const key = currentFileKey.value;
+  fileDrafts.value = {
+    ...fileDrafts.value,
+    [key]: editBuffer.value,
+  };
+  const next = new Set(unsavedFileKeys.value);
+  if (editBuffer.value !== activeFile.value.content) {
+    next.add(key);
+  } else {
+    next.delete(key);
+  }
+  unsavedFileKeys.value = next;
+};
+
 const selectFile = (file: SkillFile) => {
-  if (editMode.value) {
-    setStatus('请先保存或取消当前文件编辑');
+  if (activeFile.value?.id === file.id) {
+    detailPanelMode.value = 'docs';
     return;
   }
+  stashCurrentEditBuffer();
+  editMode.value = false;
+  editBuffer.value = '';
   detailPanelMode.value = 'docs';
   activeFileId.value = file.id;
 };
@@ -374,6 +391,9 @@ const saveEdit = () => {
     ...fileDrafts.value,
     [currentFileKey.value]: editBuffer.value,
   };
+  const nextUnsaved = new Set(unsavedFileKeys.value);
+  nextUnsaved.delete(currentFileKey.value);
+  unsavedFileKeys.value = nextUnsaved;
   editMode.value = false;
   emit('updated', updatedSkill);
   setStatus('当前文件已保存');
@@ -385,11 +405,31 @@ const cancelEdit = () => {
   setStatus('已取消编辑');
 };
 
+const hasBasicInfoChanges = computed(() => {
+  return (
+    basicInfoDraft.value.name.trim() !== (props.skill.name ?? '').trim() ||
+    basicInfoDraft.value.description.trim() !== (props.skill.description ?? '').trim() ||
+    (basicInfoDraft.value.iconDataUrl || '') !== (props.skill.iconDataUrl || '')
+  );
+});
+
+const hasActiveEditDirty = computed(() => {
+  if (!editMode.value || !activeFile.value) return false;
+  return editBuffer.value !== activeFile.value.content;
+});
+
+const hasUnsavedChanges = computed(
+  () => hasBasicInfoChanges.value || hasActiveEditDirty.value || unsavedFileKeys.value.size > 0
+);
+
 const handleCancel = () => {
-  if (editMode.value) {
-    cancelEdit();
-    return;
+  if (hasUnsavedChanges.value) {
+    const ok = window.confirm('当前修改尚未保存，离开后改动将丢失，确定要离开吗？');
+    if (!ok) return;
   }
+  editMode.value = false;
+  editBuffer.value = '';
+  unsavedFileKeys.value = new Set();
   emit('back');
 };
 
@@ -443,7 +483,7 @@ onBeforeUnmount(() => {
   <section class="skill-detail-panel" :class="panelClass">
     <header class="detail-header">
       <div class="detail-title-area">
-        <button class="detail-back-btn" type="button" aria-label="返回技能列表" @click="emit('back')">
+        <button class="detail-back-btn" type="button" aria-label="返回技能列表" @click="handleCancel">
           <ChevronRight :size="17" class="back-chevron" />
         </button>
         <span class="detail-skill-icon" aria-hidden="true">
