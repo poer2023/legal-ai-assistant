@@ -77,7 +77,6 @@ const sourceTabsKeys: SourceFilter[] = [
   'personal',
   'group-shared',
   'team-shared',
-  'recommended',
   'public-hub',
 ];
 
@@ -113,7 +112,7 @@ const sourceChipCopy: Record<SourceFilter, string> = {
   personal: '来自 个人',
   'group-shared': '来自 小组',
   'team-shared': '来自 团队',
-  recommended: '来自 官方',
+  recommended: '官方推荐',
   'public-hub': '来自 市场',
 };
 
@@ -127,6 +126,9 @@ const getTemplateStaticSourceKind = (template: TemplateAsset): SourceFilter => {
   return 'personal';
 };
 
+const isOfficialRecommendedTemplate = (template: TemplateAsset) =>
+  getTemplateStaticSourceKind(template) === 'recommended';
+
 const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter) => {
   if (source === 'group-shared') {
     return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'group');
@@ -135,7 +137,11 @@ const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter
     return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'team');
   }
   if (source === 'public-hub') {
-    return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'public');
+    return (
+      isOfficialRecommendedTemplate(template) ||
+      getTemplateStaticSourceKind(template) === source ||
+      hasTemplatePublishDestination(template.id, 'public')
+    );
   }
   if (source === 'recommended') {
     const staticSource = getTemplateStaticSourceKind(template);
@@ -166,7 +172,6 @@ const sourceTabs = computed(() => {
     { key: 'personal' as const, name: templateListPageCopy.personal.name, count: counts.personal },
     { key: 'group-shared' as const, name: templateListPageCopy['group-shared'].name, count: counts['group-shared'] },
     { key: 'team-shared' as const, name: templateListPageCopy['team-shared'].name, count: counts['team-shared'] },
-    { key: 'recommended' as const, name: templateListPageCopy.recommended.name, count: counts.recommended },
     { key: 'public-hub' as const, name: templateListPageCopy['public-hub'].name, count: counts['public-hub'] },
   ];
 });
@@ -206,6 +211,7 @@ const getTemplateAuthor = (template: TemplateAsset) => getMockSkillAuthor(templa
 const getTemplateAuthorInitial = (template: TemplateAsset) => getTemplateAuthor(template).name.slice(0, 1);
 
 const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
+  const staticSource = getTemplateStaticSourceKind(template);
   if (selectedSource.value === 'group-shared' && hasTemplatePublishDestination(template.id, 'group')) {
     return 'group-shared';
   }
@@ -213,15 +219,16 @@ const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
     return 'team-shared';
   }
   if (selectedSource.value === 'recommended') {
-    const staticSource = getTemplateStaticSourceKind(template);
     if (staticSource === 'recommended') {
       return 'recommended';
     }
   }
+  if (selectedSource.value === 'public-hub' && staticSource === 'recommended') {
+    return 'recommended';
+  }
   if (selectedSource.value === 'public-hub' && hasTemplatePublishDestination(template.id, 'public')) {
     return 'public-hub';
   }
-  const staticSource = getTemplateStaticSourceKind(template);
   return staticSource;
 };
 
@@ -1856,35 +1863,37 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Compact copy of the standalone template marketplace list. */
+/* Compact copy of the template marketplace list, mapped to the active theme palette. */
 .template-modal:not(.detail-mode) {
-  --tpl-bg: #faf7f1;
-  --tpl-panel: #ffffff;
-  --tpl-soft: #f3eee3;
-  --tpl-line: #e8e1d4;
-  --tpl-line-strong: #d6cdbe;
-  --tpl-ink-900: #1a1614;
-  --tpl-ink-800: #2b2522;
-  --tpl-ink-700: #4a423d;
-  --tpl-ink-500: #837a72;
-  --tpl-ink-400: #a29a91;
-  --tpl-accent: #c8552e;
-  --tpl-accent-700: #a4441f;
-  --tpl-accent-tint: #fbf1e8;
-  --tpl-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif;
-  --tpl-sans: 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
-  --tpl-shadow-2: 0 2px 4px rgba(26, 22, 20, 0.04), 0 0 0 1px rgba(26, 22, 20, 0.04);
+  --tpl-bg: var(--bg, var(--bg-color));
+  --tpl-panel: var(--bg-panel, var(--card-bg));
+  --tpl-soft: var(--bg-soft, var(--surface-muted));
+  --tpl-line: var(--line, var(--border-color));
+  --tpl-line-strong: var(--line-strong, var(--primary-border));
+  --tpl-ink-900: var(--ink-900, var(--text-strong));
+  --tpl-ink-800: var(--ink-800, var(--text-strong));
+  --tpl-ink-700: var(--ink-700, var(--text-main));
+  --tpl-ink-500: var(--ink-500, var(--text-secondary));
+  --tpl-ink-400: var(--ink-400, var(--text-muted));
+  --tpl-accent: var(--accent, var(--primary-color));
+  --tpl-accent-700: var(--accent-700, var(--primary-hover));
+  --tpl-accent-tint: var(--accent-tint, var(--primary-soft));
+  --tpl-serif: var(--font-serif, 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif);
+  --tpl-sans: var(--font-sans, 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif);
+  --tpl-shadow-2: var(--sh-2, var(--shadow-card));
+  --tpl-shadow-elev: var(--sh-elev, var(--shadow-popover));
+  --tpl-focus-shadow: 0 0 0 3px color-mix(in srgb, var(--tpl-ink-900) 8%, transparent);
   width: min(1120px, calc(100vw - 40px));
   min-height: 560px;
   padding: 32px 40px 36px;
-  border: 1px solid rgba(26, 22, 20, 0.06);
+  border: 1px solid color-mix(in srgb, var(--tpl-ink-900) 6%, transparent);
   border-radius: 18px;
   background: var(--tpl-bg);
   color: var(--tpl-ink-700);
   font-family: var(--tpl-sans);
   font-size: 14px;
   line-height: 1.55;
-  box-shadow: 0 28px 80px rgba(26, 22, 20, 0.24);
+  box-shadow: var(--tpl-shadow-elev);
 }
 
 .template-modal:not(.detail-mode) .modal-close-btn {
@@ -1977,7 +1986,7 @@ onBeforeUnmount(() => {
 .template-modal:not(.detail-mode) .modal-search-control input:focus {
   outline: 0;
   border-color: var(--tpl-ink-900);
-  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+  box-shadow: var(--tpl-focus-shadow);
 }
 
 .template-modal:not(.detail-mode) .modal-search-control input::placeholder {
@@ -2314,7 +2323,7 @@ onBeforeUnmount(() => {
 
 .template-modal:not(.detail-mode) .reset-btn:hover,
 .template-modal:not(.detail-mode) .reset-btn.active {
-  border-color: rgba(200, 85, 46, 0.28);
+  border-color: color-mix(in srgb, var(--tpl-accent) 28%, transparent);
   background: var(--tpl-accent-tint);
   color: var(--tpl-accent-700);
   transform: none;

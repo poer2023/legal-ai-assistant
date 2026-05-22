@@ -289,7 +289,7 @@ const sourceModeCopy: Record<SkillMode, {
   personal: {
     name: '个人',
     emptyTitle: '暂无个人技能',
-    emptyDescription: '可以从官方、市场或共享资源中订阅，也可以直接创建一个新技能。',
+    emptyDescription: '可以从市场或共享资源中订阅，也可以直接创建一个新技能。',
   },
   'group-shared': {
     name: '小组',
@@ -348,10 +348,16 @@ const officialSkills = computed(() =>
   ]),
 );
 
+const isOfficialRecommendedSkill = (skill: SkillCatalogItem) =>
+  skill.source === 'recommended' || getStandalonePresentation(skill)?.source === 'official';
+
 const marketSkills = computed(() =>
   dedupeSkillsById([
-    ...standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'market'),
-    ...catalogPublicHubSkills.value.filter((skill) => skill.source !== 'recommended'),
+    ...standaloneSourceSkillPool.value.filter((skill) => {
+      const presentationSource = getStandalonePresentation(skill)?.source;
+      return presentationSource === 'market' || isOfficialRecommendedSkill(skill);
+    }),
+    ...catalogPublicHubSkills.value,
   ]),
 );
 
@@ -373,7 +379,6 @@ const sourceTabs = computed(() => [
   { key: 'personal' as const, name: sourceModeCopy.personal.name, count: personalSkills.value.length },
   { key: 'group-shared' as const, name: sourceModeCopy['group-shared'].name, count: catalogGroupSharedSkills.value.length },
   { key: 'team-shared' as const, name: sourceModeCopy['team-shared'].name, count: teamSharedSkills.value.length },
-  { key: 'official' as const, name: sourceModeCopy.official.name, count: officialSkills.value.length },
   { key: 'market' as const, name: sourceModeCopy.market.name, count: marketSkills.value.length },
 ]);
 
@@ -871,6 +876,7 @@ const getSkillIcon = (skill: SkillCatalogItem) => {
 const getSkillToneClass = (_skill: SkillCatalogItem) => 'tone-neutral';
 
 const getSkillSourceLabel = (skill: SkillCatalogItem) => {
+  if (isOfficialRecommendedSkill(skill)) return '官方推荐';
   if (skillMode.value === 'official') return '来自 官方';
   if (skillMode.value === 'market' || skillMode.value === 'public-hub') return '来自 市场';
   if (skillMode.value === 'recommended') return '来自 官方';
@@ -886,6 +892,7 @@ const getSkillSourceLabel = (skill: SkillCatalogItem) => {
 };
 
 const getSkillSourceClass = (skill: SkillCatalogItem) => {
+  if (isOfficialRecommendedSkill(skill)) return 'source-official';
   if (skillMode.value === 'official' || skillMode.value === 'recommended') return 'source-official';
   if (skillMode.value === 'market' || skillMode.value === 'public-hub') return 'source-market';
 
@@ -899,6 +906,7 @@ const getSkillSourceClass = (skill: SkillCatalogItem) => {
 };
 
 const getSkillSourceIcon = (skill: SkillCatalogItem) => {
+  if (isOfficialRecommendedSkill(skill)) return ShieldCheck;
   if (skillMode.value === 'official' || skillMode.value === 'recommended') return ShieldCheck;
   if (skillMode.value === 'market' || skillMode.value === 'public-hub') return Store;
 
@@ -978,8 +986,8 @@ const closeCardMenuOnOutsideClick = (event: MouseEvent) => {
 const normalizeSkillMode = (value: unknown): SkillMode | null => {
   if (value === 'team-market') return 'team-shared';
   if (value === 'public-hub') return 'market';
-  if (value === 'recommended') return 'official';
-  if (value === 'official' || value === 'market') return value;
+  if (value === 'recommended' || value === 'official') return 'market';
+  if (value === 'market') return value;
   if (
     value === 'personal' ||
     value === 'group-shared' ||
@@ -1093,7 +1101,7 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <div v-else-if="skillMode === 'official' || skillMode === 'market'" class="recommended-sort-row">
+            <div v-else-if="skillMode === 'market'" class="recommended-sort-row">
               <nav class="recommended-sort-tabs" aria-label="技能排序">
                 <button
                   v-for="option in recommendedSortOptions"
@@ -2149,7 +2157,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(26, 22, 20, 0.42);
+  background: var(--bg-veil, rgba(15, 23, 42, 0.42));
   backdrop-filter: blur(4px);
 }
 
@@ -2853,7 +2861,7 @@ onBeforeUnmount(() => {
 .recommended-sort-tab[data-active='true'] {
   background: var(--card-bg);
   color: var(--text-strong);
-  box-shadow: 0 1px 2px rgba(26, 22, 20, 0.06);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text-strong) 6%, transparent);
 }
 
 .content-section {
@@ -3617,7 +3625,7 @@ onBeforeUnmount(() => {
 .recommended-sort-tab[data-active='true'] {
   background: var(--skill-panel);
   color: var(--skill-ink);
-  box-shadow: 0 1px 2px rgba(26, 22, 20, 0.06);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--skill-ink) 6%, transparent);
 }
 
 .card-grid {

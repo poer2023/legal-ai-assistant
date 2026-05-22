@@ -111,7 +111,7 @@ const copy = computed(() => {
       save: '保存',
       uploadAvatar: '上传头像',
       replaceAvatar: '更换头像',
-      firm: '所在律所',
+      firm: '机构名称',
       phone: '手机号',
       years: '执业年限',
       qualification: '资质 / 头衔',
@@ -123,7 +123,7 @@ const copy = computed(() => {
       beta: '内测',
       statsSkills: '已发布技能',
       statsTemplates: '已发布模板',
-      statsUses: '累计调用',
+      statsUses: '积分消耗',
       statsRating: '平均评分',
       profileBioFallback: '填写专业方向、代表项目与跨境业务能力等信息',
       preferences: '界面偏好',
@@ -650,21 +650,27 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .profile-page {
-  --profile-bg: #faf7f1;
-  --profile-panel: #ffffff;
-  --profile-soft: #f3eee3;
-  --profile-sunk: #efe9dc;
-  --profile-ink: #1a1614;
-  --profile-ink-800: #2b2522;
-  --profile-ink-700: #4a423d;
-  --profile-muted: #837a72;
-  --profile-muted-light: #a29a91;
-  --profile-line: #e8e1d4;
-  --profile-line-strong: #d6cdbe;
-  --profile-accent: #c8552e;
-  --profile-accent-700: #a4441f;
-  --profile-accent-tint: #fbf1e8;
-  --profile-danger: #b23a3a;
+  --profile-bg: var(--bg, var(--bg-color));
+  --profile-panel: var(--bg-panel, var(--card-bg));
+  --profile-soft: var(--bg-soft, var(--surface-muted));
+  --profile-sunk: var(--bg-sunk, var(--surface-soft));
+  --profile-ink: var(--ink-900, var(--text-strong));
+  --profile-ink-800: var(--ink-800, var(--text-strong));
+  --profile-ink-700: var(--ink-700, var(--text-main));
+  --profile-muted: var(--ink-500, var(--text-secondary));
+  --profile-muted-light: var(--ink-400, var(--text-muted));
+  --profile-line: var(--line, var(--border-color));
+  --profile-line-strong: var(--line-strong, var(--primary-border));
+  --profile-accent: var(--accent, var(--primary-color));
+  --profile-accent-700: var(--accent-700, var(--primary-hover));
+  --profile-accent-tint: var(--accent-tint, var(--primary-soft));
+  --profile-danger: var(--diff-removed);
+  --profile-on-solid: var(--on-primary, #ffffff);
+  --profile-focus-shadow: 0 0 0 3px color-mix(in srgb, var(--profile-ink) 8%, transparent);
+  --profile-soft-shadow: 0 8px 22px color-mix(in srgb, var(--profile-ink) 10%, transparent);
+  --profile-modal-shadow: 0 24px 70px color-mix(in srgb, var(--profile-ink) 18%, transparent);
+  --profile-overlay: color-mix(in srgb, var(--profile-ink) 55%, transparent);
+  --profile-veil: color-mix(in srgb, var(--profile-ink) 24%, transparent);
   --profile-serif: var(--font-serif, 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif);
   --profile-sans: var(--font-sans, 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif);
   width: 100%;
@@ -702,7 +708,7 @@ onBeforeUnmount(() => {
 
 .lang-toggle button[data-active='true'] {
   background: var(--profile-ink);
-  color: #ffffff;
+  color: var(--profile-on-solid);
 }
 
 .profile-content {
@@ -758,7 +764,7 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   border: 0;
   background: var(--profile-ink);
-  color: #ffffff;
+  color: var(--profile-on-solid);
   font-size: 13.5px;
   font-weight: 500;
   white-space: nowrap;
@@ -790,8 +796,8 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  background: rgba(26, 22, 20, 0.55);
-  color: #ffffff;
+  background: var(--profile-overlay);
+  color: var(--profile-on-solid);
   font-size: 12px;
   opacity: 0;
 }
@@ -919,7 +925,7 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: linear-gradient(150deg, var(--profile-ink-800), var(--profile-ink));
   box-shadow: 0 0 0 1px var(--profile-line-strong);
-  color: #f6efe0;
+  color: var(--profile-on-solid);
   font-family: var(--profile-serif);
   font-size: 28px;
   font-weight: 600;
@@ -929,7 +935,7 @@ onBeforeUnmount(() => {
 .identity-avatar:hover {
   box-shadow:
     0 0 0 1px var(--profile-accent),
-    0 8px 22px rgba(26, 22, 20, 0.1);
+    var(--profile-soft-shadow);
 }
 
 .identity-avatar img {
@@ -1075,7 +1081,7 @@ onBeforeUnmount(() => {
 .identity-bio-input:focus {
   outline: 0;
   border-color: var(--profile-ink);
-  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+  box-shadow: var(--profile-focus-shadow);
 }
 
 .field-block input:disabled,
@@ -1130,7 +1136,7 @@ onBeforeUnmount(() => {
 
 .expertise-chip.selected {
   background: var(--profile-ink);
-  color: #ffffff;
+  color: var(--profile-on-solid);
 }
 
 .preview-tags {
@@ -1221,7 +1227,7 @@ onBeforeUnmount(() => {
 
 .theme-picks button.active {
   border-color: var(--profile-ink);
-  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+  box-shadow: var(--profile-focus-shadow);
 }
 
 .theme-swatch-accent,
@@ -1264,12 +1270,12 @@ onBeforeUnmount(() => {
 }
 
 .danger-button {
-  border-color: rgba(178, 58, 58, 0.3);
+  border-color: color-mix(in srgb, var(--profile-danger) 30%, transparent);
 }
 
 .danger-solid-button {
   background: var(--profile-danger);
-  color: #ffffff;
+  color: var(--profile-on-solid);
 }
 
 .modal-backdrop {
@@ -1280,7 +1286,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(26, 22, 20, 0.24);
+  background: var(--profile-veil);
 }
 
 .modal-panel {
@@ -1290,7 +1296,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--profile-line);
   border-radius: 14px;
   background: var(--profile-panel);
-  box-shadow: 0 24px 70px rgba(26, 22, 20, 0.18);
+  box-shadow: var(--profile-modal-shadow);
 }
 
 .modal-header {

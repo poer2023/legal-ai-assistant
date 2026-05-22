@@ -366,10 +366,16 @@ const officialSkills = computed(() =>
   ]),
 );
 
+const isOfficialRecommendedSkill = (skill: SkillCatalogItem) =>
+  skill.source === 'recommended' || getStandalonePresentation(skill)?.source === 'official';
+
 const marketSkills = computed(() =>
   dedupeSkillsById([
-    ...standaloneSourceSkillPool.value.filter((skill) => getStandalonePresentation(skill)?.source === 'market'),
-    ...catalogPublicHubSkills.value.filter((skill) => skill.source !== 'recommended'),
+    ...standaloneSourceSkillPool.value.filter((skill) => {
+      const presentationSource = getStandalonePresentation(skill)?.source;
+      return presentationSource === 'market' || isOfficialRecommendedSkill(skill);
+    }),
+    ...catalogPublicHubSkills.value,
   ]),
 );
 
@@ -389,7 +395,6 @@ const sourceTabs = computed(() => [
   { key: 'personal' as const, name: skillListPageCopy.personal.name, count: personalSkills.value.length },
   { key: 'group-shared' as const, name: skillListPageCopy['group-shared'].name, count: catalogGroupSharedSkills.value.length },
   { key: 'team-shared' as const, name: skillListPageCopy['team-shared'].name, count: teamSharedSkills.value.length },
-  { key: 'official' as const, name: skillListPageCopy.official.name, count: officialSkills.value.length },
   { key: 'market' as const, name: skillListPageCopy.market.name, count: marketSkills.value.length },
 ]);
 
@@ -850,6 +855,7 @@ const isMarketplacePage = computed(() =>
 );
 
 const getSkillSourceLabel = (skill: SkillCatalogItem) => {
+  if (isOfficialRecommendedSkill(skill)) return '官方推荐';
   if (activeListPage.value === 'official' || activeListPage.value === 'recommended') return '来自 官方';
   if (activeListPage.value === 'market' || activeListPage.value === 'public-hub') return '来自 市场';
 
@@ -864,6 +870,7 @@ const getSkillSourceLabel = (skill: SkillCatalogItem) => {
 };
 
 const getSkillSourceClass = (skill: SkillCatalogItem) => {
+  if (isOfficialRecommendedSkill(skill)) return 'source-official';
   if (activeListPage.value === 'official' || activeListPage.value === 'recommended') return 'source-official';
   if (activeListPage.value === 'market' || activeListPage.value === 'public-hub') return 'source-market';
 
@@ -877,7 +884,9 @@ const getSkillSourceClass = (skill: SkillCatalogItem) => {
 };
 
 const getSkillSourceIcon = (skill: SkillCatalogItem) => {
-  if (isMarketplacePage.value) return ShieldCheck;
+  if (isOfficialRecommendedSkill(skill)) return ShieldCheck;
+  if (activeListPage.value === 'market' || activeListPage.value === 'public-hub') return Store;
+  if (activeListPage.value === 'official' || activeListPage.value === 'recommended') return ShieldCheck;
 
   const source = getStandalonePresentation(skill)?.source;
   if (source === 'mine' || (!source && activeListPage.value === 'personal')) return UserRound;
@@ -892,6 +901,10 @@ const getSkillAuthorFirm = (skill: SkillCatalogItem) => {
 
   if (skill.source === 'custom' && skill.scope !== 'team') {
     return currentUser.value?.firmShortName || currentOrganization.value?.shortName || '个人工作区';
+  }
+
+  if (isOfficialRecommendedSkill(skill)) {
+    return '涌见官方';
   }
 
   if (isMarketplacePage.value || skill.source === 'recommended') {
@@ -1258,7 +1271,7 @@ onBeforeUnmount(() => {
               </button>
             </div>
 
-            <div v-else-if="activeListPage === 'official' || activeListPage === 'market'" class="modal-recommended-sort-row">
+            <div v-else-if="activeListPage === 'market'" class="modal-recommended-sort-row">
               <nav class="modal-recommended-sort-tabs" aria-label="技能排序">
                 <button
                   v-for="option in recommendedSortOptions"
@@ -2532,7 +2545,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(26, 22, 20, 0.42);
+  background: var(--bg-veil, rgba(15, 23, 42, 0.42));
   backdrop-filter: blur(4px);
 }
 
@@ -3610,7 +3623,7 @@ onBeforeUnmount(() => {
 .modal-recommended-sort-tab[data-active='true'] {
   background: var(--skill-panel);
   color: var(--skill-ink);
-  box-shadow: 0 1px 2px rgba(26, 22, 20, 0.06);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--skill-ink) 6%, transparent);
 }
 
 .skill-modal:not(.detail-mode) .modal-status {

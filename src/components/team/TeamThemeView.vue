@@ -19,7 +19,7 @@ const handleThemeSelect = (themeId: ThemeId) => {
       <div>
         <div class="theme-kicker">团队外观</div>
         <h1>主题切换</h1>
-        <p>保留原版主题，并提供多套新增浅色主题作为可切换配色。</p>
+        <p>所有主题保持同一套工作台布局，仅切换配色系统。</p>
       </div>
     </header>
 

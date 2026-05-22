@@ -5,6 +5,8 @@ withDefaults(defineProps<{
     | 'skills'
     | 'templates'
     | 'knowledge'
+    | 'claw'
+    | 'schedule'
     | 'search'
     | 'history'
     | 'profile'
@@ -53,6 +55,21 @@ withDefaults(defineProps<{
       <path d="M10.2 4 h3.6 a1 1 0 0 1 1 1 v15 a1 1 0 0 1-1 1 h-3.6 a1 1 0 0 1-1-1 V5 a1 1 0 0 1 1-1 z" />
       <path d="m17 4.4 2.6.7 a1 1 0 0 1 .7 1.2 l-3.7 14.4 a1 1 0 0 1-1.2.7 l-2.6-.7" />
       <path d="M6.3 8 h0.01 M12 8 h0.01" stroke-width="1.8" />
+    </template>
+    <template v-else-if="kind === 'claw'">
+      <path d="M6.5 4.5 h7 a4 4 0 0 1 4 4 v2.5" />
+      <path d="M6.5 4.5 v5.8 a4.2 4.2 0 0 0 4.2 4.2 h2.2" />
+      <path d="M6.5 9.5 H4.8 a2.3 2.3 0 0 0 0 4.6 h2.7" />
+      <path d="M17.5 8.5 h1.2 a2.3 2.3 0 0 1 0 4.6 h-1.6" />
+      <path d="M10 15.2 v1.9 a2.4 2.4 0 0 1-2.4 2.4 H6" />
+      <path d="M14 15.2 v1.9 a2.4 2.4 0 0 0 2.4 2.4 H18" />
+      <path d="M9.2 8.2 h0.01 M13.8 8.2 h0.01" stroke-width="2.2" />
+    </template>
+    <template v-else-if="kind === 'schedule'">
+      <rect x="4" y="5" width="16" height="15" rx="2.5" />
+      <path d="M8 3.5 v3 M16 3.5 v3 M4 9 h16" />
+      <circle cx="12" cy="14.5" r="3.2" />
+      <path d="M12 12.8 v1.8 l1.3.8" />
     </template>
     <template v-else-if="kind === 'search'">
       <circle cx="11" cy="11" r="6.5" />

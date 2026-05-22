@@ -3,20 +3,13 @@ import { computed, ref } from 'vue';
 import {
   Check,
   ChevronDown,
-  LayoutTemplate,
-  Mic,
   MoreHorizontal,
-  Paperclip,
   Plus,
-  Puzzle,
   Search,
-  Send,
-  Settings2,
   X,
 } from 'lucide-vue-next';
 
 type FileKind = 'pdf' | 'word' | 'markdown' | 'sheet' | 'slide';
-type LibraryScope = 'personal' | 'group' | 'team' | 'hidden';
 type GroupLibrary = {
   id: string;
   name: string;
@@ -33,11 +26,9 @@ type GroupMember = {
   isCurrent?: boolean;
 };
 
-const teamFolders = ['企业并购', '知识产权', '未成年儿童保护', '民政部', '法律类案', '123', '测试'];
-
 const initialGroupLibraries: GroupLibrary[] = [
-  { id: 'corporate', name: '公司业务组', count: 6, folders: ['并购项目', '股权激励', '投融资', '治理合规'] },
-  { id: 'dispute', name: '争议解决组', count: 5, folders: ['商事诉讼', '仲裁案件', '执行线索'] },
+  { id: 'corporate', name: '团队知识库', count: 6, folders: ['并购项目', '股权激励', '投融资', '治理合规'] },
+  { id: 'dispute', name: '非诉讼小组', count: 5, folders: ['商事诉讼', '仲裁案件', '执行线索'] },
   { id: 'compliance', name: '合规风控组', count: 4, folders: ['数据合规', '反垄断', '监管问询'] },
   { id: 'labor', name: '劳动用工组', count: 3, folders: ['劳动争议', '员工手册', '竞业限制'] },
 ];
@@ -70,7 +61,6 @@ const files: Array<{
   { id: 15, title: 'die religionsgesprache der reformationszeit.pdf', size: '9.36MB', words: '15.50万字', owner: '1111', kind: 'pdf' },
 ];
 
-const selectedLibraryScope = ref<LibraryScope>('personal');
 const selectedGroupId = ref(defaultGroupLibrary.id);
 const isCreateGroupModalOpen = ref(false);
 const newGroupName = ref('');
@@ -91,86 +81,17 @@ const groupMembers: GroupMember[] = [
   { id: 'heili', name: '黑莉', phone: '18108127692', avatar: '黑' },
 ];
 
-const libraryModeCopy: Record<LibraryScope, {
-  name: string;
-  shortName: string;
-  searchPlaceholder: string;
-}> = {
-  personal: {
-    name: '个人知识库',
-    shortName: '个人',
-    searchPlaceholder: '搜索个人文件名、文件夹名称',
-  },
-  group: {
-    name: '小组知识库',
-    shortName: '小组',
-    searchPlaceholder: '搜索小组文件名、文件夹名称',
-  },
-  team: {
-    name: '团队知识库',
-    shortName: '团队',
-    searchPlaceholder: '搜索团队文件名、文件夹名称',
-  },
-  hidden: {
-    name: '隐藏知识库',
-    shortName: '隐藏',
-    searchPlaceholder: '搜索隐藏文件名、文件夹名称',
-  },
-};
-
-const libraryScopeTabs = computed(() => [
-  { key: 'personal' as const, name: libraryModeCopy.personal.name },
-  { key: 'group' as const, name: libraryModeCopy.group.name },
-  { key: 'team' as const, name: libraryModeCopy.team.name },
-  { key: 'hidden' as const, name: libraryModeCopy.hidden.name },
-]);
-
 const activeGroup = computed(() =>
   groupLibraries.value.find((group) => group.id === selectedGroupId.value) ?? defaultGroupLibrary
 );
 
-const activeLibraryCopy = computed(() => libraryModeCopy[selectedLibraryScope.value]);
-const visibleFolders = computed(() => {
-  if (selectedLibraryScope.value === 'group') return activeGroup.value.folders;
-  if (selectedLibraryScope.value === 'personal') return ['我的合同库', '个人类案', '常用法规', '写作素材', '收藏文件'];
-  if (selectedLibraryScope.value === 'hidden') return ['保密项目', '敏感底稿', '内部审批'];
-  return teamFolders;
-});
+const visibleFolders = computed(() => activeGroup.value.folders);
 const visibleFiles = computed(() => {
-  if (selectedLibraryScope.value === 'personal') return files.slice(0, 8);
-  if (selectedLibraryScope.value === 'hidden') return files.slice(2, 5);
-  if (selectedLibraryScope.value === 'group') {
-    const groupIndex = Math.max(0, groupLibraries.value.findIndex((group) => group.id === activeGroup.value.id));
-    const start = (groupIndex * 3) % files.length;
-    return files.slice(start, start + activeGroup.value.count);
-  }
-  return files;
+  const groupIndex = Math.max(0, groupLibraries.value.findIndex((group) => group.id === activeGroup.value.id));
+  const start = (groupIndex * 3) % files.length;
+  return files.slice(start, start + activeGroup.value.count);
 });
-const searchPlaceholder = computed(() =>
-  selectedLibraryScope.value === 'group'
-    ? `搜索${activeGroup.value.name}文件名、文件夹名称`
-    : activeLibraryCopy.value.searchPlaceholder
-);
-const activeScopeName = computed(() =>
-  selectedLibraryScope.value === 'group' ? activeGroup.value.name : activeLibraryCopy.value.shortName
-);
-const composerPlaceholder = computed(() => `向${activeScopeName.value}知识库提问`);
-const guidedQuestions = computed(() => [
-  `这个知识库里有哪些与${selectedLibraryScope.value === 'personal' ? '并购' : '当前业务'}相关的文件？`,
-  '请帮我汇总最近 3 个月新增的法规材料',
-  '股权激励常见的合规风险有哪些？',
-]);
-
-const composerTools = [
-  { label: '提问设置', icon: Settings2, iconOnly: true },
-  { label: '底稿', icon: Paperclip },
-  { label: '技能', icon: Puzzle },
-  { label: '模板', icon: LayoutTemplate },
-];
-
-const setLibraryScope = (scope: LibraryScope) => {
-  selectedLibraryScope.value = scope;
-};
+const searchPlaceholder = computed(() => `搜索${activeGroup.value.name}文件名、文件夹名称`);
 
 const groupNameCount = computed(() => newGroupName.value.length);
 const groupIntroCount = computed(() => newGroupIntro.value.length);
@@ -222,7 +143,6 @@ const createGroup = () => {
       memberIds: Array.from(selectedMemberIds.value),
     },
   ];
-  selectedLibraryScope.value = 'group';
   selectedGroupId.value = id;
   closeCreateGroupModal();
 };
@@ -241,20 +161,7 @@ const kindLabel: Record<FileKind, string> = {
     <section class="library-pane" aria-label="知识库文件管理">
       <div class="library-body">
         <div class="library-switcher">
-          <nav class="library-tabs" aria-label="知识库类型">
-            <button
-              v-for="tab in libraryScopeTabs"
-              :key="tab.key"
-              class="library-tab"
-              :class="{ active: selectedLibraryScope === tab.key }"
-              type="button"
-              @click="setLibraryScope(tab.key)"
-            >
-              {{ tab.name }}
-            </button>
-          </nav>
-
-          <nav v-if="selectedLibraryScope === 'group'" class="group-tabs" aria-label="小组知识库">
+          <nav class="group-tabs" aria-label="小组知识库">
             <button
               v-for="group in groupLibraries"
               :key="group.id"
@@ -310,47 +217,6 @@ const kindLabel: Record<FileKind, string> = {
         </div>
       </div>
     </section>
-
-    <aside class="qa-panel" aria-label="知识库提问">
-      <div class="qa-suggestions">
-        <p class="qa-kicker">你可以这样提问</p>
-        <div class="question-list">
-          <button v-for="question in guidedQuestions" :key="question" class="question-card" type="button">
-            <span>{{ question }}</span>
-            <span class="question-gesture" aria-hidden="true">☝</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="qa-composer-shell">
-        <div class="qa-composer">
-          <textarea :placeholder="composerPlaceholder" rows="3"></textarea>
-          <div class="composer-toolbar">
-            <button
-              v-for="tool in composerTools"
-              :key="tool.label"
-              class="composer-tool"
-              type="button"
-              :title="tool.label"
-              :aria-label="tool.label"
-            >
-              <component :is="tool.icon" :size="16" />
-              <span v-if="!tool.iconOnly">{{ tool.label }}</span>
-            </button>
-            <div class="composer-spacer"></div>
-            <button class="composer-tool icon-only" type="button" aria-label="语音输入">
-              <Mic :size="16" />
-            </button>
-            <button class="send-button" type="button" aria-label="发送">
-              <Send :size="14" />
-            </button>
-          </div>
-        </div>
-        <p class="qa-disclaimer">
-          回复内容由 AI 生成，非人工编辑；其内容准确性和完整性无法保证，不代表我们的态度和观点。
-        </p>
-      </div>
-    </aside>
 
     <div
       v-if="isCreateGroupModalOpen"
@@ -456,8 +322,6 @@ const kindLabel: Record<FileKind, string> = {
 
 <style scoped>
 .knowledge-page {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(380px, 480px);
   height: 100%;
   min-height: 0;
   overflow: hidden;
@@ -468,94 +332,73 @@ const kindLabel: Record<FileKind, string> = {
 .library-pane {
   min-width: 0;
   min-height: 0;
+  height: 100%;
   overflow: auto;
   background: var(--bg, var(--bg-color));
 }
 
 .library-body {
+  box-sizing: border-box;
+  width: min(100%, 1120px);
   min-width: 0;
-  padding: 22px 32px 40px;
+  margin: 0 auto;
+  padding: 28px 32px 40px;
 }
 
 .library-switcher {
-  display: grid;
-  gap: 18px;
   margin-bottom: 18px;
 }
 
-.library-tabs,
 .group-tabs {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-}
-
-.library-tabs {
-  gap: 18px;
-}
-
-.group-tabs {
-  gap: 8px;
-}
-
-.library-tab {
-  min-height: 40px;
-  padding: 9px 4px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--ink-700, var(--text-secondary));
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1;
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-
-.library-tab:hover {
-  color: var(--ink-900, var(--text-strong));
-}
-
-.library-tab.active {
-  padding: 9px 18px;
-  background: var(--ink-900, var(--primary-color));
-  color: #fff;
+  gap: 10px;
 }
 
 .group-tab,
 .group-create-tab {
-  min-height: 32px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  padding: 6px 14px;
+  gap: 7px;
+  padding: 0 16px;
   border-radius: 10px;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0;
   white-space: nowrap;
   cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
 .group-tab {
   border: 1px solid var(--line, var(--border-color));
   background: var(--bg-panel, var(--card-bg));
   color: var(--ink-700, var(--text-secondary));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
 }
 
 .group-tab.active {
-  border-color: color-mix(in srgb, var(--accent, var(--primary-color)) 22%, var(--line, var(--border-color)));
+  border-color: color-mix(in srgb, var(--accent, var(--primary-color)) 34%, var(--line, var(--border-color)));
   background: var(--accent-tint, var(--primary-soft));
-  color: var(--accent-700, var(--primary-hover));
+  color: var(--accent, var(--primary-color));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent, var(--primary-color)) 18%, transparent);
 }
 
 .group-create-tab {
   border: 1px dashed var(--line-strong, var(--border-color));
   background: transparent;
-  color: var(--ink-500, var(--text-muted));
+  color: var(--ink-700, var(--text-secondary));
+}
+
+.group-create-tab svg {
+  width: 14px;
+  height: 14px;
 }
 
 .search-row {
@@ -601,7 +444,7 @@ const kindLabel: Record<FileKind, string> = {
 
 .library-search input:focus {
   border-color: var(--ink-900, var(--primary-color));
-  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink-900, var(--text-strong)) 8%, transparent);
 }
 
 .search-button {
@@ -663,7 +506,7 @@ const kindLabel: Record<FileKind, string> = {
 }
 
 .folder-card:hover {
-  background: rgba(26, 22, 20, 0.035);
+  background: color-mix(in srgb, var(--ink-900, var(--text-strong)) 3.5%, transparent);
 }
 
 .folder-card span:last-child {
@@ -789,157 +632,6 @@ const kindLabel: Record<FileKind, string> = {
 .file-actions button:hover {
   background: var(--bg-soft, var(--surface-soft));
   color: var(--ink-900, var(--text-strong));
-}
-
-.qa-panel {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border-left: 1px solid var(--line, var(--border-color));
-  background: var(--accent-tint, var(--primary-soft));
-  overflow: hidden;
-}
-
-.qa-suggestions {
-  min-height: 0;
-  flex: 1;
-  overflow-y: auto;
-  padding: 28px 26px 16px;
-}
-
-.qa-kicker {
-  margin: 0 0 14px;
-  color: var(--ink-500, var(--text-muted));
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-}
-
-.question-list {
-  display: grid;
-  gap: 10px;
-}
-
-.question-card {
-  min-height: 46px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--line, var(--border-color));
-  border-radius: 10px;
-  background: var(--bg-panel, var(--card-bg));
-  color: var(--ink-900, var(--text-strong));
-  font-size: 13.5px;
-  line-height: 1.5;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-
-.question-card:hover {
-  border-color: var(--accent, var(--primary-color));
-}
-
-.question-card span:first-child {
-  min-width: 0;
-  flex: 1;
-}
-
-.question-gesture {
-  flex-shrink: 0;
-  font-size: 14px;
-}
-
-.qa-composer-shell {
-  padding: 0 26px 18px;
-}
-
-.qa-composer {
-  border: 1px solid var(--line-strong, var(--border-color));
-  border-radius: 20px;
-  background: var(--bg-panel, var(--card-bg));
-  overflow: hidden;
-  transition:
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.qa-composer:focus-within {
-  border-color: var(--ink-900, var(--primary-color));
-  box-shadow: 0 0 0 4px rgba(26, 22, 20, 0.05), var(--sh-2, var(--shadow-soft));
-}
-
-.qa-composer textarea {
-  width: 100%;
-  min-height: 88px;
-  resize: none;
-  padding: 18px 20px 8px;
-  border: 0;
-  background: transparent;
-  color: var(--ink-900, var(--text-main));
-  font-size: 15px;
-  line-height: 1.55;
-}
-
-.qa-composer textarea::placeholder {
-  color: var(--ink-400, var(--text-muted));
-}
-
-.composer-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px 12px;
-}
-
-.composer-tool,
-.send-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  cursor: pointer;
-}
-
-.composer-tool {
-  gap: 6px;
-  min-height: 32px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--ink-700, var(--text-secondary));
-  font-size: 12.5px;
-}
-
-.composer-tool:hover {
-  background: var(--bg-soft, var(--surface-soft));
-  color: var(--ink-900, var(--text-strong));
-}
-
-.composer-tool.icon-only {
-  width: 32px;
-}
-
-.composer-spacer {
-  flex: 1;
-  min-width: 8px;
-}
-
-.send-button {
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  background: var(--ink-900, var(--primary-color));
-  color: #fff;
-}
-
-.qa-disclaimer {
-  margin: 8px 0 0;
-  color: var(--ink-500, var(--text-muted));
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 .group-modal-backdrop {
@@ -1085,7 +777,7 @@ const kindLabel: Record<FileKind, string> = {
 .group-form-field input:focus,
 .group-form-field textarea:focus {
   border-color: var(--ink-900, var(--primary-color));
-  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink-900, var(--text-strong)) 8%, transparent);
 }
 
 .member-section {
@@ -1297,10 +989,6 @@ button.member-table-row:hover {
 }
 
 @media (max-width: 1180px) {
-  .knowledge-page {
-    grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
-  }
-
   .library-body {
     padding: 20px 24px 34px;
   }
@@ -1319,33 +1007,21 @@ button.member-table-row:hover {
   }
 }
 
-@media (max-width: 980px) {
-  .knowledge-page {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) 340px;
-  }
-
-  .library-pane {
-    border-right: 0;
-  }
-
-  .qa-panel {
-    border-left: 0;
-    border-top: 1px solid var(--line, var(--border-color));
-  }
-
-  .qa-suggestions {
-    padding: 20px 20px 12px;
-  }
-
-  .qa-composer-shell {
-    padding: 0 20px 16px;
-  }
-}
-
 @media (max-width: 760px) {
   .library-body {
     padding: 18px 16px 28px;
+  }
+
+  .group-tabs {
+    gap: 10px;
+  }
+
+  .group-tab,
+  .group-create-tab {
+    min-height: 34px;
+    padding: 0 12px;
+    border-radius: 9px;
+    font-size: 13px;
   }
 
   .search-row {
@@ -1368,10 +1044,6 @@ button.member-table-row:hover {
   .file-meta {
     grid-column: 2 / -1;
     flex-wrap: wrap;
-  }
-
-  .composer-tool span {
-    display: none;
   }
 
   .member-section-header {

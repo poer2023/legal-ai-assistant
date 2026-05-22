@@ -2,31 +2,49 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
-  ChevronLeft,
-  ChevronRight,
-  FileText,
-  History,
+  Coins,
+  FolderOpen,
+  FolderPlus,
+  Languages,
+  List,
   MoreHorizontal,
   Pencil,
-  Puzzle,
-  Scale,
+  Pin,
+  Plus,
+  Settings,
   Trash2,
-  User,
-  Workflow,
+  X,
 } from 'lucide-vue-next';
-import legalLogo from '../assets/legal-logo.png';
-import KnowledgeSearchIcon from './icons/KnowledgeSearchIcon.vue';
 import LawAgentsLogoIcon from './icons/LawAgentsLogoIcon.vue';
 import LawAgentsNavIcon from './icons/LawAgentsNavIcon.vue';
+import ProfileSettingsModal from './ProfileSettingsModal.vue';
 import { useChatHistory, type ChatHistoryItem } from '../stores/chatHistory';
 import { useOrgSession } from '../stores/orgSession';
-import { useTheme } from '../stores/theme';
+import {
+  normalizeWorkspaceId,
+  STANDALONE_WORKSPACE_ID,
+  useWorkspaces,
+} from '../stores/workspaces';
 
 const router = useRouter();
 const route = useRoute();
-const { recentHistory, renameConversation, deleteConversation } = useChatHistory();
+const {
+  recentHistory,
+  renameConversation,
+  deleteConversation,
+  deleteConversationsByWorkspace,
+} = useChatHistory();
 const { currentOrganization, currentUser } = useOrgSession();
-const { currentThemeId } = useTheme();
+const {
+  activeWorkspaceId,
+  createWorkspace,
+  deleteWorkspace,
+  renameWorkspace,
+  setActiveWorkspace,
+  toggleWorkspacePinned,
+  updateWorkspace,
+  workspaces,
+} = useWorkspaces();
 
 const isCollapsed = ref(false);
 const openHistoryMenuId = ref('');
@@ -34,22 +52,130 @@ const historyMenuPosition = ref({ top: 0, left: 0 });
 const renamingHistoryId = ref('');
 const historyRenameValue = ref('');
 const pendingDeleteHistoryItem = ref<ChatHistoryItem | null>(null);
+const isCreatingWorkspace = ref(false);
+const newWorkspaceName = ref('');
+const workspaceNameDialogMode = ref<'create' | 'rename'>('create');
+const renamingWorkspaceId = ref('');
+const showWorkspaceCreateMenu = ref(false);
+const openWorkspaceMenuId = ref('');
+const pendingDeleteWorkspaceGroup = ref<HistoryWorkspaceGroup | null>(null);
+const workspaceFolderTargetId = ref('');
+const workspaceFolderInputRef = ref<HTMLInputElement | null>(null);
+const workspaceCreateTriggerRef = ref<HTMLButtonElement | null>(null);
+const historyModeTriggerRef = ref<HTMLButtonElement | null>(null);
+const profileMenuTriggerRef = ref<HTMLButtonElement | null>(null);
+const workspaceCreateMenuPosition = ref({ top: 0, left: 0 });
+const historyModeMenuPosition = ref({ top: 0, left: 0 });
+const workspaceRowMenuPosition = ref({ top: 0, left: 0 });
+const profileMenuPosition = ref({ top: 0, left: 0 });
+const sidebarHistoryMode = ref<'workspace' | 'timeline'>('workspace');
+const showHistoryModeMenu = ref(false);
+const showProfileMenu = ref(false);
+const showSettingsModal = ref(false);
+const isHistoryListCollapsed = ref(false);
+const collapsedWorkspaceIds = ref<Set<string>>(new Set());
+const INTERFACE_LANGUAGE_STORAGE_KEY = 'legal-version-interface-language';
+const readStoredInterfaceLanguage = (): 'zh' | 'en' => {
+  if (typeof window === 'undefined') return 'zh';
+  return window.localStorage.getItem(INTERFACE_LANGUAGE_STORAGE_KEY) === 'en' ? 'en' : 'zh';
+};
+const interfaceLanguage = ref<'zh' | 'en'>(readStoredInterfaceLanguage());
+
+type HistoryWorkspaceGroup = {
+  id: string;
+  name: string;
+  meta: string;
+  items: ChatHistoryItem[];
+  pinned?: boolean;
+  source?: 'manual' | 'local-folder';
+  virtual?: boolean;
+};
 
 const activeHistoryMenuItem = computed(() =>
   recentHistory.value.find((item) => item.id === openHistoryMenuId.value) ?? null
 );
+const activeWorkspaceMenuGroup = computed(() =>
+  workspaceHistoryGroups.value.find((group) => group.id === openWorkspaceMenuId.value) ?? null
+);
+const workspaceNameDialogTitle = computed(() =>
+  workspaceNameDialogMode.value === 'rename' ? '重命名工作区' : '为工作区命名'
+);
+const workspaceNameDialogDescription = computed(() =>
+  workspaceNameDialogMode.value === 'rename' ? '修改后会同步显示在历史会话分组中' : '保持简短且易识别'
+);
+const workspaceHistoryGroups = computed<HistoryWorkspaceGroup[]>(() => {
+  const itemsByWorkspace = recentHistory.value.reduce<Map<string, ChatHistoryItem[]>>((groups, item) => {
+    const workspaceId = normalizeWorkspaceId(item.workspaceId);
+    groups.set(workspaceId, [...(groups.get(workspaceId) ?? []), item]);
+    return groups;
+  }, new Map());
+
+  const groups: HistoryWorkspaceGroup[] = workspaces.value.map((workspace) => ({
+    id: workspace.id,
+    name: workspace.name,
+    meta: workspace.description || `${itemsByWorkspace.get(workspace.id)?.length ?? 0} 条会话`,
+    pinned: workspace.pinned,
+    source: workspace.source,
+    items: itemsByWorkspace.get(workspace.id) ?? [],
+  }));
+
+  const standaloneItems = itemsByWorkspace.get(STANDALONE_WORKSPACE_ID) ?? [];
+  if (standaloneItems.length || activeWorkspaceId.value === STANDALONE_WORKSPACE_ID) {
+    groups.push({
+      id: STANDALONE_WORKSPACE_ID,
+      name: '不指定工作区',
+      meta: `${standaloneItems.length} 条独立会话`,
+      items: standaloneItems,
+      virtual: true,
+    });
+  }
+
+  return groups.filter((group) => group.items.length > 0 || group.id === activeWorkspaceId.value);
+});
 
 const closeHistoryMenu = () => {
   openHistoryMenuId.value = '';
+};
+
+const closeWorkspaceCreate = () => {
+  isCreatingWorkspace.value = false;
+  newWorkspaceName.value = '';
+  workspaceNameDialogMode.value = 'create';
+  renamingWorkspaceId.value = '';
+};
+
+const closeWorkspaceCreateMenu = () => {
+  showWorkspaceCreateMenu.value = false;
+};
+
+const closeWorkspaceRowMenu = () => {
+  openWorkspaceMenuId.value = '';
+};
+
+const closeHistoryModeMenu = () => {
+  showHistoryModeMenu.value = false;
+};
+
+const closeProfileMenu = () => {
+  showProfileMenu.value = false;
+};
+
+const closeSettingsModal = () => {
+  showSettingsModal.value = false;
 };
 
 const closeDeleteConfirm = () => {
   pendingDeleteHistoryItem.value = null;
 };
 
+const closeWorkspaceDeleteConfirm = () => {
+  pendingDeleteWorkspaceGroup.value = null;
+};
+
 const handleItemClick = (routeName: string) => {
   if (routeName) {
     closeHistoryMenu();
+    closeProfileMenu();
     router.push({ name: routeName });
   }
 };
@@ -69,9 +195,11 @@ const isHistoryActive = (item: ChatHistoryItem) => {
 const isKnowledgeActive = computed(() => {
   return ['knowledge'].includes(String(route.name ?? ''));
 });
+const isClawActive = computed(() =>
+  isActive('claw') || (route.name === 'chat' && route.query.source === 'claw')
+);
 const isHistoryPageActive = computed(() => route.name === 'history');
 const isProfileActive = computed(() => route.path.startsWith('/profile'));
-const isLawAgentsTheme = computed(() => currentThemeId.value === 'lawagents-standalone-v1');
 const profileDisplayName = computed(() => {
   const user = currentUser.value;
   if (!user) return '个人中心';
@@ -96,12 +224,289 @@ const profileAvatarStyle = computed(() => {
   const avatarDataUrl = currentUser.value?.avatarDataUrl;
   return avatarDataUrl ? { backgroundImage: `url(${JSON.stringify(avatarDataUrl)})` } : undefined;
 });
+const profileMenuCopy = computed(() => (
+  interfaceLanguage.value === 'zh'
+    ? {
+      account: '当前账号',
+      language: '界面语言',
+      plan: '套餐',
+      remaining: '剩余额度',
+      settings: '设置',
+      settingsHint: '个人资料与组织设置',
+      unavailable: '暂无额度信息',
+      used: '已用',
+    }
+    : {
+      account: 'Account',
+      language: 'Language',
+      plan: 'Plan',
+      remaining: 'Remaining',
+      settings: 'Settings',
+      settingsHint: 'Profile and organisation settings',
+      unavailable: 'Quota unavailable',
+      used: 'Used',
+    }
+));
+const parseUsageNumbers = (value: string | undefined) => {
+  const matches = value?.match(/[\d,]+/g);
+  if (!matches || matches.length < 2) return null;
+
+  const used = Number(matches[0]?.replace(/,/g, ''));
+  const total = Number(matches[1]?.replace(/,/g, ''));
+  if (!Number.isFinite(used) || !Number.isFinite(total) || total <= 0) return null;
+
+  return { total, used };
+};
+const questionUsageNumbers = computed(() => parseUsageNumbers(currentOrganization.value?.questionUsage));
+const formatQuotaCount = (value: number) =>
+  value.toLocaleString(interfaceLanguage.value === 'zh' ? 'zh-CN' : 'en-US');
+const remainingQuestionQuota = computed(() => {
+  const usage = questionUsageNumbers.value;
+  if (!usage) return currentOrganization.value?.questionUsage || profileMenuCopy.value.unavailable;
+
+  const remaining = Math.max(0, usage.total - usage.used);
+  return interfaceLanguage.value === 'zh'
+    ? `${formatQuotaCount(remaining)} 次`
+    : `${formatQuotaCount(remaining)} uses`;
+});
+const questionUsageSummary = computed(() => {
+  const usage = questionUsageNumbers.value;
+  if (!usage) return currentOrganization.value?.questionUsage || '--';
+
+  return `${formatQuotaCount(usage.used)} / ${formatQuotaCount(usage.total)}`;
+});
+const quotaTooltip = computed(() =>
+  `${profileMenuCopy.value.used} ${questionUsageSummary.value}`
+);
+const quotaProgressPercent = computed(() => {
+  const usage = questionUsageNumbers.value;
+  if (!usage) return '0%';
+
+  return `${Math.min(100, Math.max(0, (usage.used / usage.total) * 100)).toFixed(0)}%`;
+});
 
 const toggleSidebarCollapsed = () => {
   isCollapsed.value = !isCollapsed.value;
   if (isCollapsed.value) {
     closeHistoryMenu();
+    closeWorkspaceCreateMenu();
+    closeWorkspaceCreate();
+    closeHistoryModeMenu();
+    closeWorkspaceRowMenu();
+    closeProfileMenu();
+    closeSettingsModal();
   }
+};
+
+const getWorkspaceRootName = (files: File[]) => {
+  const firstFile = files[0] as (File & { webkitRelativePath?: string }) | undefined;
+  const rootName = firstFile?.webkitRelativePath?.split('/').find(Boolean);
+  return rootName || firstFile?.name || '';
+};
+
+const createDefaultWorkspaceName = () => {
+  for (let index = 1; index <= 9999; index += 1) {
+    const candidate = `新工作区 ${String(index).padStart(4, '0')}`;
+    if (!workspaces.value.some((workspace) => workspace.name === candidate)) return candidate;
+  }
+  return `新工作区 ${Date.now().toString().slice(-4)}`;
+};
+const defaultWorkspaceName = computed(() => createDefaultWorkspaceName());
+
+const getFloatingMenuPosition = (trigger: HTMLElement | null, menuWidth: number) => {
+  const rect = trigger?.getBoundingClientRect();
+  if (!rect) return { top: 0, left: 0 };
+
+  return {
+    top: Math.min(rect.bottom + 5, window.innerHeight - 8),
+    left: Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8)),
+  };
+};
+
+const getUpwardMenuPosition = (trigger: HTMLElement | null, menuWidth: number, menuHeight: number) => {
+  const rect = trigger?.getBoundingClientRect();
+  if (!rect) return { top: 0, left: 0 };
+
+  return {
+    top: Math.max(8, Math.min(rect.top - menuHeight - 8, window.innerHeight - menuHeight - 8)),
+    left: Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8)),
+  };
+};
+
+const openWorkspaceCreateMenu = () => {
+  workspaceCreateMenuPosition.value = getFloatingMenuPosition(workspaceCreateTriggerRef.value, 142);
+  showWorkspaceCreateMenu.value = !showWorkspaceCreateMenu.value;
+  closeWorkspaceCreate();
+  closeHistoryModeMenu();
+  closeHistoryMenu();
+  closeWorkspaceRowMenu();
+  closeProfileMenu();
+};
+
+const startWorkspaceCreate = () => {
+  sidebarHistoryMode.value = 'workspace';
+  showWorkspaceCreateMenu.value = false;
+  workspaceNameDialogMode.value = 'create';
+  renamingWorkspaceId.value = '';
+  newWorkspaceName.value = defaultWorkspaceName.value;
+  closeHistoryModeMenu();
+  closeWorkspaceRowMenu();
+  closeProfileMenu();
+  isCreatingWorkspace.value = true;
+  closeHistoryMenu();
+  void nextTick(() => {
+    const input = document.querySelector<HTMLInputElement>('[data-sidebar-workspace-name="true"]');
+    input?.focus();
+    input?.select();
+  });
+};
+
+const openWorkspaceFolderPicker = () => {
+  sidebarHistoryMode.value = 'workspace';
+  workspaceFolderTargetId.value = '';
+  closeHistoryModeMenu();
+  closeHistoryMenu();
+  closeWorkspaceRowMenu();
+  closeProfileMenu();
+  showWorkspaceCreateMenu.value = false;
+  closeWorkspaceCreate();
+  workspaceFolderInputRef.value?.click();
+};
+
+const toggleHistoryModeMenu = () => {
+  historyModeMenuPosition.value = getFloatingMenuPosition(historyModeTriggerRef.value, 150);
+  showHistoryModeMenu.value = !showHistoryModeMenu.value;
+  closeWorkspaceCreateMenu();
+  closeHistoryMenu();
+  closeWorkspaceRowMenu();
+  closeProfileMenu();
+};
+
+const selectHistoryMode = (mode: 'workspace' | 'timeline') => {
+  sidebarHistoryMode.value = mode;
+  closeHistoryModeMenu();
+};
+
+const submitNewWorkspace = () => {
+  const workspaceName = newWorkspaceName.value.trim() || createDefaultWorkspaceName();
+  if (workspaceNameDialogMode.value === 'rename') {
+    const workspace = renameWorkspace(renamingWorkspaceId.value, workspaceName);
+    if (!workspace) return;
+    closeWorkspaceCreate();
+    return;
+  }
+
+  const workspace = createWorkspace(workspaceName);
+  if (!workspace) return;
+  closeWorkspaceCreate();
+};
+
+const handleWorkspaceFolderSelection = (event: Event) => {
+  const input = event.target as HTMLInputElement | null;
+  if (!input) return;
+
+  const files = Array.from(input.files ?? []);
+  if (files.length) {
+    const targetWorkspaceId = workspaceFolderTargetId.value;
+    if (targetWorkspaceId) {
+      const rootName = getWorkspaceRootName(files);
+      updateWorkspace(targetWorkspaceId, {
+        description: `${rootName || '本地文件夹'} · ${files.length} 个文件`,
+        source: 'local-folder',
+      });
+    } else {
+      createWorkspace(getWorkspaceRootName(files) || createDefaultWorkspaceName(), {
+        description: `${files.length} 个文件`,
+        source: 'local-folder',
+      });
+    }
+  }
+
+  input.value = '';
+  workspaceFolderTargetId.value = '';
+  closeWorkspaceCreateMenu();
+};
+
+const isWorkspaceGroupCollapsed = (workspaceId: string) => collapsedWorkspaceIds.value.has(workspaceId);
+
+const toggleWorkspaceGroup = (workspaceId: string) => {
+  const nextCollapsedIds = new Set(collapsedWorkspaceIds.value);
+  if (nextCollapsedIds.has(workspaceId)) {
+    nextCollapsedIds.delete(workspaceId);
+  } else {
+    nextCollapsedIds.add(workspaceId);
+  }
+  collapsedWorkspaceIds.value = nextCollapsedIds;
+};
+
+const openWorkspaceRowMenu = (group: HistoryWorkspaceGroup, event: MouseEvent) => {
+  event.stopPropagation();
+  if (group.virtual) return;
+
+  if (openWorkspaceMenuId.value === group.id) {
+    closeWorkspaceRowMenu();
+    return;
+  }
+
+  const trigger = event.currentTarget as HTMLElement | null;
+  workspaceRowMenuPosition.value = getFloatingMenuPosition(trigger, 158);
+  openWorkspaceMenuId.value = group.id;
+  closeHistoryMenu();
+  closeHistoryModeMenu();
+  closeWorkspaceCreateMenu();
+  closeProfileMenu();
+};
+
+const startWorkspaceConversation = (group: HistoryWorkspaceGroup) => {
+  closeHistoryMenu();
+  closeWorkspaceRowMenu();
+  closeHistoryModeMenu();
+  closeWorkspaceCreateMenu();
+  closeProfileMenu();
+  setActiveWorkspace(group.id);
+  void router.push({ name: 'home' });
+};
+
+const startWorkspaceRename = (group: HistoryWorkspaceGroup) => {
+  if (group.virtual) return;
+
+  workspaceNameDialogMode.value = 'rename';
+  renamingWorkspaceId.value = group.id;
+  newWorkspaceName.value = group.name;
+  isCreatingWorkspace.value = true;
+  closeWorkspaceRowMenu();
+  closeHistoryMenu();
+  closeHistoryModeMenu();
+  closeWorkspaceCreateMenu();
+  closeProfileMenu();
+
+  void nextTick(() => {
+    const input = document.querySelector<HTMLInputElement>('[data-sidebar-workspace-name="true"]');
+    input?.focus();
+    input?.select();
+  });
+};
+
+const openWorkspaceFolderForGroup = (group: HistoryWorkspaceGroup) => {
+  if (group.virtual) return;
+
+  workspaceFolderTargetId.value = group.id;
+  closeWorkspaceRowMenu();
+  workspaceFolderInputRef.value?.click();
+};
+
+const toggleWorkspacePinnedForGroup = (group: HistoryWorkspaceGroup) => {
+  if (group.virtual) return;
+
+  toggleWorkspacePinned(group.id);
+  closeWorkspaceRowMenu();
+};
+
+const removeWorkspaceGroup = (group: HistoryWorkspaceGroup) => {
+  if (group.virtual) return;
+
+  pendingDeleteWorkspaceGroup.value = group;
+  closeWorkspaceRowMenu();
 };
 
 const handleKnowledgeClick = () => {
@@ -110,8 +515,13 @@ const handleKnowledgeClick = () => {
 
 const handleHistoryClick = (item: ChatHistoryItem) => {
   closeHistoryMenu();
+  closeWorkspaceRowMenu();
+  closeProfileMenu();
+  const workspaceId = normalizeWorkspaceId(item.workspaceId);
+  setActiveWorkspace(workspaceId);
   const query: Record<string, string> = {
     historyId: item.id,
+    workspaceId,
   };
 
   if (item.mock) {
@@ -124,8 +534,21 @@ const handleHistoryClick = (item: ChatHistoryItem) => {
   });
 };
 
-const handleHistoryPageClick = () => {
+const toggleHistoryList = () => {
+  isHistoryListCollapsed.value = !isHistoryListCollapsed.value;
   closeHistoryMenu();
+  closeHistoryModeMenu();
+  closeWorkspaceCreateMenu();
+  closeWorkspaceRowMenu();
+  closeProfileMenu();
+};
+
+const openHistoryPage = () => {
+  closeHistoryMenu();
+  closeHistoryModeMenu();
+  closeWorkspaceCreateMenu();
+  closeWorkspaceRowMenu();
+  closeProfileMenu();
   void router.push({ name: 'history' });
 };
 
@@ -149,6 +572,34 @@ const openHistoryMenu = (item: ChatHistoryItem, event: MouseEvent) => {
     top: Math.max(8, Math.min(top, window.innerHeight - menuHeight - 8)),
   };
   openHistoryMenuId.value = item.id;
+  closeWorkspaceRowMenu();
+  closeProfileMenu();
+};
+
+const toggleProfileMenu = () => {
+  if (showProfileMenu.value) {
+    closeProfileMenu();
+    return;
+  }
+
+  profileMenuPosition.value = getUpwardMenuPosition(profileMenuTriggerRef.value, 272, 220);
+  showProfileMenu.value = true;
+  closeHistoryMenu();
+  closeHistoryModeMenu();
+  closeWorkspaceCreateMenu();
+  closeWorkspaceRowMenu();
+};
+
+const openProfileSettings = () => {
+  closeProfileMenu();
+  showSettingsModal.value = true;
+};
+
+const setInterfaceLanguage = (language: 'zh' | 'en') => {
+  interfaceLanguage.value = language;
+  if (typeof window !== 'undefined') {
+    window.localStorage.setItem(INTERFACE_LANGUAGE_STORAGE_KEY, language);
+  }
 };
 
 const startRenameHistory = (item: ChatHistoryItem) => {
@@ -197,22 +648,52 @@ const confirmRemoveHistoryItem = () => {
   }
 };
 
+const confirmRemoveWorkspaceGroup = () => {
+  const group = pendingDeleteWorkspaceGroup.value;
+  if (!group) return;
+
+  const currentRouteWorkspaceId = normalizeWorkspaceId(String(route.query.workspaceId || ''));
+  const shouldLeaveChat = route.name === 'chat' && currentRouteWorkspaceId === group.id;
+  deleteConversationsByWorkspace(group.id);
+  deleteWorkspace(group.id);
+  closeWorkspaceDeleteConfirm();
+
+  if (shouldLeaveChat) {
+    void router.push({ name: 'home' });
+  }
+};
+
 const handleDocumentClick = (event: MouseEvent) => {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
     closeHistoryMenu();
+    closeHistoryModeMenu();
+    closeWorkspaceCreateMenu();
+    closeWorkspaceRowMenu();
+    closeProfileMenu();
     return;
   }
 
   if (
     target.closest('.history-menu-popover')
+    || target.closest('.history-mode-menu')
+    || target.closest('.history-create-menu')
+    || target.closest('.workspace-row-menu')
+    || target.closest('.profile-account-menu')
     || target.closest('.history-more')
+    || target.closest('.history-workspace-actions')
     || target.closest('.history-rename-input')
+    || target.closest('.history-heading-actions')
+    || target.closest('.lawagents-profile-item')
   ) {
     return;
   }
 
   closeHistoryMenu();
+  closeHistoryModeMenu();
+  closeWorkspaceCreateMenu();
+  closeWorkspaceRowMenu();
+  closeProfileMenu();
 };
 
 onMounted(() => {
@@ -230,18 +711,13 @@ onBeforeUnmount(() => {
       <div class="logo-area">
         <div class="logo-icon">
           <LawAgentsLogoIcon
-            v-if="isLawAgentsTheme"
             :size="isCollapsed ? 32 : 36"
             :radius="isCollapsed ? 8 : 9"
           />
-          <img v-else :src="legalLogo" alt="涌见AI" />
         </div>
         <div class="logo-text">
           <span class="logo-brand">
-            <template v-if="isLawAgentsTheme">
-              涌见 <span class="logo-brand-ai">AI</span>
-            </template>
-            <template v-else>涌见AI</template>
+            涌见 <span class="logo-brand-ai">AI</span>
           </span>
         </div>
       </div>
@@ -254,12 +730,9 @@ onBeforeUnmount(() => {
         @click="toggleSidebarCollapsed"
       >
         <LawAgentsNavIcon
-          v-if="isLawAgentsTheme"
           :kind="isCollapsed ? 'chevron-right' : 'chevron-left'"
           :size="16"
         />
-        <ChevronRight v-else-if="isCollapsed" :size="16" :stroke-width="2.4" />
-        <ChevronLeft v-else :size="16" :stroke-width="2.4" />
       </button>
     </div>
 
@@ -272,8 +745,7 @@ onBeforeUnmount(() => {
           :title="isCollapsed ? '助手' : undefined"
           @click="handleItemClick('home')"
         >
-          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="assistant" :size="18" class="nav-icon" />
-          <Workflow v-else :size="18" class="nav-icon" />
+          <LawAgentsNavIcon kind="assistant" :size="18" class="nav-icon" />
           <span class="nav-label">助手</span>
         </button>
 
@@ -284,8 +756,7 @@ onBeforeUnmount(() => {
           :title="isCollapsed ? '技能' : undefined"
           @click="handleItemClick('skills')"
         >
-          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="skills" :size="18" class="nav-icon" />
-          <Puzzle v-else :size="18" class="nav-icon" />
+          <LawAgentsNavIcon kind="skills" :size="18" class="nav-icon" />
           <span class="nav-label">技能</span>
         </button>
 
@@ -296,8 +767,7 @@ onBeforeUnmount(() => {
           :title="isCollapsed ? '模板' : undefined"
           @click="handleItemClick('templates')"
         >
-          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="templates" :size="18" class="nav-icon" />
-          <FileText v-else :size="18" class="nav-icon" />
+          <LawAgentsNavIcon kind="templates" :size="18" class="nav-icon" />
           <span class="nav-label">模板</span>
         </button>
 
@@ -309,9 +779,30 @@ onBeforeUnmount(() => {
           aria-label="知识库"
           @click="handleKnowledgeClick"
         >
-          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="knowledge" :size="18" class="nav-icon" />
-          <KnowledgeSearchIcon v-else :size="18" class="nav-icon" />
+          <LawAgentsNavIcon kind="knowledge" :size="18" class="nav-icon" />
           <span class="nav-label">知识库</span>
+        </button>
+
+        <button
+          class="nav-item"
+          :class="{ active: isClawActive }"
+          aria-label="claw"
+          :title="isCollapsed ? 'claw' : undefined"
+          @click="handleItemClick('claw')"
+        >
+          <LawAgentsNavIcon kind="claw" :size="18" class="nav-icon" />
+          <span class="nav-label">claw</span>
+        </button>
+
+        <button
+          class="nav-item"
+          :class="{ active: isActive('scheduled-tasks') }"
+          aria-label="定时任务"
+          :title="isCollapsed ? '定时任务' : undefined"
+          @click="handleItemClick('scheduled-tasks')"
+        >
+          <LawAgentsNavIcon kind="schedule" :size="18" class="nav-icon" />
+          <span class="nav-label">定时任务</span>
         </button>
 
         <button
@@ -321,94 +812,494 @@ onBeforeUnmount(() => {
           :title="isCollapsed ? '法律搜索' : undefined"
           @click="handleItemClick('legal-search')"
         >
-          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="search" :size="18" class="nav-icon" />
-          <Scale v-else :size="18" class="nav-icon" />
+          <LawAgentsNavIcon kind="search" :size="18" class="nav-icon" />
           <span class="nav-label">法律搜索</span>
         </button>
 
         <section class="history-section" aria-label="历史会话">
-          <button
-            type="button"
-            class="nav-item history-group-label"
-            :class="{ active: isHistoryPageActive }"
-            :title="isCollapsed ? '历史会话' : undefined"
-            @click="handleHistoryPageClick"
-          >
-            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="history" :size="18" class="nav-icon" />
-            <History v-else :size="18" class="nav-icon" />
-            <span class="nav-label">历史会话</span>
-          </button>
-          <div
-            v-for="item in recentHistory"
-            :key="item.id"
-            class="history-row"
-            :class="{ active: isHistoryActive(item), 'menu-open': openHistoryMenuId === item.id }"
-          >
-            <input
-              v-if="renamingHistoryId === item.id"
-              v-model="historyRenameValue"
-              class="history-rename-input"
-              data-history-rename-input="true"
-              maxlength="38"
-              aria-label="重命名历史会话"
-              @click.stop
-              @keydown.enter.prevent="submitHistoryRename(item)"
-              @keydown.esc.prevent="cancelHistoryRename"
-              @blur="submitHistoryRename(item)"
-            />
+          <div class="history-heading-row">
             <button
-              v-else
-              class="history-item"
-              :title="isCollapsed ? item.title : undefined"
-              @click="handleHistoryClick(item)"
-            >
-              <span class="history-title">{{ item.title }}</span>
-            </button>
-            <button
-              v-if="renamingHistoryId !== item.id"
-              class="history-more"
               type="button"
-              :aria-label="`打开 ${item.title} 的更多操作`"
-              :aria-expanded="openHistoryMenuId === item.id"
-              @click="openHistoryMenu(item, $event)"
+              class="nav-item history-group-label"
+              :class="{ active: isHistoryPageActive }"
+              :title="isCollapsed ? '历史会话' : undefined"
+              :aria-expanded="!isHistoryListCollapsed"
+              @click="toggleHistoryList"
             >
-              <MoreHorizontal :size="16" />
+              <LawAgentsNavIcon kind="history" :size="18" class="nav-icon" />
+              <span class="nav-label">历史会话</span>
             </button>
+
+            <div v-if="!isCollapsed" class="history-heading-actions" @click.stop>
+              <input
+                ref="workspaceFolderInputRef"
+                class="workspace-folder-input"
+                type="file"
+                webkitdirectory
+                directory
+                multiple
+                @change="handleWorkspaceFolderSelection"
+              />
+              <button
+                ref="workspaceCreateTriggerRef"
+                type="button"
+                class="history-heading-icon"
+                aria-label="新建工作区"
+                :aria-expanded="showWorkspaceCreateMenu"
+                @click="openWorkspaceCreateMenu"
+              >
+                <FolderPlus :size="15" />
+              </button>
+              <button
+                ref="historyModeTriggerRef"
+                type="button"
+                class="history-heading-icon"
+                aria-label="更多历史会话选项"
+                :aria-expanded="showHistoryModeMenu"
+                @click="toggleHistoryModeMenu"
+              >
+                <MoreHorizontal :size="16" />
+              </button>
+            </div>
           </div>
+
+          <template v-if="!isHistoryListCollapsed && sidebarHistoryMode === 'timeline'">
+            <div
+              v-for="item in recentHistory"
+              :key="item.id"
+              class="history-row"
+              :class="{ active: isHistoryActive(item), 'menu-open': openHistoryMenuId === item.id }"
+            >
+              <input
+                v-if="renamingHistoryId === item.id"
+                v-model="historyRenameValue"
+                class="history-rename-input"
+                data-history-rename-input="true"
+                maxlength="38"
+                aria-label="重命名历史会话"
+                @click.stop
+                @keydown.enter.prevent="submitHistoryRename(item)"
+                @keydown.esc.prevent="cancelHistoryRename"
+                @blur="submitHistoryRename(item)"
+              />
+              <button
+                v-else
+                class="history-item"
+                :title="isCollapsed ? item.title : undefined"
+                @click="handleHistoryClick(item)"
+              >
+                <span class="history-title">{{ item.title }}</span>
+              </button>
+              <button
+                v-if="renamingHistoryId !== item.id"
+                class="history-more"
+                type="button"
+                :aria-label="`打开 ${item.title} 的更多操作`"
+                :aria-expanded="openHistoryMenuId === item.id"
+                @click="openHistoryMenu(item, $event)"
+              >
+                <MoreHorizontal :size="16" />
+              </button>
+            </div>
+          </template>
+
+          <template v-else-if="!isHistoryListCollapsed">
+            <section
+              v-for="group in workspaceHistoryGroups"
+              :key="group.id"
+              class="history-workspace-group"
+              :class="{ 'menu-open': openWorkspaceMenuId === group.id }"
+            >
+              <button
+                type="button"
+                class="history-workspace-head"
+                :aria-expanded="!isWorkspaceGroupCollapsed(group.id)"
+                @click="toggleWorkspaceGroup(group.id)"
+              >
+                <LawAgentsNavIcon
+                  kind="chevron-right"
+                  :size="12"
+                  class="history-workspace-toggle-icon"
+                  :class="{ collapsed: isWorkspaceGroupCollapsed(group.id) }"
+                />
+                <FolderOpen :size="13" />
+                <span class="history-workspace-name">{{ group.name }}</span>
+              </button>
+              <div
+                v-if="!group.virtual"
+                class="history-workspace-actions"
+                @click.stop
+              >
+                <button
+                  type="button"
+                  class="history-workspace-action"
+                  :aria-label="`在 ${group.name} 下新建会话`"
+                  @click="startWorkspaceConversation(group)"
+                >
+                  <Plus :size="13" />
+                </button>
+                <button
+                  type="button"
+                  class="history-workspace-action"
+                  :aria-label="`打开 ${group.name} 的工作区操作`"
+                  :aria-expanded="openWorkspaceMenuId === group.id"
+                  @click="openWorkspaceRowMenu(group, $event)"
+                >
+                  <MoreHorizontal :size="15" />
+                </button>
+              </div>
+              <div
+                v-if="!isWorkspaceGroupCollapsed(group.id) && group.items.length === 0"
+                class="history-workspace-empty"
+              >
+                暂无会话
+              </div>
+              <div
+                v-for="item in group.items"
+                v-show="!isWorkspaceGroupCollapsed(group.id)"
+                :key="item.id"
+                class="history-row workspace-history-row"
+                :class="{ active: isHistoryActive(item), 'menu-open': openHistoryMenuId === item.id }"
+              >
+                <input
+                  v-if="renamingHistoryId === item.id"
+                  v-model="historyRenameValue"
+                  class="history-rename-input"
+                  data-history-rename-input="true"
+                  maxlength="38"
+                  aria-label="重命名历史会话"
+                  @click.stop
+                  @keydown.enter.prevent="submitHistoryRename(item)"
+                  @keydown.esc.prevent="cancelHistoryRename"
+                  @blur="submitHistoryRename(item)"
+                />
+                <button
+                  v-else
+                  class="history-item"
+                  :title="isCollapsed ? item.title : undefined"
+                  @click="handleHistoryClick(item)"
+                >
+                  <span class="history-title">{{ item.title }}</span>
+                </button>
+                <button
+                  v-if="renamingHistoryId !== item.id"
+                  class="history-more"
+                  type="button"
+                  :aria-label="`打开 ${item.title} 的更多操作`"
+                  :aria-expanded="openHistoryMenuId === item.id"
+                  @click="openHistoryMenu(item, $event)"
+                >
+                  <MoreHorizontal :size="16" />
+                </button>
+              </div>
+            </section>
+          </template>
         </section>
       </div>
 
       <div class="sidebar-nav-bottom">
         <button
-          class="nav-item profile-nav-item"
-          :class="{ active: isProfileActive, 'lawagents-profile-item': isLawAgentsTheme }"
+          ref="profileMenuTriggerRef"
+          class="nav-item profile-nav-item lawagents-profile-item"
+          :class="{ active: isProfileActive || showProfileMenu }"
           aria-label="个人中心"
+          aria-haspopup="menu"
+          :aria-expanded="showProfileMenu"
           :title="isCollapsed ? '个人中心' : undefined"
-          @click="handleItemClick('profile')"
+          @click.stop="toggleProfileMenu"
         >
-          <template v-if="isLawAgentsTheme">
-            <span
-              class="lawagents-profile-avatar"
-              :class="{ 'has-image': hasProfileAvatarImage }"
-              :style="profileAvatarStyle"
-            >
-              <span v-if="!hasProfileAvatarImage">{{ profileAvatarText }}</span>
-            </span>
-            <span class="lawagents-profile-copy">
-              <span class="lawagents-profile-name">{{ profileDisplayName }}</span>
-              <span class="lawagents-profile-sub">{{ profileMeta }}</span>
-            </span>
-            <LawAgentsNavIcon kind="chevron-right" :size="14" class="lawagents-profile-chevron" />
-          </template>
-          <template v-else>
-            <User :size="18" class="nav-icon" />
-            <span class="nav-label">个人中心</span>
-          </template>
+          <span
+            class="lawagents-profile-avatar"
+            :class="{ 'has-image': hasProfileAvatarImage }"
+            :style="profileAvatarStyle"
+          >
+            <span v-if="!hasProfileAvatarImage">{{ profileAvatarText }}</span>
+          </span>
+          <span class="lawagents-profile-copy">
+            <span class="lawagents-profile-name">{{ profileDisplayName }}</span>
+            <span class="lawagents-profile-sub">{{ profileMeta }}</span>
+          </span>
         </button>
       </div>
     </nav>
 
   </aside>
+
+  <Teleport to="body">
+    <div
+      v-if="showProfileMenu"
+      class="profile-account-menu"
+      :style="{ top: `${profileMenuPosition.top}px`, left: `${profileMenuPosition.left}px` }"
+      role="menu"
+      @click.stop
+    >
+      <section
+        class="profile-account-summary profile-tooltip-host"
+        :aria-label="`${profileMenuCopy.account}: ${profileDisplayName}; ${profileMeta}`"
+        :data-profile-tooltip="profileMeta"
+      >
+        <span
+          class="profile-menu-avatar"
+          :class="{ 'has-image': hasProfileAvatarImage }"
+          :style="profileAvatarStyle"
+        >
+          <span v-if="!hasProfileAvatarImage">{{ profileAvatarText }}</span>
+        </span>
+        <span class="profile-menu-copy">
+          <strong>{{ profileDisplayName }}</strong>
+        </span>
+      </section>
+
+      <section class="profile-menu-language" :aria-label="profileMenuCopy.language">
+        <span class="profile-menu-language-label">
+          <Languages :size="15" />
+          {{ profileMenuCopy.language }}
+        </span>
+        <span class="profile-language-toggle" role="group" :aria-label="profileMenuCopy.language">
+          <button
+            type="button"
+            :data-active="interfaceLanguage === 'zh'"
+            @click="setInterfaceLanguage('zh')"
+          >
+            中文
+          </button>
+          <button
+            type="button"
+            :data-active="interfaceLanguage === 'en'"
+            @click="setInterfaceLanguage('en')"
+          >
+            EN
+          </button>
+        </span>
+      </section>
+
+      <section
+        class="profile-menu-quota profile-tooltip-host"
+        :aria-label="`${profileMenuCopy.remaining}: ${remainingQuestionQuota}; ${quotaTooltip}`"
+        :data-profile-tooltip="quotaTooltip"
+      >
+        <div class="profile-menu-row-title">
+          <span>
+            <Coins :size="15" />
+            {{ profileMenuCopy.remaining }}
+          </span>
+          <strong>{{ remainingQuestionQuota }}</strong>
+        </div>
+        <div class="profile-menu-meter" aria-hidden="true">
+          <span :style="{ width: quotaProgressPercent }"></span>
+        </div>
+      </section>
+
+      <button
+        type="button"
+        class="profile-menu-action profile-tooltip-host"
+        role="menuitem"
+        :aria-label="`${profileMenuCopy.settings}: ${profileMenuCopy.settingsHint}`"
+        :data-profile-tooltip="profileMenuCopy.settingsHint"
+        @click="openProfileSettings"
+      >
+        <Settings :size="15" />
+        <span class="profile-menu-action-copy">
+          <strong>{{ profileMenuCopy.settings }}</strong>
+        </span>
+        <LawAgentsNavIcon kind="chevron-right" :size="13" />
+      </button>
+    </div>
+  </Teleport>
+
+  <ProfileSettingsModal
+    :open="showSettingsModal"
+    :initial-language="interfaceLanguage"
+    @close="closeSettingsModal"
+    @language-change="setInterfaceLanguage"
+  />
+
+  <Teleport to="body">
+    <div
+      v-if="showWorkspaceCreateMenu"
+      class="history-create-menu"
+      :style="{ top: `${workspaceCreateMenuPosition.top}px`, left: `${workspaceCreateMenuPosition.left}px` }"
+      role="menu"
+      @click.stop
+    >
+      <button type="button" role="menuitem" @click="startWorkspaceCreate">
+        <FolderPlus :size="13" />
+        <span>新建工作区</span>
+      </button>
+      <button type="button" role="menuitem" @click="openWorkspaceFolderPicker">
+        <FolderOpen :size="13" />
+        <span>使用本地文件夹</span>
+      </button>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="showHistoryModeMenu"
+      class="history-mode-menu"
+      :style="{ top: `${historyModeMenuPosition.top}px`, left: `${historyModeMenuPosition.left}px` }"
+      role="menu"
+      @click.stop
+    >
+      <button
+        type="button"
+        role="menuitem"
+        @click="openHistoryPage"
+      >
+        <LawAgentsNavIcon kind="history" :size="13" />
+        <span>查看所有会话</span>
+      </button>
+      <div class="history-sort-menu-item" role="menuitem" tabindex="0">
+        <span class="history-sort-label">
+          <List :size="13" />
+          <span>会话排序</span>
+        </span>
+        <LawAgentsNavIcon kind="chevron-right" :size="12" />
+        <div class="history-sort-submenu" role="menu">
+          <button
+            type="button"
+            :class="{ active: sidebarHistoryMode === 'workspace' }"
+            role="menuitem"
+            @click="selectHistoryMode('workspace')"
+          >
+            <FolderOpen :size="13" />
+            <span>按工作空间显示</span>
+          </button>
+          <button
+            type="button"
+            :class="{ active: sidebarHistoryMode === 'timeline' }"
+            role="menuitem"
+            @click="selectHistoryMode('timeline')"
+          >
+            <List :size="13" />
+            <span>按时间线显示</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="activeWorkspaceMenuGroup"
+      class="workspace-row-menu"
+      :style="{ top: `${workspaceRowMenuPosition.top}px`, left: `${workspaceRowMenuPosition.left}px` }"
+      role="menu"
+      @click.stop
+    >
+      <button
+        type="button"
+        role="menuitem"
+        @click="startWorkspaceRename(activeWorkspaceMenuGroup)"
+      >
+        <Pencil :size="13" />
+        <span>重命名</span>
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        @click="openWorkspaceFolderForGroup(activeWorkspaceMenuGroup)"
+      >
+        <FolderOpen :size="13" />
+        <span>打开本地文件夹</span>
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        @click="toggleWorkspacePinnedForGroup(activeWorkspaceMenuGroup)"
+      >
+        <Pin :size="13" />
+        <span>{{ activeWorkspaceMenuGroup.pinned ? '取消置顶' : '置顶' }}</span>
+      </button>
+      <button
+        type="button"
+        class="danger"
+        role="menuitem"
+        @click="removeWorkspaceGroup(activeWorkspaceMenuGroup)"
+      >
+        <Trash2 :size="13" />
+        <span>删除对话</span>
+      </button>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="isCreatingWorkspace"
+      class="workspace-name-backdrop"
+      role="presentation"
+      @click.self="closeWorkspaceCreate"
+    >
+      <section
+        class="workspace-name-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="workspace-name-title"
+      >
+        <header class="workspace-name-header">
+          <div>
+            <h2 id="workspace-name-title">{{ workspaceNameDialogTitle }}</h2>
+            <p>{{ workspaceNameDialogDescription }}</p>
+          </div>
+          <button type="button" aria-label="关闭" @click="closeWorkspaceCreate">
+            <X :size="18" />
+          </button>
+        </header>
+        <input
+          v-model="newWorkspaceName"
+          class="workspace-name-input"
+          data-sidebar-workspace-name="true"
+          type="text"
+          maxlength="28"
+          :placeholder="defaultWorkspaceName"
+          @keydown.enter.prevent="submitNewWorkspace"
+          @keydown.esc.prevent="closeWorkspaceCreate"
+        />
+        <footer class="workspace-name-actions">
+          <button type="button" class="workspace-name-cancel" @click="closeWorkspaceCreate">
+            取消
+          </button>
+          <button type="button" class="workspace-name-save" @click="submitNewWorkspace">
+            保存
+          </button>
+        </footer>
+      </section>
+    </div>
+  </Teleport>
+
+  <Teleport to="body">
+    <div
+      v-if="pendingDeleteWorkspaceGroup"
+      class="history-confirm-backdrop"
+      role="presentation"
+      @click.self="closeWorkspaceDeleteConfirm"
+    >
+      <section
+        class="history-confirm-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="workspace-delete-title"
+      >
+        <div class="history-confirm-icon">
+          <Trash2 :size="22" />
+        </div>
+        <div class="history-confirm-copy">
+          <h2 id="workspace-delete-title">删除工作空间</h2>
+          <p>
+            将删除“{{ pendingDeleteWorkspaceGroup.name }}”工作空间和下方所有的对话内容，本地文件不受影响。
+          </p>
+        </div>
+        <div class="history-confirm-actions">
+          <button type="button" class="history-confirm-cancel" @click="closeWorkspaceDeleteConfirm">
+            取消
+          </button>
+          <button type="button" class="history-confirm-delete" @click="confirmRemoveWorkspaceGroup">
+            删除
+          </button>
+        </div>
+      </section>
+    </div>
+  </Teleport>
 
   <Teleport to="body">
     <div
@@ -847,6 +1738,7 @@ onBeforeUnmount(() => {
 .sidebar-nav-main {
   min-height: 0;
   flex: 1;
+  overflow-x: visible;
   overflow-y: auto;
   padding-bottom: 12px;
 }
@@ -939,6 +1831,8 @@ onBeforeUnmount(() => {
 }
 
 .history-group-label {
+  min-width: 0;
+  flex: 1;
   cursor: pointer;
   margin-bottom: 4px;
 }
@@ -946,6 +1840,459 @@ onBeforeUnmount(() => {
 .history-group-label:hover {
   background: var(--sidebar-hover-bg);
   color: var(--primary-color);
+}
+
+.history-heading-row {
+  position: relative;
+  align-items: center;
+  display: flex;
+  overflow: visible;
+}
+
+.history-heading-actions {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 0.14s ease;
+}
+
+.history-heading-row:hover .history-heading-actions,
+.history-heading-row:focus-within .history-heading-actions,
+.history-heading-actions:has(.history-mode-menu),
+.history-heading-actions:has(.history-heading-icon[aria-expanded="true"]) {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.history-heading-icon {
+  width: 25px;
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--text-muted);
+}
+
+.history-heading-icon:hover,
+.history-heading-icon[aria-expanded="true"] {
+  background: var(--card-bg);
+  color: var(--primary-color);
+}
+
+.workspace-folder-input {
+  display: none;
+}
+
+.history-mode-menu,
+.history-create-menu,
+.workspace-row-menu {
+  position: fixed;
+  z-index: 1200;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+}
+
+.history-mode-menu {
+  width: 150px;
+}
+
+.history-create-menu {
+  width: 142px;
+}
+
+.workspace-row-menu {
+  width: 158px;
+}
+
+.profile-account-menu {
+  position: fixed;
+  z-index: 1200;
+  width: 272px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.15);
+}
+
+.profile-account-summary {
+  position: relative;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.profile-menu-avatar {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 999px;
+  background: linear-gradient(150deg, var(--sidebar-active-text), color-mix(in srgb, var(--sidebar-active-text) 78%, #000000));
+  background-position: center;
+  background-size: cover;
+  color: var(--on-primary);
+  font-family: var(--font-serif);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.profile-menu-copy,
+.profile-menu-action-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-menu-copy strong,
+.profile-menu-copy span,
+.profile-menu-action-copy strong,
+.profile-menu-action-copy span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-menu-copy strong,
+.profile-menu-action-copy strong {
+  color: var(--text-strong);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.profile-menu-copy span,
+.profile-menu-action-copy span,
+.profile-menu-row-meta {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.profile-menu-action {
+  position: relative;
+  width: 100%;
+  min-height: 40px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  color: var(--text-main);
+  text-align: left;
+}
+
+.profile-menu-action:hover,
+.profile-menu-action:focus-visible {
+  background: color-mix(in srgb, var(--text-main) 4%, transparent);
+  outline: 0;
+}
+
+.profile-menu-quota {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.profile-menu-row-title,
+.profile-menu-row-meta,
+.profile-menu-language {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.profile-menu-row-title span,
+.profile-menu-language-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-main);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.profile-menu-row-title strong {
+  flex: 0 0 auto;
+  color: var(--primary-color);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.profile-menu-meter {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border-color) 55%, transparent);
+}
+
+.profile-menu-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary-color);
+}
+
+.profile-tooltip-host::after {
+  content: attr(data-profile-tooltip);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  z-index: 1202;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  background: var(--text-strong);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
+  color: var(--card-bg);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(2px, -50%);
+  transition: opacity 0.14s ease, transform 0.14s ease;
+  white-space: normal;
+}
+
+.profile-tooltip-host:hover::after,
+.profile-tooltip-host:focus-visible::after,
+.profile-tooltip-host:focus-within::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+
+.profile-menu-language {
+  min-height: 40px;
+  padding: 6px 8px;
+}
+
+.profile-language-toggle {
+  flex: 0 0 auto;
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 76%, transparent);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.profile-language-toggle button {
+  min-width: 42px;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.profile-language-toggle button[data-active='true'] {
+  background: var(--card-bg);
+  color: var(--primary-color);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.history-mode-menu button,
+.history-sort-menu-item,
+.history-create-menu > button,
+.workspace-row-menu > button {
+  width: 100%;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.history-sort-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-mode-menu button:hover,
+.history-mode-menu button.active,
+.history-sort-menu-item:hover,
+.history-sort-menu-item:focus-visible {
+  background: var(--surface-soft);
+  color: var(--text-main);
+}
+
+.history-create-menu > button:hover {
+  background: color-mix(in srgb, var(--text-main) 4%, transparent);
+  color: var(--text-main);
+}
+
+.workspace-row-menu > button:hover {
+  background: color-mix(in srgb, var(--text-main) 4%, transparent);
+  color: var(--text-main);
+}
+
+.workspace-row-menu > button.danger {
+  color: var(--diff-removed);
+}
+
+.history-mode-menu button.active {
+  color: var(--primary-color);
+  font-weight: 650;
+}
+
+.history-sort-menu-item {
+  position: relative;
+  justify-content: space-between;
+  outline: 0;
+}
+
+.history-sort-submenu {
+  position: absolute;
+  top: -4px;
+  left: calc(100% + 5px);
+  z-index: 1201;
+  width: 142px;
+  display: none;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 82%, transparent);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+}
+
+.history-sort-menu-item:hover .history-sort-submenu,
+.history-sort-menu-item:focus-within .history-sort-submenu {
+  display: block;
+}
+
+.history-sort-submenu button + button {
+  margin-top: 2px;
+}
+
+.history-workspace-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 4px;
+}
+
+.history-workspace-head {
+  width: calc(100% - 8px);
+  min-height: 28px;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 1px 4px;
+  padding: 0 58px 0 28px;
+  border-radius: 7px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.history-workspace-head:hover,
+.history-workspace-group.menu-open .history-workspace-head {
+  background: var(--sidebar-hover-bg);
+  color: var(--sidebar-active-text);
+}
+
+.history-workspace-toggle-icon {
+  color: currentColor;
+  transform: rotate(90deg);
+  transition: transform 0.16s ease;
+}
+
+.history-workspace-toggle-icon.collapsed {
+  transform: rotate(0deg);
+}
+
+.history-workspace-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-workspace-actions {
+  position: absolute;
+  top: 1px;
+  right: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+}
+
+.history-workspace-group:hover .history-workspace-actions,
+.history-workspace-group:focus-within .history-workspace-actions,
+.history-workspace-group.menu-open .history-workspace-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.history-workspace-action {
+  width: 23px;
+  height: 25px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  color: var(--text-muted);
+}
+
+.history-workspace-action:hover,
+.history-workspace-action[aria-expanded="true"] {
+  background: var(--card-bg);
+  color: var(--primary-color);
+}
+
+.history-workspace-empty {
+  margin: 0 8px 6px 40px;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .history-row {
@@ -975,6 +2322,10 @@ onBeforeUnmount(() => {
   padding: 5px 34px 5px 40px;
   color: inherit;
   text-align: left;
+}
+
+.workspace-history-row .history-item {
+  padding-left: 48px;
 }
 
 .history-title {
@@ -1044,6 +2395,11 @@ onBeforeUnmount(() => {
   display: none;
 }
 
+.sidebar.collapsed .history-heading-actions,
+.sidebar.collapsed .history-workspace-group {
+  display: none;
+}
+
 .history-menu-popover {
   position: fixed;
   z-index: 1000;
@@ -1077,6 +2433,116 @@ onBeforeUnmount(() => {
 
 .history-menu-item.danger {
   color: var(--diff-removed);
+}
+
+.workspace-name-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1090;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(6px);
+}
+
+.workspace-name-dialog {
+  width: min(486px, 100%);
+  padding: 24px;
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  background: var(--card-bg);
+  box-shadow: var(--shadow-popover);
+}
+
+.workspace-name-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.workspace-name-header h2 {
+  margin: 0 0 4px;
+  color: var(--text-strong);
+  font-size: 20px;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.workspace-name-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.workspace-name-header button {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.workspace-name-header button:hover {
+  background: var(--surface-soft);
+  color: var(--text-main);
+}
+
+.workspace-name-input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  outline: 0;
+  background: var(--bg-color);
+  color: var(--text-main);
+  font-size: 16px;
+}
+
+.workspace-name-input:focus {
+  border-color: var(--primary-border);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color) 10%, transparent);
+}
+
+.workspace-name-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.workspace-name-actions button {
+  min-width: 76px;
+  height: 38px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.workspace-name-cancel {
+  color: var(--text-secondary);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+}
+
+.workspace-name-cancel:hover {
+  color: var(--text-main);
+  background: var(--surface-soft);
+}
+
+.workspace-name-save {
+  color: var(--on-primary);
+  background: var(--sidebar-active-text);
+}
+
+.workspace-name-save:hover {
+  background: color-mix(in srgb, var(--sidebar-active-text) 88%, #000000);
 }
 
 .history-confirm-backdrop {

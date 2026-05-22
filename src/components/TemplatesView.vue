@@ -94,7 +94,6 @@ const sourceTabsKeys: SourceFilter[] = [
   'personal',
   'group-shared',
   'team-shared',
-  'recommended',
   'public-hub',
 ];
 
@@ -134,6 +133,9 @@ const getTemplateStaticSourceKind = (template: TemplateAsset): SourceFilter => {
   return 'personal';
 };
 
+const isOfficialRecommendedTemplate = (template: TemplateAsset) =>
+  getTemplateStaticSourceKind(template) === 'recommended';
+
 const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter) => {
   if (source === 'group-shared') {
     return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'group');
@@ -142,7 +144,11 @@ const isTemplateVisibleInSource = (template: TemplateAsset, source: SourceFilter
     return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'team');
   }
   if (source === 'public-hub') {
-    return getTemplateStaticSourceKind(template) === source || hasTemplatePublishDestination(template.id, 'public');
+    return (
+      isOfficialRecommendedTemplate(template) ||
+      getTemplateStaticSourceKind(template) === source ||
+      hasTemplatePublishDestination(template.id, 'public')
+    );
   }
   if (source === 'recommended') {
     const staticSource = getTemplateStaticSourceKind(template);
@@ -173,7 +179,6 @@ const sourceTabs = computed(() => {
     { key: 'personal' as const, name: templateModeCopy.personal.name, count: counts.personal },
     { key: 'group-shared' as const, name: templateModeCopy['group-shared'].name, count: counts['group-shared'] },
     { key: 'team-shared' as const, name: templateModeCopy['team-shared'].name, count: counts['team-shared'] },
-    { key: 'recommended' as const, name: templateModeCopy.recommended.name, count: counts.recommended },
     { key: 'public-hub' as const, name: templateModeCopy['public-hub'].name, count: counts['public-hub'] },
   ];
 });
@@ -193,7 +198,7 @@ const sourceChipCopy: Record<SourceFilter, string> = {
   personal: '来自 个人',
   'group-shared': '来自 小组',
   'team-shared': '来自 团队',
-  recommended: '来自 官方',
+  recommended: '官方推荐',
   'public-hub': '来自 市场',
 };
 
@@ -211,6 +216,7 @@ const getTemplateAuthorFirm = (template: TemplateAsset) =>
 const getTemplateAuthorInitial = (template: TemplateAsset) => getTemplateAuthor(template).name.slice(0, 1);
 
 const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
+  const staticSource = getTemplateStaticSourceKind(template);
   if (selectedSource.value === 'group-shared' && hasTemplatePublishDestination(template.id, 'group')) {
     return 'group-shared';
   }
@@ -218,15 +224,17 @@ const getTemplateDisplaySource = (template: TemplateAsset): SourceFilter => {
     return 'team-shared';
   }
   if (selectedSource.value === 'recommended') {
-    const staticSource = getTemplateStaticSourceKind(template);
     if (staticSource === 'recommended') {
       return 'recommended';
     }
   }
+  if (selectedSource.value === 'public-hub' && staticSource === 'recommended') {
+    return 'recommended';
+  }
   if (selectedSource.value === 'public-hub' && hasTemplatePublishDestination(template.id, 'public')) {
     return 'public-hub';
   }
-  return getTemplateStaticSourceKind(template);
+  return staticSource;
 };
 
 const templateRequiresSubscription = (template: TemplateAsset) =>
@@ -2259,24 +2267,29 @@ onBeforeUnmount(() => {
   }
 }
 
-/* LawAgents standalone reference replication for the template marketplace. */
+/* Theme-aware template marketplace shell. Layout mirrors the warm-white baseline; colors read the active theme. */
 .templates-view {
-  --tpl-bg: #faf7f1;
-  --tpl-panel: #ffffff;
-  --tpl-soft: #f3eee3;
-  --tpl-line: #e8e1d4;
-  --tpl-line-strong: #d6cdbe;
-  --tpl-ink-900: #1a1614;
-  --tpl-ink-800: #2b2522;
-  --tpl-ink-700: #4a423d;
-  --tpl-ink-500: #837a72;
-  --tpl-ink-400: #a29a91;
-  --tpl-accent: #c8552e;
-  --tpl-accent-700: #a4441f;
-  --tpl-accent-tint: #fbf1e8;
-  --tpl-serif: 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif;
-  --tpl-sans: 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
-  --tpl-shadow-2: 0 2px 4px rgba(26, 22, 20, 0.04), 0 0 0 1px rgba(26, 22, 20, 0.04);
+  --tpl-bg: var(--bg, var(--bg-color));
+  --tpl-panel: var(--bg-panel, var(--card-bg));
+  --tpl-soft: var(--bg-soft, var(--surface-muted));
+  --tpl-line: var(--line, var(--border-color));
+  --tpl-line-strong: var(--line-strong, var(--primary-border));
+  --tpl-ink-900: var(--ink-900, var(--text-strong));
+  --tpl-ink-800: var(--ink-800, var(--text-strong));
+  --tpl-ink-700: var(--ink-700, var(--text-main));
+  --tpl-ink-500: var(--ink-500, var(--text-secondary));
+  --tpl-ink-400: var(--ink-400, var(--text-muted));
+  --tpl-accent: var(--accent, var(--primary-color));
+  --tpl-accent-700: var(--accent-700, var(--primary-hover));
+  --tpl-accent-tint: var(--accent-tint, var(--primary-soft));
+  --tpl-danger: var(--diff-removed);
+  --tpl-danger-soft: var(--diff-removed-soft);
+  --tpl-serif: var(--font-serif, 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', 'STSong', 'SimSun', Georgia, serif);
+  --tpl-sans: var(--font-sans, 'Noto Sans SC', 'Source Han Sans SC', 'PingFang SC', -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif);
+  --tpl-shadow-2: var(--sh-2, var(--shadow-card));
+  --tpl-shadow-popover: var(--sh-elev, var(--shadow-popover));
+  --tpl-focus-shadow: 0 0 0 3px color-mix(in srgb, var(--tpl-ink-900) 8%, transparent);
+  --tpl-veil: color-mix(in srgb, var(--tpl-ink-900) 42%, transparent);
   min-height: 100%;
   padding: 32px 56px 60px;
   overflow: visible;
@@ -2367,7 +2380,7 @@ onBeforeUnmount(() => {
 .template-search-control input:focus {
   outline: 0;
   border-color: var(--tpl-ink-900);
-  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+  box-shadow: var(--tpl-focus-shadow);
 }
 
 .template-search-control input::placeholder {
@@ -2702,7 +2715,7 @@ onBeforeUnmount(() => {
   border: 1px solid var(--tpl-line);
   border-radius: 10px;
   background: var(--tpl-panel);
-  box-shadow: 0 12px 28px rgba(26, 22, 20, 0.14);
+  box-shadow: var(--tpl-shadow-popover);
 }
 
 .template-card-action-menu button {
@@ -2733,15 +2746,15 @@ onBeforeUnmount(() => {
   margin-top: 4px;
   border-top: 1px solid var(--tpl-line);
   border-radius: 0 0 7px 7px;
-  color: #a33a2a;
+  color: var(--tpl-danger);
 }
 
 .template-card-action-menu button.danger svg {
-  color: #a33a2a;
+  color: var(--tpl-danger);
 }
 
 .template-card-action-menu button.danger:hover {
-  background: #fff0ed;
+  background: var(--tpl-danger-soft);
 }
 
 .publish-dialog-backdrop {
@@ -2752,7 +2765,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(26, 22, 20, 0.42);
+  background: var(--tpl-veil);
   backdrop-filter: blur(4px);
 }
 
@@ -3121,7 +3134,7 @@ onBeforeUnmount(() => {
 
 .reset-btn:hover,
 .reset-btn.active {
-  border-color: rgba(200, 85, 46, 0.28);
+  border-color: color-mix(in srgb, var(--tpl-accent) 28%, transparent);
   background: var(--tpl-accent-tint);
   color: var(--tpl-accent-700);
 }

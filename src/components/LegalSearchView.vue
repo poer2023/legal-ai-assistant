@@ -198,7 +198,7 @@ const handlePopularSearch = (keyword: string) => {
 
 .search-container.focused {
   border-color: var(--ink-900, var(--primary-color));
-  box-shadow: 0 0 0 4px rgba(26, 22, 20, 0.04);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink-900, var(--text-strong)) 4%, transparent);
 }
 
 .search-prefix-icon {
@@ -231,7 +231,7 @@ const handlePopularSearch = (keyword: string) => {
   justify-content: center;
   flex: 0 0 61px;
   border-radius: 10px;
-  background: var(--ink-900, #1a1614);
+  background: var(--ink-900, var(--primary-color));
   color: #ffffff;
   font-size: 13px;
   font-weight: 600;
@@ -240,7 +240,7 @@ const handlePopularSearch = (keyword: string) => {
 }
 
 .search-btn:hover {
-  background: var(--ink-800, #2b2522);
+  background: var(--ink-800, var(--primary-hover));
 }
 
 .popular-searches {

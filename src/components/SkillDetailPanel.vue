@@ -1118,7 +1118,7 @@ onBeforeUnmount(() => {
 .doc-mode-switch button.active {
   color: var(--ink-900, var(--text-strong));
   background: var(--bg-panel, var(--card-bg));
-  box-shadow: 0 1px 2px rgba(26, 22, 20, 0.05);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink-900, var(--text-strong)) 5%, transparent);
 }
 
 .doc-content {
@@ -1327,7 +1327,7 @@ onBeforeUnmount(() => {
 .basic-field input:focus,
 .basic-field textarea:focus {
   border-color: var(--ink-900, var(--text-strong));
-  box-shadow: 0 0 0 3px rgba(26, 22, 20, 0.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink-900, var(--text-strong)) 8%, transparent);
 }
 
 .description-count {

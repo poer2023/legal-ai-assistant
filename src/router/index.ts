@@ -33,6 +33,8 @@ import SimilarCaseResultView from '../components/SimilarCaseResultView.vue';
 import AiQnaView from '../components/AiQnaView.vue';
 import HistoryView from '../components/HistoryView.vue';
 import KnowledgeBaseView from '../components/KnowledgeBaseView.vue';
+import ClawView from '../components/ClawView.vue';
+import ScheduledTasksView from '../components/ScheduledTasksView.vue';
 import TeamPortalView from '../components/TeamPortalView.vue';
 import TeamOverviewDashboardView from '../components/TeamOverviewDashboardView.vue';
 import TeamCreditsView from '../components/TeamCreditsView.vue';
@@ -368,6 +370,19 @@ const routes = [
     name: 'knowledge',
     component: KnowledgeBaseView,
     meta: { title: '知识库' }
+  },
+  {
+    path: '/claw',
+    name: 'claw',
+    component: ClawView,
+    meta: { title: 'claw' }
+  },
+  {
+    path: '/scheduled-tasks',
+    alias: '/tasks',
+    name: 'scheduled-tasks',
+    component: ScheduledTasksView,
+    meta: { title: '定时任务' }
   },
   {
     path: '/guide',

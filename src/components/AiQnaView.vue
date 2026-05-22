@@ -25,7 +25,7 @@ import {
   Zap,
 } from 'lucide-vue-next';
 import ChatInput from './ChatInput.vue';
-import type { ComposerPickedAsset } from './ChatInput.vue';
+import type { ComposerPickedAsset, ComposerSubmitOptions } from './ChatInput.vue';
 import SkillDropdownContent from './SkillDropdownContent.vue';
 import SkillManageModal from './SkillManageModal.vue';
 import TemplateDropdownContent from './TemplateDropdownContent.vue';
@@ -44,6 +44,7 @@ import {
 } from '../services/skillCreatorGuide';
 import { generateDeepSeekConversationTitle, streamDeepSeekMessage } from '../services/deepseekChat';
 import { useChatHistory } from '../stores/chatHistory';
+import { useWorkspaces } from '../stores/workspaces';
 
 type PromptPart = {
   type: 'text' | 'skill' | 'template' | 'asset';
@@ -143,7 +144,9 @@ const {
   loadHistory,
   recentHistory,
   updateConversationAnswer,
+  upsertSpecialConversation,
 } = useChatHistory();
+const { setActiveWorkspace } = useWorkspaces();
 const inputValue = ref('');
 const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null);
 const showActionMenu = ref(false);
@@ -2562,7 +2565,7 @@ const syncConversationRoute = (historyId: string, prompt: string) => {
   if (!historyId || !normalizedPrompt) return;
   if (route.query.historyId === historyId && !route.query.prompt && !route.query.promptKey) return;
 
-  handledRoutePromptKey.value = `${historyId}:${normalizedPrompt}`;
+  handledRoutePromptKey.value = `${String(route.query.workspaceId ?? '')}:${historyId}:${normalizedPrompt}`;
   const {
     mock: _mock,
     prompt: _prompt,
@@ -3146,12 +3149,15 @@ const submitComposer = () => {
   void completeLiveConversation(nextPrompt);
 };
 
-const submitSharedComposer = (value: string, options?: { thinkingMode?: string }) => {
+const submitSharedComposer = (value: string, options?: Partial<ComposerSubmitOptions>) => {
   const nextValue = value.trim();
   if (!nextValue) return;
 
   if (options?.thinkingMode) {
     selectedThinkingMode.value = options.thinkingMode;
+  }
+  if (options?.workspaceId) {
+    setActiveWorkspace(options.workspaceId);
   }
 
   if (
@@ -3173,11 +3179,40 @@ const submitSharedComposer = (value: string, options?: { thinkingMode?: string }
   void completeLiveConversation(nextValue);
 };
 
+const createClawConversationAnswer = () => ({
+  content: [
+    '已进入 claw 会话。',
+    '',
+    '把你要处理的材料、目标或问题发给我，我会在这个特殊会话里继续。',
+  ].join('\n'),
+  model: 'claw',
+  cachedAt: new Date().toISOString(),
+});
+
 const openRoutePrompt = async () => {
   await loadHistory();
 
+  const routeWorkspaceId = typeof route.query.workspaceId === 'string' ? route.query.workspaceId : '';
+  if (routeWorkspaceId) {
+    setActiveWorkspace(routeWorkspaceId);
+  }
+
   const rawHistoryId = typeof route.query.historyId === 'string' ? route.query.historyId : undefined;
-  const historyId = rawHistoryId && !deprecatedMockHistoryIds.has(rawHistoryId) ? rawHistoryId : undefined;
+  const isClawRoute = route.query.source === 'claw';
+  const clawHistoryItem = isClawRoute
+    ? upsertSpecialConversation(
+        'claw',
+        'claw 会话',
+        'claw',
+        createClawConversationAnswer(),
+      )
+    : null;
+  const normalizedHistoryId = rawHistoryId && !deprecatedMockHistoryIds.has(rawHistoryId)
+    ? rawHistoryId
+    : undefined;
+  const historyId = isClawRoute
+    ? clawHistoryItem?.id ?? normalizedHistoryId ?? 'special-claw'
+    : normalizedHistoryId;
   const routePrompt = typeof route.query.prompt === 'string'
     ? route.query.prompt.trim()
     : typeof route.query.promptKey === 'string'
@@ -3186,13 +3221,13 @@ const openRoutePrompt = async () => {
   if (typeof route.query.promptKey === 'string') {
     window.sessionStorage.removeItem(route.query.promptKey);
   }
-  const prompt = routePrompt || findHistoryItem(historyId)?.prompt || '';
+  const prompt = routePrompt || clawHistoryItem?.prompt || findHistoryItem(historyId)?.prompt || '';
   if (!prompt.trim()) return;
 
-  const routeKey = `${String(historyId ?? '')}:${prompt}`;
+  const routeKey = `${routeWorkspaceId}:${String(historyId ?? '')}:${prompt}`;
   if (handledRoutePromptKey.value === routeKey) return;
   handledRoutePromptKey.value = routeKey;
-  void completeLiveConversation(prompt, typeof historyId !== 'string', historyId);
+  void completeLiveConversation(prompt, !isClawRoute && typeof historyId !== 'string', historyId);
 };
 
 const scrollReferenceIntoView = (referenceId: number) => {
@@ -4274,7 +4309,7 @@ watch(
 );
 
 watch(
-  () => [route.query.prompt, route.query.promptKey, route.query.historyId],
+  () => [route.query.prompt, route.query.promptKey, route.query.historyId, route.query.workspaceId, route.query.source],
   () => {
     void openRoutePrompt();
   },
@@ -4357,7 +4392,7 @@ watch(
             </div>
           </div>
 
-          <article class="answer-card">
+          <article class="answer-card" :class="{ 'live-answer-card': isLiveConversation }">
             <header v-if="!isSkillCreatorConversation" class="answer-card-header">
               <button class="answer-status-button" type="button">
                 {{ answerStatusLabel }}
@@ -4748,7 +4783,11 @@ watch(
             </button>
           </div>
         </section>
-        <ChatInput ref="chatInputRef" v-model="inputValue" @submit="submitSharedComposer" />
+        <ChatInput
+          ref="chatInputRef"
+          v-model="inputValue"
+          @submit="submitSharedComposer"
+        />
 
         <p class="ai-note">回复的内容由AI生成，非人工编辑；其内容准确性和完整性无法保证，不代表我们的态度和观点。</p>
       </footer>
@@ -5196,7 +5235,7 @@ watch(
   padding: 0 clamp(16px, 4vw, 54px) 14px;
 }
 
-.composer-wrap :deep(.chat-input-container),
+.composer-wrap :deep(.chat-input-shell),
 .skill-intake-selector,
 .ai-note {
   width: min(850px, 100%);
@@ -5204,7 +5243,7 @@ watch(
   margin-right: auto;
 }
 
-.chat-page.preview-split .composer-wrap :deep(.chat-input-container),
+.chat-page.preview-split .composer-wrap :deep(.chat-input-shell),
 .chat-page.preview-split .skill-intake-selector,
 .chat-page.preview-split .ai-note {
   width: min(620px, 100%);
@@ -5923,6 +5962,10 @@ watch(
   padding: 2px 20px 18px;
 }
 
+.chat-page.preview-split .live-answer-card .answer-content {
+  padding-bottom: 0;
+}
+
 .user-message {
   width: min(850px, 100%);
   display: flex;
@@ -6129,6 +6172,10 @@ watch(
   line-height: 1.86;
 }
 
+.live-answer-card .answer-content {
+  padding-bottom: 0;
+}
+
 .process-summary {
   display: flex;
   flex-direction: column;
@@ -6206,8 +6253,8 @@ watch(
 .live-answer-section {
   min-width: 0;
   max-width: 100%;
-  min-height: 180px;
-  padding: 4px 0 8px;
+  min-height: 0;
+  padding: 4px 0 0;
   font-family: inherit;
   overflow-wrap: anywhere;
 }
@@ -7608,6 +7655,10 @@ watch(
 
 .answer-actions {
   padding: 0 32px 20px;
+}
+
+.live-answer-card .answer-actions {
+  margin-top: 6px;
 }
 
 .source-drawer {

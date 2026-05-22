@@ -2,6 +2,10 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
+  Check,
+  Clock3,
+  FolderOpen,
+  List,
   MoreHorizontal,
   Pencil,
   Pin,
@@ -11,6 +15,11 @@ import {
   X,
 } from 'lucide-vue-next';
 import { useChatHistory, type ChatHistoryItem } from '../stores/chatHistory';
+import {
+  normalizeWorkspaceId,
+  STANDALONE_WORKSPACE_ID,
+  useWorkspaces,
+} from '../stores/workspaces';
 
 const router = useRouter();
 const {
@@ -20,12 +29,25 @@ const {
   toggleConversationPinned,
   deleteConversation,
 } = useChatHistory();
+const {
+  activeWorkspaceId,
+  setActiveWorkspace,
+  workspaces,
+} = useWorkspaces();
 
 const query = ref('');
 const openMenuId = ref('');
 const renamingId = ref('');
 const renameValue = ref('');
 const pendingDeleteItem = ref<ChatHistoryItem | null>(null);
+const historyViewMode = ref<'timeline' | 'workspace'>('timeline');
+
+type HistoryWorkspaceGroup = {
+  id: string;
+  name: string;
+  meta: string;
+  items: ChatHistoryItem[];
+};
 
 const normalizedQuery = computed(() => query.value.trim().toLowerCase());
 const filteredHistory = computed(() => {
@@ -38,6 +60,35 @@ const filteredHistory = computed(() => {
 });
 const pinnedHistory = computed(() => filteredHistory.value.filter((item) => item.pinned));
 const unpinnedHistory = computed(() => filteredHistory.value.filter((item) => !item.pinned));
+const workspaceHistoryGroups = computed<HistoryWorkspaceGroup[]>(() => {
+  const itemsByWorkspace = filteredHistory.value.reduce<Map<string, ChatHistoryItem[]>>((groups, item) => {
+    const workspaceId = normalizeWorkspaceId(item.workspaceId);
+    groups.set(workspaceId, [...(groups.get(workspaceId) ?? []), item]);
+    return groups;
+  }, new Map());
+
+  const groups = workspaces.value.map((workspace) => {
+    const items = itemsByWorkspace.get(workspace.id) ?? [];
+    return {
+      id: workspace.id,
+      name: workspace.name,
+      meta: workspace.description || `${items.length} 条会话`,
+      items,
+    };
+  });
+
+  const standaloneItems = itemsByWorkspace.get(STANDALONE_WORKSPACE_ID) ?? [];
+  if (standaloneItems.length || activeWorkspaceId.value === STANDALONE_WORKSPACE_ID) {
+    groups.push({
+      id: STANDALONE_WORKSPACE_ID,
+      name: '不指定工作区',
+      meta: `${standaloneItems.length} 条独立会话`,
+      items: standaloneItems,
+    });
+  }
+
+  return groups.filter((group) => group.items.length > 0 || group.id === activeWorkspaceId.value);
+});
 
 const formatHistoryTime = (createdAt: string) => {
   const timestamp = Date.parse(createdAt);
@@ -83,10 +134,13 @@ const closeMenu = () => {
 const openConversation = (item: ChatHistoryItem) => {
   if (renamingId.value === item.id) return;
   closeMenu();
+  const workspaceId = normalizeWorkspaceId(item.workspaceId);
+  setActiveWorkspace(workspaceId);
 
   const queryParams: Record<string, string> = {
     prompt: item.prompt,
     historyId: item.id,
+    workspaceId,
   };
 
   if (item.mock) {
@@ -195,11 +249,32 @@ onBeforeUnmount(() => {
         <input v-model="query" type="search" placeholder="搜索会话..." />
       </label>
 
+      <div class="history-view-switch" role="tablist" aria-label="历史会话视图">
+        <button
+          type="button"
+          :class="{ active: historyViewMode === 'timeline' }"
+          role="tab"
+          @click="historyViewMode = 'timeline'"
+        >
+          <List :size="15" />
+          <span>Timeline</span>
+        </button>
+        <button
+          type="button"
+          :class="{ active: historyViewMode === 'workspace' }"
+          role="tab"
+          @click="historyViewMode = 'workspace'"
+        >
+          <FolderOpen :size="15" />
+          <span>工作区</span>
+        </button>
+      </div>
+
       <div v-if="filteredHistory.length === 0" class="history-empty">
         未找到匹配的会话
       </div>
 
-      <template v-else>
+      <template v-else-if="historyViewMode === 'timeline'">
         <section v-if="pinnedHistory.length" class="history-group" aria-label="已置顶">
           <div class="history-group-title">已置顶</div>
           <div class="history-list">
@@ -296,6 +371,93 @@ onBeforeUnmount(() => {
                   <button type="button" role="menuitem" @click="togglePinned(item)">
                     <Pin :size="15" />
                     <span>置顶</span>
+                  </button>
+                  <button type="button" role="menuitem" @click="startRename(item)">
+                    <Pencil :size="15" />
+                    <span>重命名</span>
+                  </button>
+                  <button type="button" class="danger" role="menuitem" @click="requestDelete(item)">
+                    <Trash2 :size="15" />
+                    <span>删除</span>
+                  </button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </template>
+
+      <template v-else>
+        <section
+          v-for="group in workspaceHistoryGroups"
+          :key="group.id"
+          class="history-workspace-section"
+          :aria-label="group.name"
+        >
+          <header class="history-workspace-header">
+            <div class="history-workspace-title">
+              <FolderOpen :size="18" />
+              <div>
+                <h2>{{ group.name }}</h2>
+                <p>{{ group.meta }}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="history-workspace-select"
+              :class="{ active: activeWorkspaceId === group.id }"
+              @click="setActiveWorkspace(group.id)"
+            >
+              <Check v-if="activeWorkspaceId === group.id" :size="14" />
+              <Clock3 v-else-if="group.id === STANDALONE_WORKSPACE_ID" :size="14" />
+              <FolderOpen v-else :size="14" />
+              <span>{{ activeWorkspaceId === group.id ? '当前' : '切换' }}</span>
+            </button>
+          </header>
+          <div class="history-list">
+            <article
+              v-for="item in group.items"
+              :key="item.id"
+              class="history-list-row"
+              @click="openConversation(item)"
+            >
+              <Pin
+                v-if="item.pinned"
+                class="history-pin-mark"
+                :size="14"
+                fill="currentColor"
+              />
+              <div class="history-row-main" :class="{ unpinned: !item.pinned }">
+                <input
+                  v-if="renamingId === item.id"
+                  v-model="renameValue"
+                  class="history-page-rename"
+                  data-history-page-rename="true"
+                  maxlength="38"
+                  @click.stop
+                  @keydown.enter.prevent="submitRename(item)"
+                  @keydown.esc.prevent="cancelRename"
+                  @blur="submitRename(item)"
+                />
+                <span v-else class="history-row-title" :title="item.title">{{ item.title }}</span>
+              </div>
+              <time v-if="renamingId !== item.id" class="history-row-time">
+                {{ formatHistoryTime(item.createdAt) }}
+              </time>
+              <div v-if="renamingId !== item.id" class="history-row-actions" @click.stop>
+                <button
+                  type="button"
+                  class="history-page-more"
+                  :aria-label="`打开 ${item.title} 的更多操作`"
+                  :aria-expanded="openMenuId === item.id"
+                  @click="toggleMenu(item)"
+                >
+                  <MoreHorizontal :size="18" />
+                </button>
+                <div v-if="openMenuId === item.id" class="history-page-menu" role="menu">
+                  <button type="button" role="menuitem" @click="togglePinned(item)">
+                    <Pin :size="15" />
+                    <span>{{ item.pinned ? '取消置顶' : '置顶' }}</span>
                   </button>
                   <button type="button" role="menuitem" @click="startRename(item)">
                     <Pencil :size="15" />
@@ -440,6 +602,36 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ink-900, var(--primary-color)) 8%, transparent);
 }
 
+.history-view-switch {
+  width: fit-content;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(104px, 1fr));
+  gap: 4px;
+  margin: 0 0 20px;
+  padding: 4px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 10px;
+  background: var(--bg-panel, var(--card-bg));
+}
+
+.history-view-switch button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 14px;
+  border-radius: 7px;
+  color: var(--ink-500, var(--text-secondary));
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.history-view-switch button.active {
+  background: var(--ink-900, var(--primary-color));
+  color: var(--on-primary, #fff);
+}
+
 .history-group {
   margin-bottom: 18px;
 }
@@ -468,7 +660,7 @@ onBeforeUnmount(() => {
 }
 
 .history-list-row:hover {
-  background: color-mix(in srgb, var(--ink-900, #1a1614) 2%, transparent);
+  background: color-mix(in srgb, var(--ink-900, var(--text-strong)) 2%, transparent);
 }
 
 .history-pin-mark {
@@ -580,6 +772,68 @@ onBeforeUnmount(() => {
   text-align: center;
 }
 
+.history-workspace-section {
+  margin-bottom: 24px;
+}
+
+.history-workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 2px 12px;
+}
+
+.history-workspace-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-900, var(--text-main));
+}
+
+.history-workspace-title svg {
+  flex: 0 0 auto;
+  color: var(--accent, var(--primary-color));
+}
+
+.history-workspace-title h2 {
+  margin: 0;
+  color: var(--ink-900, var(--text-strong));
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.history-workspace-title p {
+  margin: 2px 0 0;
+  color: var(--ink-400, var(--text-muted));
+  font-size: 12px;
+}
+
+.history-workspace-select {
+  flex: 0 0 auto;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 1px solid var(--line, var(--border-color));
+  border-radius: 8px;
+  color: var(--ink-500, var(--text-secondary));
+  background: var(--bg-panel, var(--card-bg));
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.history-workspace-select:hover,
+.history-workspace-select.active {
+  border-color: var(--accent, var(--primary-color));
+  color: var(--accent, var(--primary-color));
+  background: var(--bg-soft, var(--surface-soft));
+}
+
 .history-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -680,6 +934,16 @@ onBeforeUnmount(() => {
 
   .history-new-btn {
     width: 100%;
+  }
+
+  .history-view-switch {
+    width: 100%;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .history-workspace-header {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .history-list-row {

@@ -9,16 +9,12 @@ import {
   Scale,
   Image,
   Info,
-  Mic,
-  ArrowUp,
   ArrowRight,
   Check,
+  ChevronDown,
   BookOpen,
-  Paperclip,
   Plus,
-  Puzzle,
   Search,
-  SlidersHorizontal,
   X,
   Zap,
 } from 'lucide-vue-next';
@@ -42,22 +38,31 @@ import {
   shouldUseProfileIdentity,
 } from '../data/profileIdentity';
 import { useOrgSession } from '../stores/orgSession';
-import { useTheme } from '../stores/theme';
+import { DEFAULT_WORKSPACE_ID, STANDALONE_WORKSPACE_ID, useWorkspaces } from '../stores/workspaces';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue?: string;
-}>();
+  showWorkspaceSelector?: boolean;
+}>(), {
+  showWorkspaceSelector: true,
+});
 
 const emit = defineEmits<{
   'update:modelValue': [value: string];
-  submit: [value: string, options: { thinkingMode: string }];
+  submit: [value: string, options: ComposerSubmitOptions];
 }>();
 
 const { currentUser } = useOrgSession();
-const { currentThemeId } = useTheme();
-const isLawAgentsTheme = computed(() => currentThemeId.value === 'lawagents-standalone-v1');
+const {
+  activeWorkspace,
+  activeWorkspaceId,
+  createWorkspace,
+  setActiveWorkspace,
+  workspaces,
+} = useWorkspaces();
 
 const inputValue = ref('');
+const showWorkspaceMenu = ref(false);
 const showActionMenu = ref(false);
 const showDraftMenu = ref(false);
 const showSkillMenu = ref(false);
@@ -74,6 +79,7 @@ const templateTokenCount = ref(0);
 const lastEmittedModelValue = ref<string | undefined>(undefined);
 const inputContainerRef = ref<HTMLDivElement | null>(null);
 const editorRef = ref<HTMLDivElement | null>(null);
+const workspaceInputRef = ref<HTMLInputElement | null>(null);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const folderInputRef = ref<HTMLInputElement | null>(null);
@@ -91,6 +97,7 @@ const skillCreatorPromptSuffix = ' 帮我创建一个可复用的技能，我的
 const templatePromptSuffix = ' 帮我按照这个格式模板完成写作，我的需求/源文件如下：';
 const templateCreatorPromptSuffix = ' 帮我创建一个可复用的输出格式模板，我的需求/源文件如下：';
 const inlineTokenSelector = '.skill-inline-code, .template-inline-code, .asset-inline-code';
+const shouldShowWorkspaceSelector = computed(() => props.showWorkspaceSelector !== false);
 
 type SkillCreatorReferenceAssetKind = 'local-file' | 'knowledge-file' | 'template';
 
@@ -107,6 +114,19 @@ export type ComposerPickedAsset = {
   sourceLabel: string;
   kind: SkillCreatorReferenceAssetKind;
   templateId?: string;
+};
+
+export type ComposerWorkspaceSelection = {
+  id: string;
+  name: string;
+  source: 'workspace' | 'local-folder';
+  fileCount?: number;
+};
+
+export type ComposerSubmitOptions = {
+  thinkingMode: string;
+  workspaceId: string;
+  workspace: ComposerWorkspaceSelection | null;
 };
 
 type ComposerAssetPickHandler = (assets: ComposerPickedAsset[]) => void;
@@ -149,6 +169,85 @@ watch(inputValue, (value) => {
 
 const placeholderText = () => {
   return '想咨询或研究什么法律问题，快来问问我！Shift+Enter/Ctrl+Enter换行';
+};
+
+const selectedWorkspace = computed<ComposerWorkspaceSelection | null>(() => {
+  const workspace = activeWorkspace.value;
+  if (!workspace || activeWorkspaceId.value === STANDALONE_WORKSPACE_ID) return null;
+
+  return {
+    id: workspace.id,
+    name: workspace.name,
+    source: workspace.source === 'local-folder' ? 'local-folder' : 'workspace',
+  };
+});
+const selectedWorkspaceLabel = computed(() => selectedWorkspace.value?.name ?? '从零开始');
+
+const getWorkspaceDescription = (workspace: { id?: string; description?: string; source?: string }) => {
+  if (workspace.id === DEFAULT_WORKSPACE_ID) return '';
+  if (workspace.description) return workspace.description;
+  return workspace.source === 'local-folder' ? '本地文件夹工作空间' : '会话工作空间';
+};
+
+const getWorkspaceRootName = (files: File[]) => {
+  const firstFile = files[0] as (File & { webkitRelativePath?: string }) | undefined;
+  const rootName = firstFile?.webkitRelativePath?.split('/').find(Boolean);
+  return rootName || firstFile?.name || '本地工作区';
+};
+
+const toggleWorkspaceMenu = () => {
+  showWorkspaceMenu.value = !showWorkspaceMenu.value;
+  showActionMenu.value = false;
+  showDraftMenu.value = false;
+  showSkillMenu.value = false;
+  showTemplateMenu.value = false;
+  showInlineSkillMenu.value = false;
+  showInlineTemplateMenu.value = false;
+  showKnowledgeDraftPicker.value = false;
+};
+
+const selectNoWorkspace = () => {
+  setActiveWorkspace(STANDALONE_WORKSPACE_ID);
+  showWorkspaceMenu.value = false;
+};
+
+const selectWorkspace = (workspaceId: string) => {
+  setActiveWorkspace(workspaceId);
+  showWorkspaceMenu.value = false;
+};
+
+const openWorkspaceDirectoryPicker = () => {
+  showWorkspaceMenu.value = false;
+  workspaceInputRef.value?.click();
+};
+
+const openKnowledgeWorkspacePicker = () => {
+  showWorkspaceMenu.value = false;
+  showActionMenu.value = false;
+  showDraftMenu.value = false;
+  showSkillMenu.value = false;
+  showTemplateMenu.value = false;
+  showInlineSkillMenu.value = false;
+  showInlineTemplateMenu.value = false;
+  selectedKnowledgeDraftIds.value = [];
+  knowledgeDraftSearchKeyword.value = '';
+  activeKnowledgeDraftCollection.value = 'team';
+  showKnowledgeDraftPicker.value = true;
+};
+
+const handleWorkspaceDirectorySelection = (event: Event) => {
+  const input = event.target as HTMLInputElement | null;
+  if (!input) return;
+
+  const files = Array.from(input.files ?? []);
+  if (files.length) {
+    createWorkspace(getWorkspaceRootName(files), {
+      description: `${files.length} 个文件`,
+      source: 'local-folder',
+    });
+  }
+
+  input.value = '';
 };
 
 const selectedThinkingMode = ref('thinking');
@@ -523,6 +622,7 @@ const createTemplateReferenceAsset = (template: TemplateAsset): SkillCreatorRefe
 
 const toggleActionMenu = () => {
   showActionMenu.value = !showActionMenu.value;
+  showWorkspaceMenu.value = false;
   showDraftMenu.value = false;
   showSkillMenu.value = false;
   showTemplateMenu.value = false;
@@ -533,6 +633,7 @@ const toggleActionMenu = () => {
 
 const toggleDraftMenu = () => {
   showDraftMenu.value = !showDraftMenu.value;
+  showWorkspaceMenu.value = false;
   showActionMenu.value = false;
   showSkillMenu.value = false;
   showTemplateMenu.value = false;
@@ -543,6 +644,7 @@ const toggleDraftMenu = () => {
 
 const toggleSkillMenu = () => {
   showSkillMenu.value = !showSkillMenu.value;
+  showWorkspaceMenu.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
   showTemplateMenu.value = false;
@@ -553,6 +655,7 @@ const toggleSkillMenu = () => {
 
 const toggleTemplateMenu = () => {
   showTemplateMenu.value = !showTemplateMenu.value;
+  showWorkspaceMenu.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
   showSkillMenu.value = false;
@@ -562,6 +665,7 @@ const toggleTemplateMenu = () => {
 };
 
 const triggerUploadAction = (actionId: UploadActionId) => {
+  showWorkspaceMenu.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
 
@@ -981,6 +1085,7 @@ const insertSkillToken = (skillName: string, targetRange?: Range | null) => {
   placeCaretAfter(token);
   clearSelectedSkillToken();
 
+  showWorkspaceMenu.value = false;
   showSkillMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
@@ -1020,6 +1125,7 @@ const insertTemplateToken = (template: TemplateAsset, targetRange?: Range | null
   placeCaretAfter(token);
   clearSelectedSkillToken();
 
+  showWorkspaceMenu.value = false;
   showTemplateMenu.value = false;
   showInlineTemplateMenu.value = false;
   showInlineSkillMenu.value = false;
@@ -1176,6 +1282,7 @@ const updateInlineSkillMenu = () => {
 
   activeSkillRange.value = match.range.cloneRange();
   inlineSkillQuery.value = match.query;
+  showWorkspaceMenu.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
   showSkillMenu.value = false;
@@ -1198,6 +1305,7 @@ const updateInlineTemplateMenu = () => {
 
   activeTemplateRange.value = match.range.cloneRange();
   inlineTemplateQuery.value = match.query;
+  showWorkspaceMenu.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
   showTemplateMenu.value = false;
@@ -1371,6 +1479,7 @@ const handleEditorInteraction = () => {
 
 const handleEditorKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape') {
+    showWorkspaceMenu.value = false;
     showSkillMenu.value = false;
     showInlineSkillMenu.value = false;
     showInlineTemplateMenu.value = false;
@@ -1410,6 +1519,7 @@ const triggerSkillAction = (selection?: SkillDropdownSelection) => {
   if (selection) {
     insertSkillPrompt(selection);
   }
+  showWorkspaceMenu.value = false;
   showDraftMenu.value = false;
   showSkillMenu.value = false;
   showInlineSkillMenu.value = false;
@@ -1420,6 +1530,7 @@ const triggerInlineSkillAction = (selection?: SkillDropdownSelection) => {
   if (selection) {
     insertSkillToken(selection, activeSkillRange.value);
   }
+  showWorkspaceMenu.value = false;
   showSkillMenu.value = false;
   showInlineSkillMenu.value = false;
   showInlineTemplateMenu.value = false;
@@ -1450,6 +1561,7 @@ const triggerInlineTemplateAction = (template: TemplateAsset) => {
 };
 
 const openTemplateLibrary = () => {
+  showWorkspaceMenu.value = false;
   showTemplateMenu.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
@@ -1463,6 +1575,7 @@ const openTemplateLibrary = () => {
 };
 
 const createTemplateFromDropdown = () => {
+  showWorkspaceMenu.value = false;
   showTemplateMenu.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
@@ -1482,6 +1595,7 @@ const createTemplateFromDropdown = () => {
 };
 
 const openSkillManageModal = () => {
+  showWorkspaceMenu.value = false;
   showSkillMenu.value = false;
   showTemplateMenu.value = false;
   showDraftMenu.value = false;
@@ -1499,6 +1613,7 @@ const submitSkillCreatorPromptFromModal = (prompt: string) => {
   showSkillManageModal.value = false;
   skillManageStartsInCreate.value = false;
   closeSkillCreatorSurfaces();
+  showWorkspaceMenu.value = false;
   showSkillMenu.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
@@ -1511,6 +1626,8 @@ const submitSkillCreatorPromptFromModal = (prompt: string) => {
   renderEditorPlainText('');
   emit('submit', prompt.trim(), {
     thinkingMode: selectedThinkingMode.value,
+    workspaceId: activeWorkspaceId.value,
+    workspace: selectedWorkspace.value,
   });
 };
 
@@ -1551,6 +1668,8 @@ const handleSubmit = () => {
 
   emit('submit', prompt, {
     thinkingMode: selectedThinkingMode.value,
+    workspaceId: activeWorkspaceId.value,
+    workspace: selectedWorkspace.value,
   });
 };
 
@@ -1564,6 +1683,7 @@ defineExpose({
 
 // Close dropdown when clicking outside
 const closeDropdown = () => {
+  showWorkspaceMenu.value = false;
   showActionMenu.value = false;
   showDraftMenu.value = false;
   showSkillMenu.value = false;
@@ -1602,32 +1722,120 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div
-    ref="inputContainerRef"
-    class="chat-input-container"
-    :class="{ 'has-skill-followup': showSkillFollowupHint }"
-    @click.self="focusEditorFromShell()"
-  >
-    <span v-if="!hasComposerContent" class="chat-editor-placeholder" aria-hidden="true">
-      {{ placeholderText() }}
-    </span>
-    <span v-else-if="showSkillFollowupHint" class="chat-editor-placeholder skill-followup-hint" aria-hidden="true">
-      {{ skillFollowupHintText }}
-    </span>
-    <div
-      ref="editorRef"
-      class="chat-editor-row"
-      role="textbox"
-      aria-label="输入内容"
-      :aria-placeholder="activeEditorPlaceholder"
-      aria-multiline="true"
-      contenteditable="true"
-      spellcheck="false"
-      @click.stop="handleEditorClick"
-      @input="handleEditorInput"
-      @keydown="handleEditorKeydown"
-      @keyup="handleEditorInteraction"
-    ></div>
+  <div class="chat-input-shell">
+    <div class="chat-input-panel" :class="{ 'without-workspace': !shouldShowWorkspaceSelector }">
+      <div v-if="shouldShowWorkspaceSelector" class="composer-workspace-row">
+        <div class="workspace-menu" @click.stop>
+          <input
+            ref="workspaceInputRef"
+            class="native-file-input"
+            type="file"
+            webkitdirectory
+            directory
+            multiple
+            @change="handleWorkspaceDirectorySelection"
+          />
+          <button
+            class="workspace-trigger"
+            type="button"
+            aria-label="选择工作区"
+            :aria-expanded="showWorkspaceMenu"
+            aria-haspopup="menu"
+            @click="toggleWorkspaceMenu"
+          >
+            <FolderOpen :size="15" class="workspace-trigger-icon" />
+            <span class="workspace-trigger-label">{{ selectedWorkspaceLabel }}</span>
+            <ChevronDown :size="14" class="workspace-trigger-chevron" />
+          </button>
+
+          <div v-if="showWorkspaceMenu" class="action-dropdown workspace-dropdown" role="menu">
+            <section class="action-group workspace-action-group" aria-label="工作区选择">
+              <button
+                v-for="workspace in workspaces"
+                :key="workspace.id"
+                class="action-menu-item"
+                :class="{
+                  selected: activeWorkspaceId === workspace.id,
+                  'has-description': getWorkspaceDescription(workspace),
+                }"
+                type="button"
+                @click.stop="selectWorkspace(workspace.id)"
+              >
+                <FolderOpen :size="15" class="action-icon" />
+                <span class="action-item-copy">
+                  <span class="action-item-label">{{ workspace.name }}</span>
+                  <span v-if="getWorkspaceDescription(workspace)" class="action-item-desc">
+                    {{ getWorkspaceDescription(workspace) }}
+                  </span>
+                </span>
+                <Check v-if="activeWorkspaceId === workspace.id" :size="15" class="check-icon" />
+              </button>
+              <button
+                class="action-menu-item has-description"
+                :class="{ selected: activeWorkspaceId === STANDALONE_WORKSPACE_ID }"
+                type="button"
+                @click.stop="selectNoWorkspace"
+              >
+                <X :size="15" class="action-icon" />
+                <span class="action-item-copy">
+                  <span class="action-item-label">从零开始</span>
+                  <span class="action-item-desc">不使用任何本地或云端文件夹、文件，全部从空白上下文开始</span>
+                </span>
+                <Check v-if="activeWorkspaceId === STANDALONE_WORKSPACE_ID" :size="15" class="check-icon" />
+              </button>
+              <button
+                class="action-menu-item has-description"
+                type="button"
+                @click.stop="openWorkspaceDirectoryPicker"
+              >
+                <FolderOpen :size="15" class="action-icon" />
+                <span class="action-item-copy">
+                  <span class="action-item-label">使用本地文件夹新建</span>
+                  <span class="action-item-desc">选择本地目录作为工作空间</span>
+                </span>
+              </button>
+              <button
+                class="action-menu-item has-description"
+                type="button"
+                @click.stop="openKnowledgeWorkspacePicker"
+              >
+                <BookOpen :size="15" class="action-icon" />
+                <span class="action-item-copy">
+                  <span class="action-item-label">从知识库新建</span>
+                  <span class="action-item-desc">选择知识库文件作为本次工作空间素材</span>
+                </span>
+              </button>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <div
+        ref="inputContainerRef"
+        class="chat-input-container"
+        :class="{ 'has-skill-followup': showSkillFollowupHint }"
+        @click.self="focusEditorFromShell()"
+      >
+      <span v-if="!hasComposerContent" class="chat-editor-placeholder" aria-hidden="true">
+        {{ placeholderText() }}
+      </span>
+      <span v-else-if="showSkillFollowupHint" class="chat-editor-placeholder skill-followup-hint" aria-hidden="true">
+        {{ skillFollowupHintText }}
+      </span>
+      <div
+        ref="editorRef"
+        class="chat-editor-row"
+        role="textbox"
+        aria-label="输入内容"
+        :aria-placeholder="activeEditorPlaceholder"
+        aria-multiline="true"
+        contenteditable="true"
+        spellcheck="false"
+        @click.stop="handleEditorClick"
+        @input="handleEditorInput"
+        @keydown="handleEditorKeydown"
+        @keyup="handleEditorInteraction"
+      ></div>
 
     <div
       v-if="showInlineSkillMenu"
@@ -1697,8 +1905,7 @@ onBeforeUnmount(() => {
             :aria-expanded="showActionMenu"
             @click="toggleActionMenu"
           >
-            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="settings" :size="16" />
-            <SlidersHorizontal v-else :size="18" :stroke-width="2.2" />
+            <LawAgentsNavIcon kind="settings" :size="16" />
           </button>
 
           <div v-if="showActionMenu" class="action-dropdown" role="menu">
@@ -1747,8 +1954,7 @@ onBeforeUnmount(() => {
             :aria-expanded="showDraftMenu"
             @click="toggleDraftMenu"
           >
-            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="attach" :size="16" class="text-tool-icon" />
-            <Paperclip v-else :size="20" class="text-tool-icon" />
+            <LawAgentsNavIcon kind="attach" :size="16" class="text-tool-icon" />
             <span>底稿</span>
           </button>
 
@@ -1777,8 +1983,7 @@ onBeforeUnmount(() => {
             :aria-expanded="showSkillManageModal"
             @click="openSkillManageModal"
           >
-            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="skills" :size="16" class="text-tool-icon" />
-            <Puzzle v-else :size="20" class="text-tool-icon" />
+            <LawAgentsNavIcon kind="skills" :size="16" class="text-tool-icon" />
             <span>技能</span>
           </button>
         </div>
@@ -1792,8 +1997,7 @@ onBeforeUnmount(() => {
             :aria-expanded="showTemplateManageModal"
             @click="openTemplateLibrary"
           >
-            <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="templates" :size="16" class="text-tool-icon" />
-            <FileText v-else :size="20" class="text-tool-icon" />
+            <LawAgentsNavIcon kind="templates" :size="16" class="text-tool-icon" />
             <span>模板</span>
           </button>
         </div>
@@ -1802,8 +2006,7 @@ onBeforeUnmount(() => {
 
       <div class="right-actions">
         <button class="icon-tool-btn" type="button" aria-label="语音输入">
-          <LawAgentsNavIcon v-if="isLawAgentsTheme" kind="mic" :size="16" />
-          <Mic v-else :size="20" />
+          <LawAgentsNavIcon kind="mic" :size="16" />
         </button>
         <button
           class="send-btn"
@@ -1814,11 +2017,12 @@ onBeforeUnmount(() => {
           @click="handleSubmit"
         >
           <span v-if="isSkillCreatorSubmission">创建技能</span>
-          <LawAgentsNavIcon v-else-if="isLawAgentsTheme" kind="send" :size="14" />
-          <ArrowUp v-else :size="18" :stroke-width="2.4" />
+          <LawAgentsNavIcon v-else kind="send" :size="14" />
         </button>
       </div>
     </div>
+    </div>
+  </div>
 
     <Teleport to="body">
       <div
@@ -1986,26 +2190,59 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.chat-input-shell {
+  width: 100%;
+}
+
+.chat-input-panel {
+  width: 100%;
+  min-height: 158px;
+  padding: 10px 4px 4px;
+  border: 1px solid #eef0f3;
+  border-radius: 18px;
+  background: #f4f5f7;
+  box-shadow: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.chat-input-panel:focus-within {
+  border-color: #e2e8f0;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+
+.chat-input-panel.without-workspace {
+  padding-top: 10px;
+}
+
+.composer-workspace-row {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 4px 8px;
+}
+
 .chat-input-container {
-  background: var(--card-bg);
-  border-radius: 16px;
-  border: 1px solid var(--focus-ring);
-  padding: 14px;
-  box-shadow: 0 4px 20px color-mix(in srgb, var(--primary-color) 5%, transparent);
   position: relative;
-  transition: all 0.3s ease;
-  min-height: 156px;
+  min-height: 116px;
   display: flex;
   flex-direction: column;
+  padding: 12px 14px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 14px;
+  background: var(--card-bg);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.015);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .chat-input-container:focus-within {
-  box-shadow: 0 8px 30px color-mix(in srgb, var(--primary-color) 10%, transparent);
+  border-color: rgba(100, 116, 139, 0.26);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.025);
 }
 
 .chat-editor-row {
   flex: 1;
-  min-height: 74px;
+  min-height: 68px;
   display: block;
   color: var(--text-strong);
   font-size: 16px;
@@ -2018,9 +2255,9 @@ onBeforeUnmount(() => {
 
 .chat-editor-placeholder {
   position: absolute;
-  top: 16px;
-  left: 16px;
-  right: 16px;
+  top: 12px;
+  left: 14px;
+  right: 14px;
   z-index: 0;
   color: var(--text-muted);
   pointer-events: none;
@@ -2212,7 +2449,7 @@ onBeforeUnmount(() => {
 
 .input-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   justify-content: space-between;
   align-items: center;
   margin-top: auto;
@@ -2236,6 +2473,67 @@ onBeforeUnmount(() => {
 
 .native-file-input {
   display: none;
+}
+
+.workspace-menu {
+  position: relative;
+  z-index: 5;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 0;
+}
+
+.workspace-trigger {
+  max-width: min(390px, 100%);
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1;
+  transition: border-color 0.16s, background-color 0.16s, color 0.16s;
+}
+
+.workspace-trigger:hover,
+.workspace-trigger[aria-expanded="true"] {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: var(--card-bg);
+  color: var(--text-main);
+}
+
+.workspace-trigger-icon,
+.workspace-trigger-chevron {
+  flex: 0 0 auto;
+  color: currentColor;
+}
+
+.workspace-trigger-prefix {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.workspace-trigger-label {
+  min-width: 0;
+  overflow: hidden;
+  color: currentColor;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-trigger-chevron {
+  transition: transform 0.16s;
+}
+
+.workspace-trigger[aria-expanded="true"] .workspace-trigger-chevron {
+  transform: rotate(180deg);
 }
 
 .config-btn,
@@ -2310,6 +2608,7 @@ onBeforeUnmount(() => {
 }
 
 .config-btn:focus-visible,
+.workspace-trigger:focus-visible,
 .text-tool-btn:focus-visible,
 .send-btn:focus-visible,
 .action-menu-item:focus-visible,
@@ -2816,6 +3115,82 @@ onBeforeUnmount(() => {
   overscroll-behavior: contain;
 }
 
+.workspace-dropdown {
+  top: calc(100% + 8px);
+  bottom: auto;
+  width: max-content;
+  min-width: 158px;
+  max-width: min(260px, calc(100vw - 24px));
+  max-height: none;
+  overflow: visible;
+}
+
+.workspace-action-group {
+  width: max-content;
+  min-width: 100%;
+  padding: 0;
+}
+
+.workspace-menu .action-menu-item {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+  padding-right: 9px;
+}
+
+.workspace-menu .action-menu-item.has-description {
+  height: 32px;
+  min-height: 32px;
+}
+
+.workspace-menu .action-item-copy {
+  flex: 0 0 auto;
+}
+
+.workspace-menu .action-item-desc {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 12px);
+  z-index: 220;
+  width: max-content;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--card-bg);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.16);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+  white-space: normal;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-50%) translateX(-4px);
+  pointer-events: none;
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease,
+    visibility 0.14s ease;
+}
+
+.workspace-menu .action-item-desc::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -5px;
+  width: 10px;
+  height: 10px;
+  background: var(--card-bg);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.workspace-menu .action-menu-item:hover .action-item-desc,
+.workspace-menu .action-menu-item:focus-visible .action-item-desc {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(-50%) translateX(0);
+}
+
 .skill-dropdown,
 .template-dropdown {
   width: 300px;
@@ -2980,8 +3355,24 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
+  .chat-input-panel {
+    min-height: auto;
+    padding: 8px 4px 4px;
+    border-radius: 16px;
+  }
+
+  .composer-workspace-row {
+    min-height: 26px;
+    padding: 0 2px 7px;
+  }
+
   .chat-input-container {
-    min-height: 148px;
+    min-height: 112px;
+    border-radius: 13px;
+  }
+
+  .workspace-trigger {
+    max-width: min(100%, calc(100vw - 52px));
   }
 
   .chat-editor-row :deep(.skill-inline-code) {
@@ -3081,6 +3472,15 @@ onBeforeUnmount(() => {
     width: min(228px, calc(100vw - 32px));
     max-height: min(332px, calc(100vh - 24px));
     transform: none;
+  }
+
+  .workspace-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    bottom: auto;
+    left: 0;
+    width: min(264px, calc(100vw - 44px));
+    max-height: min(220px, calc(100vh - 24px));
   }
 
   .skill-dropdown,

@@ -272,32 +272,33 @@ const resetBatch = () => {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(35, 31, 27, 0.42);
+  background: var(--bg-veil, rgba(35, 31, 27, 0.42));
   backdrop-filter: blur(5px);
 }
 
 .template-create-modal {
-  --create-bg: #fbfaf7;
-  --create-panel: #fffefa;
-  --create-soft: #f3eee5;
-  --create-line: #e3d9c9;
-  --create-line-strong: #d3c5b2;
-  --create-ink: #191613;
-  --create-muted: #81786e;
-  --create-faint: #9a9288;
-  --create-accent: #c8552e;
-  --create-success: #2d6a4f;
+  --create-bg: var(--bg, var(--bg-color));
+  --create-panel: var(--bg-panel, var(--card-bg));
+  --create-soft: var(--bg-soft, var(--surface-muted));
+  --create-line: var(--line, var(--border-color));
+  --create-line-strong: var(--line-strong, var(--primary-border));
+  --create-ink: var(--ink-900, var(--text-strong));
+  --create-muted: var(--ink-500, var(--text-secondary));
+  --create-faint: var(--ink-400, var(--text-muted));
+  --create-accent: var(--accent, var(--primary-color));
+  --create-accent-700: var(--accent-700, var(--primary-hover));
+  --create-success: var(--diff-added);
 
   width: min(720px, calc(100vw - 48px));
   max-height: min(86vh, 760px);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--create-line);
   border-radius: 18px;
   background: var(--create-bg);
   color: var(--create-ink);
-  box-shadow: 0 24px 70px rgba(28, 24, 20, 0.24);
+  box-shadow: var(--sh-elev, var(--shadow-popover));
 }
 
 .template-create-modal.is-processing {
@@ -459,7 +460,7 @@ const resetBatch = () => {
   position: absolute;
   inset: 0 auto 0 0;
   width: var(--parse-progress, 0%);
-  background: rgba(200, 85, 46, 0.08);
+  background: color-mix(in srgb, var(--create-accent) 8%, transparent);
   transition: width 0.25s linear;
 }
 
@@ -646,9 +647,9 @@ const resetBatch = () => {
   justify-content: center;
   margin: 0 auto 12px;
   border-radius: 14px;
-  background: linear-gradient(150deg, var(--create-accent), #a14222);
+  background: linear-gradient(150deg, var(--create-accent), var(--create-accent-700));
   color: #ffffff;
-  box-shadow: 0 7px 18px rgba(200, 85, 46, 0.24);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--create-accent) 24%, transparent);
 }
 
 .success-hero h3 {

@@ -35,7 +35,7 @@ export const themeOptions: ThemeDefinition[] = [
   {
     id: 'classic',
     name: '原版主题',
-    description: '保留当前法律版蓝色侧栏与浅蓝操作反馈。',
+    description: '沿用暖白主题的紧凑工作台布局，切换为清爽蓝色配色。',
     codeThemeId: 'legal-classic',
     variant: 'light',
     theme: {
@@ -45,20 +45,20 @@ export const themeOptions: ThemeDefinition[] = [
         code: null,
         ui: null,
       },
-      ink: '#1f2937',
+      ink: '#111827',
       opaqueWindows: false,
       semanticColors: {
         diffAdded: '#16a34a',
         diffRemoved: '#dc2626',
         skill: '#2563eb',
       },
-      surface: '#ffffff',
+      surface: '#f8fafc',
     },
   },
   {
     id: 'codex-theme-v1',
     name: 'Codex',
-    description: '白色界面、近黑正文、Codex 蓝强调色，适合作为新增主题。',
+    description: '沿用暖白主题的字号、间距与组件尺寸，切换为纯白 Codex 蓝配色。',
     codeThemeId: 'codex',
     variant: 'light',
     theme: {
@@ -81,7 +81,7 @@ export const themeOptions: ThemeDefinition[] = [
   {
     id: 'absolutely-theme-v1',
     name: 'Absolutely',
-    description: '暖白界面、深灰正文、粉棕强调色，适合作为另一套浅色主题。',
+    description: '沿用暖白主题的工作台骨架，切换为象牙底与粉棕强调色。',
     codeThemeId: 'absolutely',
     variant: 'light',
     theme: {
@@ -104,7 +104,7 @@ export const themeOptions: ThemeDefinition[] = [
   {
     id: 'happycapy-paper-v1',
     name: 'Happycapy Paper',
-    description: '米白纸面、黑色胶囊主按钮、橙色小面积强调，来自 Happycapy 首页风格。',
+    description: '沿用暖白主题的组件节奏，切换为米白纸面、黑色主控与橙色强调。',
     codeThemeId: 'happycapy-paper',
     variant: 'light',
     theme: {
@@ -114,7 +114,7 @@ export const themeOptions: ThemeDefinition[] = [
         code: null,
         ui: null,
       },
-      ink: '#2b2b2b',
+      ink: '#111111',
       opaqueWindows: true,
       semanticColors: {
         diffAdded: '#2f8f4e',
@@ -127,7 +127,7 @@ export const themeOptions: ThemeDefinition[] = [
   {
     id: 'lawagents-standalone-v1',
     name: 'LawAgents Standalone',
-    description: '暖纸底、墨色文字、陶土强调色与法律工作台式紧凑组件节奏。',
+    description: '基准暖白主题：暖纸底、墨色文字、陶土强调色与紧凑工作台节奏。',
     codeThemeId: 'lawagents-standalone',
     variant: 'light',
     theme: {

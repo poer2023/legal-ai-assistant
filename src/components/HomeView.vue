@@ -2,8 +2,9 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ChatInput from './ChatInput.vue';
+import type { ComposerSubmitOptions } from './ChatInput.vue';
 import { useOrgSession } from '../stores/orgSession';
-import { useTheme } from '../stores/theme';
+import { getActiveWorkspaceId } from '../stores/workspaces';
 
 type ComposerAction = 'skill' | 'template' | 'use-skill';
 type ChatInputController = InstanceType<typeof ChatInput> & {
@@ -16,9 +17,7 @@ const chatInputRef = ref<ChatInputController | null>(null);
 const route = useRoute();
 const router = useRouter();
 const { currentOrganization, currentUser } = useOrgSession();
-const { currentThemeId } = useTheme();
 const handledComposerAction = ref('');
-const isLawAgentsTheme = computed(() => currentThemeId.value === 'lawagents-standalone-v1');
 const lawAgentsFirmTitle = computed(() =>
   currentOrganization.value?.name?.trim()
   || currentUser.value?.firmShortName?.trim()
@@ -43,13 +42,15 @@ const clearComposerActionQuery = () => {
   void router.replace({ name: 'home', query: nextQuery });
 };
 
-const handleComposerSubmit = (value: string) => {
+const handleComposerSubmit = (value: string, options?: ComposerSubmitOptions) => {
   if (!value.trim()) return;
+  const workspaceId = options?.workspaceId || getActiveWorkspaceId();
 
   void router.push({
     name: 'chat',
     query: {
       prompt: value.trim(),
+      workspaceId,
     },
   });
 };
@@ -100,18 +101,11 @@ watch(
     <div class="content-wrapper">
       <div class="center-title-area">
         <h1 class="main-title">
-          <template v-if="isLawAgentsTheme">
-            <span>{{ lawAgentsFirmTitle }}</span>
-            <span v-if="lawAgentsTeamTitle" class="lawagents-title-dot" aria-hidden="true">·</span>
-            <span v-if="lawAgentsTeamTitle">{{ lawAgentsTeamTitle }}</span>
-            <span class="title-divider" aria-hidden="true">|</span>
-            <span class="assistant-title">AI 法律工作台</span>
-          </template>
-          <template v-else>
-            <span>演示团队</span>
-            <span class="title-divider" aria-hidden="true"></span>
-            <span class="assistant-title">AI 法律工作台</span>
-          </template>
+          <span>{{ lawAgentsFirmTitle }}</span>
+          <span v-if="lawAgentsTeamTitle" class="lawagents-title-dot" aria-hidden="true">·</span>
+          <span v-if="lawAgentsTeamTitle">{{ lawAgentsTeamTitle }}</span>
+          <span class="title-divider" aria-hidden="true">|</span>
+          <span class="assistant-title">AI 法律工作台</span>
         </h1>
       </div>
 

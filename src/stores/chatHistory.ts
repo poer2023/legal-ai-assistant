@@ -1,19 +1,25 @@
 import { computed, ref } from 'vue';
 import { getCurrentOrganizationId, getOrganizationScopedStorageKey } from './orgSession';
+import { getActiveWorkspaceId, normalizeWorkspaceId } from './workspaces';
 
 const STORAGE_KEY = 'legal-demo-chat-history';
 const MAX_HISTORY_ITEMS = 20;
 const DOCX_MOCK_HISTORY_ID = 'mock-docx-nda';
 const LEGACY_NDA_MOCK_HISTORY_ID = 'mock-nda-default';
 const DEFAULT_CONVERSATION_TITLE = '新会话';
+const LEGACY_CLAW_ENTRY_TITLES = new Set(['claw 会话', 'claw 法律检索', 'claw 文档整理']);
+
+export type ChatHistorySpecial = 'claw';
 
 export type ChatHistoryItem = {
   id: string;
   title: string;
   prompt: string;
   createdAt: string;
+  workspaceId?: string;
   answer?: ChatHistoryAnswer;
   mock?: 'docx';
+  special?: ChatHistorySpecial;
   pinned?: boolean;
 };
 
@@ -28,6 +34,8 @@ export type ChatHistoryAnswer = {
 const createInitialHistory = (): ChatHistoryItem[] => [];
 
 const normalizePrompt = (prompt: string) => prompt.replace(/\s+/g, ' ').trim();
+const normalizeSpecial = (special: unknown): ChatHistorySpecial | undefined =>
+  special === 'claw' ? 'claw' : undefined;
 const isSkillCreatorPrompt = (prompt: string) => /\/skill-creator\b/i.test(prompt);
 const hasCompletedSkillCreatorAnswer = (content: string) =>
   /技能已经创建完成|\[\[skill-package:|<skill_json>|技能完整度校验通过|已保存为个人草稿|已整理成一个可预览的技能包/i.test(content);
@@ -76,8 +84,16 @@ const removeDeprecatedMockHistory = (items: ChatHistoryItem[]) => {
     item.id !== DOCX_MOCK_HISTORY_ID
     && item.id !== LEGACY_NDA_MOCK_HISTORY_ID
     && item.mock !== 'docx'
+    && !(
+      !item.special
+      && LEGACY_CLAW_ENTRY_TITLES.has(item.title)
+      && /claw/i.test(item.prompt)
+    )
   );
-  return sortHistoryItems(keptItems).slice(0, MAX_HISTORY_ITEMS);
+  const sortedItems = sortHistoryItems(keptItems);
+  const specialItems = sortedItems.filter((item) => item.special);
+  const regularItems = sortedItems.filter((item) => !item.special).slice(0, MAX_HISTORY_ITEMS);
+  return sortHistoryItems([...specialItems, ...regularItems]);
 };
 
 const getSafeStorage = () => {
@@ -139,8 +155,10 @@ const readHistory = (): ChatHistoryItem[] => {
         title: item.title,
         prompt: item.prompt,
         createdAt: item.createdAt,
+        workspaceId: normalizeWorkspaceId(item.workspaceId),
         ...(answer ? { answer } : {}),
         ...(item.mock === 'docx' ? { mock: 'docx' as const } : {}),
+        ...(normalizeSpecial(item.special) ? { special: normalizeSpecial(item.special) } : {}),
         ...(item.pinned === true ? { pinned: true } : {}),
       });
 
@@ -210,7 +228,7 @@ export const syncHistoryForCurrentOrganization = () => {
 };
 
 export const useChatHistory = () => {
-  const recentHistory = computed(() => historyItems.value);
+  const recentHistory = computed(() => historyItems.value.filter((item) => !item.special));
 
   const loadHistory = async () => {
     if (typeof window === 'undefined') return;
@@ -248,8 +266,10 @@ export const useChatHistory = () => {
             title: item.title,
             prompt: item.prompt,
             createdAt: item.createdAt,
+            workspaceId: normalizeWorkspaceId(item.workspaceId),
             ...(answer ? { answer } : {}),
             ...(item.mock === 'docx' ? { mock: 'docx' as const } : {}),
+            ...(normalizeSpecial(item.special) ? { special: normalizeSpecial(item.special) } : {}),
             ...(item.pinned === true ? { pinned: true } : {}),
           });
           return items;
@@ -263,12 +283,18 @@ export const useChatHistory = () => {
             const localItem = localItemsById.get(item.id);
             const localAnswer = localItem?.answer;
             const localPinned = localItem?.pinned === true;
+            const workspaceId = normalizeWorkspaceId(localItem?.workspaceId || item.workspaceId);
             if (!item.answer || !localAnswer) {
-              return localPinned ? { ...item, pinned: true } : item;
+              return {
+                ...item,
+                workspaceId,
+                ...(localPinned ? { pinned: true } : {}),
+              };
             }
 
             return {
               ...item,
+              workspaceId,
               ...(localPinned ? { pinned: true } : {}),
               answer: {
                 ...item.answer,
@@ -278,7 +304,11 @@ export const useChatHistory = () => {
               },
             };
           });
-          historyItems.value = removeDeprecatedMockHistory(mergedItems);
+          const mergedIds = new Set(mergedItems.map((item) => item.id));
+          const localSpecialItems = historyItems.value.filter((item) =>
+            item.special && !mergedIds.has(item.id)
+          );
+          historyItems.value = removeDeprecatedMockHistory([...localSpecialItems, ...mergedItems]);
           persistHistory();
         }
       })
@@ -384,6 +414,21 @@ export const useChatHistory = () => {
     return true;
   };
 
+  const deleteConversationsByWorkspace = (workspaceId: string) => {
+    const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+    const removedItems = historyItems.value.filter((item) =>
+      normalizeWorkspaceId(item.workspaceId) === normalizedWorkspaceId
+    );
+    if (!removedItems.length) return 0;
+
+    historyItems.value = removeDeprecatedMockHistory(historyItems.value.filter((item) =>
+      normalizeWorkspaceId(item.workspaceId) !== normalizedWorkspaceId
+    ));
+    persistHistory();
+    removedItems.forEach((item) => deleteRemoteHistoryItem(item.id));
+    return removedItems.length;
+  };
+
   const addMockConversation = (prompt: string) => {
     const normalizedPrompt = normalizePrompt(prompt);
     if (!normalizedPrompt) return null;
@@ -393,9 +438,69 @@ export const useChatHistory = () => {
       title: DEFAULT_CONVERSATION_TITLE,
       prompt: normalizedPrompt,
       createdAt: formatHistoryTime(),
+      workspaceId: getActiveWorkspaceId(),
     };
 
     historyItems.value = removeDeprecatedMockHistory([item, ...historyItems.value]);
+    persistHistory();
+    persistRemoteHistoryItem(item);
+    return item;
+  };
+
+  const upsertSpecialConversation = (
+    special: ChatHistorySpecial,
+    title: string,
+    prompt: string,
+    answer?: ChatHistoryAnswer,
+  ) => {
+    const normalizedPrompt = normalizePrompt(prompt);
+    const normalizedTitle = normalizeTitle(title);
+    if (!normalizedPrompt || !normalizedTitle) return null;
+
+    const existingIndex = historyItems.value.findIndex((item) => item.special === special);
+    const existing = historyItems.value[existingIndex];
+    const nextAnswer = answer?.content.trim() ? answer : undefined;
+
+    const item: ChatHistoryItem = existing
+      ? {
+          ...existing,
+          title: normalizedTitle,
+          prompt: normalizedPrompt,
+          workspaceId: normalizeWorkspaceId(existing.workspaceId || getActiveWorkspaceId()),
+          special,
+          answer: existing.answer || nextAnswer,
+        }
+      : {
+          id: `special-${special}`,
+          title: normalizedTitle,
+          prompt: normalizedPrompt,
+          createdAt: formatHistoryTime(),
+          workspaceId: getActiveWorkspaceId(),
+          special,
+          ...(nextAnswer ? { answer: nextAnswer } : {}),
+        };
+
+    const withoutLegacyClawItems = historyItems.value.filter((historyItem) =>
+      historyItem.id === item.id
+      || historyItem.special
+      || !(
+        LEGACY_CLAW_ENTRY_TITLES.has(historyItem.title)
+        && /claw/i.test(historyItem.prompt)
+      )
+    );
+
+    if (existingIndex >= 0) {
+      const targetIndex = withoutLegacyClawItems.findIndex((historyItem) => historyItem.id === item.id);
+      if (targetIndex >= 0) {
+        withoutLegacyClawItems.splice(targetIndex, 1, item);
+        historyItems.value = removeDeprecatedMockHistory(withoutLegacyClawItems);
+      } else {
+        historyItems.value = removeDeprecatedMockHistory([item, ...withoutLegacyClawItems]);
+      }
+    } else {
+      historyItems.value = removeDeprecatedMockHistory([item, ...withoutLegacyClawItems]);
+    }
+
     persistHistory();
     persistRemoteHistoryItem(item);
     return item;
@@ -428,6 +533,7 @@ export const useChatHistory = () => {
 
     const updated: ChatHistoryItem = {
       ...existing,
+      workspaceId: normalizeWorkspaceId(existing.workspaceId),
       title: existing.mock === 'docx' ? existing.title : normalizeTitle(existing.title) || DEFAULT_CONVERSATION_TITLE,
       prompt: normalizedPrompt,
       answer: normalizedAnswer,
@@ -444,6 +550,7 @@ export const useChatHistory = () => {
     recentHistory,
     loadHistory,
     addMockConversation,
+    upsertSpecialConversation,
     findHistoryItem,
     getCachedConversation,
     updateConversationTitle,
@@ -451,6 +558,7 @@ export const useChatHistory = () => {
     renameConversation,
     toggleConversationPinned,
     deleteConversation,
+    deleteConversationsByWorkspace,
     updateConversationAnswer,
   };
 };
