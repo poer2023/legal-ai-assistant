@@ -1,26 +1,29 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Eye, EyeOff } from 'lucide-vue-next';
 import LawAgentsLogoIcon from './icons/LawAgentsLogoIcon.vue';
 import { useOrgSession } from '../stores/orgSession';
 import { useTheme } from '../stores/theme';
 
 const route = useRoute();
 const router = useRouter();
-const { login, normalizePhone } = useOrgSession();
+const { login, normalizeEmail } = useOrgSession();
 const { currentThemeId } = useTheme();
 
-const phone = ref('');
-const password = ref('');
+const email = ref('');
+const code = ref('');
 const errorMessage = ref('');
 const codeMessage = ref('');
 const isSubmitting = ref(false);
-const showPassword = ref(false);
+const sentOnce = ref(false);
+const countdown = ref(0);
 const language = ref<'zh' | 'en'>('zh');
 
-const normalizedPhone = computed(() => normalizePhone(phone.value));
-const canSubmit = computed(() => normalizedPhone.value.length === 11 && password.value.trim().length > 0);
+let countdownTimer: number | undefined;
+
+const normalizedEmail = computed(() => normalizeEmail(email.value));
+const isEmailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail.value));
+const canSubmit = computed(() => isEmailValid.value && code.value.length === 6);
 const themeClass = computed(() => `login-page--${currentThemeId.value}`);
 const isChinese = computed(() => language.value === 'zh');
 const copy = computed(() => {
@@ -31,24 +34,25 @@ const copy = computed(() => {
       heroSubtitle: 'Built for Law, with Lawyers.',
       partner: '北大法律人工智能实验室战略合作',
       title: '欢迎登录',
-      phoneLabel: '手机号',
-      phonePlaceholder: '请输入 11 位手机号',
-      passwordLabel: '密码',
-      passwordPlaceholder: '首次登录密码为手机号后六位',
-      passwordHint: '首次登录密码为手机号后六位。',
-      forgot: '忘记密码?',
+      emailLabel: '邮箱地址',
+      emailPlaceholder: 'name@firm.com',
+      codeLabel: '邮箱验证码',
+      codePlaceholder: '请输入 6 位验证码',
+      codeHint: '演示验证码 112233。',
+      getCode: '获取验证码',
+      resendCode: '重新获取',
+      resendCountdown: '后重发',
       login: '登录',
       loggingIn: '登录中',
-      phoneError: '请输入 11 位手机号',
-      authError: '手机号或密码不正确',
-      resetHint: '请联系组织管理员重置密码',
+      emailError: '请输入正确的邮箱地址',
+      codeError: '请输入 6 位验证码',
+      authError: '邮箱或验证码不正确',
+      sentPrefix: '邮件已发送至',
       agreementPrefix: '登录即表示同意',
       service: '服务协议',
       privacy: '隐私政策',
       agreementJoiner: '与',
       copyright: '© 2026 上海涌见科技有限公司',
-      showPassword: '显示密码',
-      hidePassword: '隐藏密码',
     };
   }
 
@@ -58,24 +62,25 @@ const copy = computed(() => {
     heroSubtitle: 'Legal intelligence shaped with practicing lawyers.',
     partner: 'Strategic partner of PKU Legal AI Lab',
     title: 'Welcome back',
-    phoneLabel: 'Phone',
-    phonePlaceholder: 'Enter 11-digit phone number',
-    passwordLabel: 'Password',
-    passwordPlaceholder: 'First password is the last 6 digits',
-    passwordHint: 'For first login, use the last six digits of your phone number.',
-    forgot: 'Forgot?',
+    emailLabel: 'Work email',
+    emailPlaceholder: 'name@firm.com',
+    codeLabel: 'Email code',
+    codePlaceholder: 'Enter 6-digit code',
+    codeHint: 'Demo code: 112233.',
+    getCode: 'Send code',
+    resendCode: 'Resend',
+    resendCountdown: 'to resend',
     login: 'Sign in',
     loggingIn: 'Signing in',
-    phoneError: 'Enter an 11-digit phone number',
-    authError: 'Incorrect phone number or password',
-    resetHint: 'Contact your organization admin to reset the password',
+    emailError: 'Enter a valid email address',
+    codeError: 'Enter the 6-digit code',
+    authError: 'Incorrect email or verification code',
+    sentPrefix: 'Code sent to',
     agreementPrefix: 'By signing in, you agree to the',
     service: 'Terms',
     privacy: 'Privacy Policy',
     agreementJoiner: 'and',
     copyright: '© 2026 Shanghai Yongjian Technology Co., Ltd.',
-    showPassword: 'Show password',
-    hidePassword: 'Hide password',
   };
 });
 
@@ -85,18 +90,42 @@ const getRedirectTarget = () => {
   return redirect;
 };
 
-const handlePhoneInput = (event: Event) => {
+const maskEmail = (value: string) => value.replace(/^(.{2}).+(@.+)$/, '$1***$2');
+
+const handleEmailInput = (event: Event) => {
   const target = event.target as HTMLInputElement;
-  phone.value = normalizePhone(target.value);
+  email.value = normalizeEmail(target.value);
+};
+
+const handleCodeInput = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  code.value = target.value.replace(/\D/g, '').slice(0, 6);
+};
+
+const startCountdown = () => {
+  if (countdownTimer) window.clearInterval(countdownTimer);
+  countdown.value = 60;
+  countdownTimer = window.setInterval(() => {
+    countdown.value -= 1;
+    if (countdown.value <= 0 && countdownTimer) {
+      window.clearInterval(countdownTimer);
+      countdownTimer = undefined;
+    }
+  }, 1000);
 };
 
 const handleSendCode = () => {
   errorMessage.value = '';
-  if (normalizedPhone.value.length !== 11) {
-    errorMessage.value = copy.value.phoneError;
+  if (!isEmailValid.value) {
+    errorMessage.value = copy.value.emailError;
     return;
   }
-  codeMessage.value = copy.value.resetHint;
+  sentOnce.value = true;
+  codeMessage.value = `${copy.value.sentPrefix} ${maskEmail(normalizedEmail.value)} · ${copy.value.codeHint}`;
+  startCountdown();
+  window.setTimeout(() => {
+    code.value = '112233';
+  }, 500);
 };
 
 const handleSubmit = async () => {
@@ -105,7 +134,7 @@ const handleSubmit = async () => {
   isSubmitting.value = true;
   errorMessage.value = '';
 
-  const result = login(normalizedPhone.value, password.value);
+  const result = login(normalizedEmail.value, code.value);
   if (!result.ok) {
     errorMessage.value = result.message || copy.value.authError;
     isSubmitting.value = false;
@@ -119,6 +148,10 @@ const handleSubmit = async () => {
     },
   });
 };
+
+onBeforeUnmount(() => {
+  if (countdownTimer) window.clearInterval(countdownTimer);
+});
 </script>
 
 <template>
@@ -147,49 +180,40 @@ const handleSubmit = async () => {
         <h2>{{ copy.title }}</h2>
 
         <div class="field">
-          <label for="login-phone">{{ copy.phoneLabel }}</label>
-          <div class="phone-row">
-            <button class="country-code" type="button" aria-label="+86">
-              <span class="country-flag" aria-hidden="true"></span>
-              <span>+86</span>
-            </button>
-            <input
-              id="login-phone"
-              :value="phone"
-              inputmode="numeric"
-              autocomplete="tel"
-              maxlength="11"
-              :placeholder="copy.phonePlaceholder"
-              @input="handlePhoneInput"
-            />
-          </div>
+          <label for="login-email">{{ copy.emailLabel }}</label>
+          <input
+            id="login-email"
+            :value="email"
+            inputmode="email"
+            autocomplete="email"
+            :placeholder="copy.emailPlaceholder"
+            @input="handleEmailInput"
+          />
         </div>
 
         <div class="field">
-          <div class="label-row">
-            <label for="login-password">{{ copy.passwordLabel }}</label>
-            <button class="forgot-button" type="button" @click="handleSendCode">{{ copy.forgot }}</button>
-          </div>
-          <div class="password-field">
+          <label for="login-code">{{ copy.codeLabel }}</label>
+          <div class="code-row">
             <input
-              id="login-password"
-              v-model="password"
-              :type="showPassword ? 'text' : 'password'"
-              autocomplete="current-password"
-              maxlength="32"
-              :placeholder="copy.passwordPlaceholder"
+              id="login-code"
+              :value="code"
+              class="tabular"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="6"
+              :placeholder="copy.codePlaceholder"
+              @input="handleCodeInput"
             />
             <button
-              class="password-toggle"
+              class="code-button"
               type="button"
-              :aria-label="showPassword ? copy.hidePassword : copy.showPassword"
-              @click="showPassword = !showPassword"
+              :disabled="!isEmailValid || countdown > 0"
+              @click="handleSendCode"
             >
-              <EyeOff v-if="showPassword" :size="16" />
-              <Eye v-else :size="16" />
+              {{ countdown > 0 ? `${countdown}s ${copy.resendCountdown}` : sentOnce ? copy.resendCode : copy.getCode }}
             </button>
           </div>
-          <p class="password-hint">{{ codeMessage || copy.passwordHint }}</p>
+          <p class="code-hint">{{ codeMessage || copy.codeHint }}</p>
         </div>
 
         <p v-if="errorMessage" class="form-message error">{{ errorMessage }}</p>
@@ -448,66 +472,19 @@ const handleSubmit = async () => {
   gap: 9px;
 }
 
-.field label,
-.label-row label {
+.field label {
   color: var(--login-label);
   font-size: 13px;
   font-weight: 500;
   line-height: 1.2;
 }
 
-.label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.phone-row {
-  display: grid;
-  grid-template-columns: 70px minmax(0, 1fr);
-  gap: 8px;
-}
-
-.country-code,
 .field input {
   height: 44px;
   border: 1px solid var(--login-input-border);
   border-radius: 8px;
   background: var(--login-input-bg);
   color: var(--login-panel-text);
-}
-
-.country-code {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 0 10px;
-  color: var(--login-label);
-  font-size: 13px;
-}
-
-.country-flag {
-  position: relative;
-  width: 14px;
-  height: 10px;
-  display: inline-block;
-  overflow: hidden;
-  border-radius: 1px;
-  background: #d72f2f;
-  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.08);
-}
-
-.country-flag::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: #f7d35d;
 }
 
 .field input {
@@ -527,34 +504,37 @@ const handleSubmit = async () => {
   color: var(--login-muted);
 }
 
-.forgot-button {
-  color: var(--login-link);
-  font-size: 13px;
-  line-height: 1.2;
+.code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 118px;
+  gap: 8px;
 }
 
-.password-field {
-  position: relative;
+.code-row input {
+  letter-spacing: 0;
 }
 
-.password-field input {
-  padding-right: 44px;
-}
-
-.password-toggle {
-  position: absolute;
-  top: 50%;
-  right: 11px;
-  width: 24px;
-  height: 24px;
+.code-button {
+  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transform: translateY(-50%);
-  color: var(--login-muted);
+  border: 1px solid var(--login-input-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--login-input-bg) 74%, var(--login-right-bg));
+  color: var(--login-panel-text);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.password-hint {
+.code-button:disabled {
+  cursor: not-allowed;
+  color: var(--login-muted);
+  background: color-mix(in srgb, var(--login-input-bg) 58%, transparent);
+}
+
+.code-hint {
   min-height: 18px;
   margin: 0;
   color: var(--login-muted);
@@ -699,13 +679,8 @@ a:focus-visible {
     width: 100%;
   }
 
-  .phone-row {
-    grid-template-columns: 66px minmax(0, 1fr);
-    gap: 7px;
-  }
-
-  .country-code {
-    padding: 0 8px;
+  .code-row {
+    grid-template-columns: 1fr;
   }
 
   .login-copyright {

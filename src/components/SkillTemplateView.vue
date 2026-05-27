@@ -377,8 +377,7 @@ const activeSkills = computed(() =>
 
 const sourceTabs = computed(() => [
   { key: 'personal' as const, name: sourceModeCopy.personal.name, count: personalSkills.value.length },
-  { key: 'group-shared' as const, name: sourceModeCopy['group-shared'].name, count: catalogGroupSharedSkills.value.length },
-  { key: 'team-shared' as const, name: sourceModeCopy['team-shared'].name, count: teamSharedSkills.value.length },
+  { key: 'team-shared' as const, name: sourceModeCopy['team-shared'].name, count: teamSharedSkills.value.length + catalogGroupSharedSkills.value.length },
   { key: 'market' as const, name: sourceModeCopy.market.name, count: marketSkills.value.length },
 ]);
 

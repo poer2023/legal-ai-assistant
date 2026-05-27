@@ -2,6 +2,7 @@
 withDefaults(defineProps<{
   kind:
     | 'assistant'
+    | 'projects'
     | 'skills'
     | 'templates'
     | 'knowledge'
@@ -38,6 +39,10 @@ withDefaults(defineProps<{
     <template v-if="kind === 'assistant'">
       <path d="M4.5 5.5 a2 2 0 0 1 2-2 h11 a2 2 0 0 1 2 2 v8 a2 2 0 0 1-2 2 H10 l-4 3.5 v-3.5 H6.5 a2 2 0 0 1-2-2 z" />
       <path d="M12 7.5 l.7 1.7 1.8.3-1.4 1.2.4 1.8L12 11.7 l-1.5.8.4-1.8L9.5 9.5 l1.8-.3 z" fill="currentColor" stroke="none" />
+    </template>
+    <template v-else-if="kind === 'projects'">
+      <path d="M4 7.5 a2 2 0 0 1 2-2 h4.4 l1.7 2 H18 a2 2 0 0 1 2 2 v7.2 a2 2 0 0 1-2 2 H6 a2 2 0 0 1-2-2 z" />
+      <path d="M8 12 h8 M8 15 h5" />
     </template>
     <path
       v-else-if="kind === 'skills'"

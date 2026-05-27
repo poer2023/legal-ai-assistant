@@ -38,6 +38,7 @@ import {
   shouldUseProfileIdentity,
 } from '../data/profileIdentity';
 import { useOrgSession } from '../stores/orgSession';
+import { useProjects } from '../stores/projects';
 import { DEFAULT_WORKSPACE_ID, STANDALONE_WORKSPACE_ID, useWorkspaces } from '../stores/workspaces';
 
 const props = withDefaults(defineProps<{
@@ -53,6 +54,12 @@ const emit = defineEmits<{
 }>();
 
 const { currentUser } = useOrgSession();
+const {
+  activeProject,
+  activeProjects,
+  clearActiveProject,
+  setActiveProject,
+} = useProjects();
 const {
   activeWorkspace,
   activeWorkspaceId,
@@ -182,6 +189,9 @@ const selectedWorkspace = computed<ComposerWorkspaceSelection | null>(() => {
   };
 });
 const selectedWorkspaceLabel = computed(() => selectedWorkspace.value?.name ?? '从零开始');
+const selectedProjectLabel = computed(() =>
+  activeProject.value ? `${activeProject.value.client} · ${activeProject.value.name}` : '未关联',
+);
 
 const getWorkspaceDescription = (workspace: { id?: string; description?: string; source?: string }) => {
   if (workspace.id === DEFAULT_WORKSPACE_ID) return '';
@@ -213,6 +223,16 @@ const selectNoWorkspace = () => {
 
 const selectWorkspace = (workspaceId: string) => {
   setActiveWorkspace(workspaceId);
+  showWorkspaceMenu.value = false;
+};
+
+const selectProject = (projectId: string) => {
+  setActiveProject(projectId);
+  showWorkspaceMenu.value = false;
+};
+
+const unlinkProject = () => {
+  clearActiveProject();
   showWorkspaceMenu.value = false;
 };
 
@@ -1724,91 +1744,6 @@ onBeforeUnmount(() => {
 <template>
   <div class="chat-input-shell">
     <div class="chat-input-panel" :class="{ 'without-workspace': !shouldShowWorkspaceSelector }">
-      <div v-if="shouldShowWorkspaceSelector" class="composer-workspace-row">
-        <div class="workspace-menu" @click.stop>
-          <input
-            ref="workspaceInputRef"
-            class="native-file-input"
-            type="file"
-            webkitdirectory
-            directory
-            multiple
-            @change="handleWorkspaceDirectorySelection"
-          />
-          <button
-            class="workspace-trigger"
-            type="button"
-            aria-label="选择工作区"
-            :aria-expanded="showWorkspaceMenu"
-            aria-haspopup="menu"
-            @click="toggleWorkspaceMenu"
-          >
-            <FolderOpen :size="15" class="workspace-trigger-icon" />
-            <span class="workspace-trigger-label">{{ selectedWorkspaceLabel }}</span>
-            <ChevronDown :size="14" class="workspace-trigger-chevron" />
-          </button>
-
-          <div v-if="showWorkspaceMenu" class="action-dropdown workspace-dropdown" role="menu">
-            <section class="action-group workspace-action-group" aria-label="工作区选择">
-              <button
-                v-for="workspace in workspaces"
-                :key="workspace.id"
-                class="action-menu-item"
-                :class="{
-                  selected: activeWorkspaceId === workspace.id,
-                  'has-description': getWorkspaceDescription(workspace),
-                }"
-                type="button"
-                @click.stop="selectWorkspace(workspace.id)"
-              >
-                <FolderOpen :size="15" class="action-icon" />
-                <span class="action-item-copy">
-                  <span class="action-item-label">{{ workspace.name }}</span>
-                  <span v-if="getWorkspaceDescription(workspace)" class="action-item-desc">
-                    {{ getWorkspaceDescription(workspace) }}
-                  </span>
-                </span>
-                <Check v-if="activeWorkspaceId === workspace.id" :size="15" class="check-icon" />
-              </button>
-              <button
-                class="action-menu-item has-description"
-                :class="{ selected: activeWorkspaceId === STANDALONE_WORKSPACE_ID }"
-                type="button"
-                @click.stop="selectNoWorkspace"
-              >
-                <X :size="15" class="action-icon" />
-                <span class="action-item-copy">
-                  <span class="action-item-label">从零开始</span>
-                  <span class="action-item-desc">不使用任何本地或云端文件夹、文件，全部从空白上下文开始</span>
-                </span>
-                <Check v-if="activeWorkspaceId === STANDALONE_WORKSPACE_ID" :size="15" class="check-icon" />
-              </button>
-              <button
-                class="action-menu-item has-description"
-                type="button"
-                @click.stop="openWorkspaceDirectoryPicker"
-              >
-                <FolderOpen :size="15" class="action-icon" />
-                <span class="action-item-copy">
-                  <span class="action-item-label">使用本地文件夹新建</span>
-                  <span class="action-item-desc">选择本地目录作为工作空间</span>
-                </span>
-              </button>
-              <button
-                class="action-menu-item has-description"
-                type="button"
-                @click.stop="openKnowledgeWorkspacePicker"
-              >
-                <BookOpen :size="15" class="action-icon" />
-                <span class="action-item-copy">
-                  <span class="action-item-label">从知识库新建</span>
-                  <span class="action-item-desc">选择知识库文件作为本次工作空间素材</span>
-                </span>
-              </button>
-            </section>
-          </div>
-        </div>
-      </div>
 
       <div
         ref="inputContainerRef"
@@ -1943,6 +1878,125 @@ onBeforeUnmount(() => {
                 <Check v-if="isEnabled(mode.id)" :size="15" class="check-icon" />
               </button>
             </section>
+          </div>
+        </div>
+
+        <div v-if="shouldShowWorkspaceSelector" class="composer-workspace-row">
+          <div class="workspace-menu" @click.stop>
+            <input
+              ref="workspaceInputRef"
+              class="native-file-input"
+              type="file"
+              webkitdirectory
+              directory
+              multiple
+              @change="handleWorkspaceDirectorySelection"
+            />
+            <button
+              class="workspace-trigger"
+              type="button"
+              aria-label="选择工作区"
+              :aria-expanded="showWorkspaceMenu"
+              aria-haspopup="menu"
+              @click="toggleWorkspaceMenu"
+            >
+              <FolderOpen :size="15" class="workspace-trigger-icon" />
+              <span class="workspace-trigger-prefix">项目</span>
+              <span class="workspace-trigger-label">{{ selectedProjectLabel }}</span>
+              <ChevronDown :size="14" class="workspace-trigger-chevron" />
+            </button>
+
+            <div v-if="showWorkspaceMenu" class="action-dropdown workspace-dropdown" role="menu">
+              <section class="action-group workspace-action-group" aria-label="项目关联">
+                <p class="action-group-title">项目</p>
+                <button
+                  v-for="project in activeProjects"
+                  :key="project.id"
+                  class="action-menu-item has-description"
+                  :class="{ selected: activeProject?.id === project.id }"
+                  type="button"
+                  @click.stop="selectProject(project.id)"
+                >
+                  <FolderOpen :size="15" class="action-icon" />
+                  <span class="action-item-copy">
+                    <span class="action-item-label">{{ project.client }} · {{ project.name }}</span>
+                    <span class="action-item-desc">{{ project.description }}</span>
+                  </span>
+                  <Check v-if="activeProject?.id === project.id" :size="15" class="check-icon" />
+                </button>
+                <button
+                  class="action-menu-item has-description"
+                  :class="{ selected: !activeProject }"
+                  type="button"
+                  @click.stop="unlinkProject"
+                >
+                  <X :size="15" class="action-icon" />
+                  <span class="action-item-copy">
+                    <span class="action-item-label">未关联</span>
+                    <span class="action-item-desc">本次提问不绑定到任何项目</span>
+                  </span>
+                  <Check v-if="!activeProject" :size="15" class="check-icon" />
+                </button>
+              </section>
+              <section class="action-group workspace-action-group" aria-label="工作区选择">
+                <p class="action-group-title">素材工作区</p>
+                <button
+                  v-for="workspace in workspaces"
+                  :key="workspace.id"
+                  class="action-menu-item"
+                  :class="{
+                    selected: activeWorkspaceId === workspace.id,
+                    'has-description': getWorkspaceDescription(workspace),
+                  }"
+                  type="button"
+                  @click.stop="selectWorkspace(workspace.id)"
+                >
+                  <FolderOpen :size="15" class="action-icon" />
+                  <span class="action-item-copy">
+                    <span class="action-item-label">{{ workspace.name }}</span>
+                    <span v-if="getWorkspaceDescription(workspace)" class="action-item-desc">
+                      {{ getWorkspaceDescription(workspace) }}
+                    </span>
+                  </span>
+                  <Check v-if="activeWorkspaceId === workspace.id" :size="15" class="check-icon" />
+                </button>
+                <button
+                  class="action-menu-item has-description"
+                  :class="{ selected: activeWorkspaceId === STANDALONE_WORKSPACE_ID }"
+                  type="button"
+                  @click.stop="selectNoWorkspace"
+                >
+                  <X :size="15" class="action-icon" />
+                  <span class="action-item-copy">
+                    <span class="action-item-label">从零开始</span>
+                    <span class="action-item-desc">不使用任何本地或云端文件夹、文件，全部从空白上下文开始</span>
+                  </span>
+                  <Check v-if="activeWorkspaceId === STANDALONE_WORKSPACE_ID" :size="15" class="check-icon" />
+                </button>
+                <button
+                  class="action-menu-item has-description"
+                  type="button"
+                  @click.stop="openWorkspaceDirectoryPicker"
+                >
+                  <FolderOpen :size="15" class="action-icon" />
+                  <span class="action-item-copy">
+                    <span class="action-item-label">使用本地文件夹新建</span>
+                    <span class="action-item-desc">选择本地目录作为工作空间</span>
+                  </span>
+                </button>
+                <button
+                  class="action-menu-item has-description"
+                  type="button"
+                  @click.stop="openKnowledgeWorkspacePicker"
+                >
+                  <BookOpen :size="15" class="action-icon" />
+                  <span class="action-item-copy">
+                    <span class="action-item-label">从知识库新建</span>
+                    <span class="action-item-desc">选择知识库文件作为本次工作空间素材</span>
+                  </span>
+                </button>
+              </section>
+            </div>
           </div>
         </div>
 
@@ -2229,7 +2283,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   padding: 12px 14px 10px;
   border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--card-bg);
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.015);
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
@@ -2491,7 +2545,7 @@ onBeforeUnmount(() => {
   gap: 7px;
   padding: 0 8px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 7px;
   color: var(--text-secondary);
   background: transparent;
   font-size: 13px;
@@ -2542,7 +2596,7 @@ onBeforeUnmount(() => {
   -webkit-appearance: none;
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: 7px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2571,7 +2625,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  border-radius: 8px;
+  border-radius: 7px;
   color: var(--text-secondary);
   background: transparent;
   font-size: 15px;
@@ -3346,12 +3400,12 @@ onBeforeUnmount(() => {
 
 .send-btn.active {
   color: var(--on-primary);
-  background: var(--primary-color);
+  background: var(--text-strong);
   cursor: pointer;
 }
 
 .send-btn.active:hover {
-  background: var(--primary-hover);
+  background: var(--text-main);
 }
 
 @media (max-width: 768px) {

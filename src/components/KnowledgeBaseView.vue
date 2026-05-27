@@ -27,10 +27,8 @@ type GroupMember = {
 };
 
 const initialGroupLibraries: GroupLibrary[] = [
-  { id: 'corporate', name: '团队知识库', count: 6, folders: ['并购项目', '股权激励', '投融资', '治理合规'] },
-  { id: 'dispute', name: '非诉讼小组', count: 5, folders: ['商事诉讼', '仲裁案件', '执行线索'] },
-  { id: 'compliance', name: '合规风控组', count: 4, folders: ['数据合规', '反垄断', '监管问询'] },
-  { id: 'labor', name: '劳动用工组', count: 3, folders: ['劳动争议', '员工手册', '竞业限制'] },
+  { id: 'personal', name: '个人知识库', count: 6, folders: ['我的合同库', '个人类案', '常用法规', '写作素材', '收藏文件'] },
+  { id: 'team', name: '团队知识库', count: 8, folders: ['团队合同库', '并购项目', '投融资', '治理合规', '法规库'] },
 ];
 const groupLibraries = ref<GroupLibrary[]>(initialGroupLibraries);
 const defaultGroupLibrary = initialGroupLibraries[0]!;
@@ -171,10 +169,6 @@ const kindLabel: Record<FileKind, string> = {
               @click="selectedGroupId = group.id"
             >
               {{ group.name }}
-            </button>
-            <button class="group-create-tab" type="button" @click="openCreateGroupModal">
-              <Plus :size="12" />
-              <span>新建小组</span>
             </button>
           </nav>
         </div>

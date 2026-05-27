@@ -1,628 +1,538 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import {
-  Archive,
+  Bell,
+  CalendarClock,
   CheckCircle2,
-  ChevronRight,
-  Circle,
-  PauseCircle,
-  Play,
+  Download,
+  FileText,
   Plus,
-  Trash2,
+  Search,
+  Sparkles,
 } from 'lucide-vue-next';
+import { useProjects } from '../stores/projects';
 import { useToast } from '../stores/toast';
 
-type AutomationStatus = 'scheduled' | 'completed' | 'paused';
-
-type AutomationRun = {
+type ScheduledResult = {
   id: string;
   title: string;
-  time: string;
-  success: boolean;
-};
-
-type AutomationTask = {
-  id: string;
-  title: string;
-  description: string;
-  status: AutomationStatus;
-  schedule: string;
-  nextRun: string;
-  lastRun: string;
   project: string;
-  model: string;
-  reasoning: string;
-  runs: AutomationRun[];
+  summary: string;
+  deliveredAt: string;
+  sources: string[];
+  files: string[];
+  status: 'ready' | 'running';
 };
 
-const seedTasks: AutomationTask[] = [
+type ScheduledTask = {
+  id: string;
+  title: string;
+  schedule: string;
+  project: string;
+  nextRun: string;
+};
+
+const { activeProject } = useProjects();
+const { showToast } = useToast();
+const activeTab = ref<'results' | 'mine' | 'recommended'>('results');
+const keyword = ref('');
+
+const results = ref<ScheduledResult[]>([
   {
-    id: 'automation-2026-05-20-archive-chat',
-    title: '对话列表过期内容自动归档',
-    description: '超过一周的对话需要自动归档',
-    status: 'scheduled',
-    schedule: '每天 13:00',
-    nextRun: '明天 13:00',
-    lastRun: '今天 13:02',
-    project: '聊天',
-    model: 'GPT-5.5',
-    reasoning: '超高',
-    runs: [
-      { id: 'run-1', title: '对话列表过期内容自动归档', time: '5 小时', success: true },
-      { id: 'run-2', title: '对话列表过期内容自动归档', time: '1 天', success: false },
-      { id: 'run-3', title: '对话列表过期内容自动归档', time: '2 天', success: false },
-      { id: 'run-4', title: '对话列表过期内容自动归档', time: '3 天', success: false },
-      { id: 'run-5', title: '对话列表过期内容自动归档', time: '1 周', success: true },
-    ],
+    id: 'result-contract-redline',
+    title: '合同审查与红线生成',
+    project: '鸿盛地产',
+    summary: '已识别 12 个高风险条款，生成红线版合同、风险点清单和谈判口径。',
+    deliveredAt: '今天 09:00',
+    sources: ['项目底稿 18 份', '团队合同库', '最新法规'],
+    files: ['风险点汇总表.xlsx', '红线版合同.docx'],
+    status: 'ready',
   },
   {
-    id: 'automation-2026-05-20-ai-news',
-    title: '每日 AI 新闻推送',
-    description: '每天整理 AI 新闻并生成简短推送',
-    status: 'completed',
-    schedule: '每天 09:00',
-    nextRun: '14 小时后开始',
-    lastRun: '38 分钟前',
-    project: '聊天',
-    model: 'GPT-5.5',
-    reasoning: '高',
-    runs: [
-      { id: 'run-news-1', title: '每日 AI 新闻推送', time: '38 分钟前', success: true },
-      { id: 'run-news-2', title: '每日 AI 新闻推送', time: '1 天', success: true },
-    ],
+    id: 'result-ma-weekly',
+    title: '并购项目每周风险摘要',
+    project: '海康并购案',
+    summary: '本周新增交割条件、员工安置和数据合规相关风险，建议在 SPA 中补充特别承诺。',
+    deliveredAt: '昨天 18:30',
+    sources: ['SPA 初稿', '尽调访谈纪要', '披露清单'],
+    files: ['每周风险摘要.docx'],
+    status: 'ready',
   },
+  {
+    id: 'result-reg-watch',
+    title: '监管新规影响扫描',
+    project: '未关联',
+    summary: '监测到 3 条与数据出境、平台责任相关的新规，已生成适用性判断。',
+    deliveredAt: '今天 07:30',
+    sources: ['法律法规库', '监管问答库'],
+    files: ['新规影响清单.xlsx', '适用性说明.pdf'],
+    status: 'ready',
+  },
+]);
+
+const tasks = ref<ScheduledTask[]>([
+  {
+    id: 'task-contract-redline',
+    title: '每天生成合同审查风险更新',
+    schedule: '工作日 09:00',
+    project: '鸿盛地产',
+    nextRun: '明天 09:00',
+  },
+  {
+    id: 'task-ma-weekly',
+    title: '并购项目每周风险摘要',
+    schedule: '每周五 18:30',
+    project: '海康并购案',
+    nextRun: '周五 18:30',
+  },
+  {
+    id: 'task-reg-watch',
+    title: '监管新规影响扫描',
+    schedule: '每天 07:30',
+    project: '未关联',
+    nextRun: '明天 07:30',
+  },
+]);
+
+const recommendedTasks = [
+  '每周生成项目风险摘要',
+  '每日监测客户相关裁判文书',
+  '合同到期与交割条件提醒',
+  '团队知识库新增文件摘要',
+  '法规变化影响扫描',
+  '案件时间线自动更新',
 ];
 
-const { showToast } = useToast();
-const tasks = ref<AutomationTask[]>(seedTasks);
-const selectedTaskId = ref('');
+const tabs = computed(() => [
+  { id: 'results' as const, label: '定时任务结果', count: results.value.length },
+  { id: 'mine' as const, label: '我的任务', count: tasks.value.length },
+  { id: 'recommended' as const, label: '推荐任务', count: recommendedTasks.length },
+]);
 
-const selectedTask = computed(() =>
-  tasks.value.find((task) => task.id === selectedTaskId.value) ?? null,
-);
-const scheduledTasks = computed(() => tasks.value.filter((task) => task.status === 'scheduled' || task.status === 'paused'));
-const completedTasks = computed(() => tasks.value.filter((task) => task.status === 'completed'));
+const filteredResults = computed(() => {
+  const normalized = keyword.value.trim().toLowerCase();
+  return results.value.filter((item) =>
+    !normalized || `${item.project} ${item.title} ${item.summary}`.toLowerCase().includes(normalized),
+  );
+});
 
 const createTask = () => {
-  const index = tasks.value.length + 1;
+  const projectName = activeProject.value?.client || '未关联';
   tasks.value = [
     {
-      id: `automation-draft-${Date.now()}`,
-      title: `新的自动化任务 ${index}`,
-      description: '通过聊天创建后会显示任务说明',
-      status: 'scheduled',
+      id: `task-${Date.now()}`,
+      title: '新的定时法律任务',
       schedule: '每天 09:00',
+      project: projectName,
       nextRun: '明天 09:00',
-      lastRun: '未运行',
-      project: '聊天',
-      model: 'GPT-5.5',
-      reasoning: '高',
-      runs: [],
     },
     ...tasks.value,
   ];
-  showToast('已添加自动化任务');
-};
-
-const addFromTemplate = () => {
-  showToast('已打开模板添加入口', { tone: 'info' });
-};
-
-const openTask = (task: AutomationTask) => {
-  selectedTaskId.value = task.id;
-};
-
-const closeDetail = () => {
-  selectedTaskId.value = '';
-};
-
-const runNow = (task: AutomationTask) => {
-  task.status = 'completed';
-  task.lastRun = '刚刚';
-  task.runs = [
-    { id: `run-${Date.now()}`, title: task.title, time: '刚刚', success: true },
-    ...task.runs,
-  ];
-  showToast('任务已立即运行');
-};
-
-const togglePause = (task: AutomationTask) => {
-  task.status = task.status === 'paused' ? 'scheduled' : 'paused';
-  task.nextRun = task.status === 'paused' ? '已暂停' : '明天 13:00';
-  showToast(task.status === 'paused' ? '任务已暂停' : '任务已恢复');
-};
-
-const deleteTask = (task: AutomationTask) => {
-  tasks.value = tasks.value.filter((item) => item.id !== task.id);
-  selectedTaskId.value = '';
-  showToast('任务已删除', { tone: 'info' });
+  activeTab.value = 'mine';
+  showToast('已创建定时任务草稿');
 };
 </script>
 
 <template>
-  <section class="automation-page">
-    <div v-if="!selectedTask" class="automation-list-shell">
-      <header class="automation-header">
-        <div>
-          <h1>自动化</h1>
-          <p>管理自动化任务并查看近期运行记录。</p>
-        </div>
-        <div class="automation-header-actions">
-          <button type="button" @click="createTask">
-            <Plus :size="14" />
-            <span>添加</span>
-          </button>
-          <button type="button" @click="addFromTemplate">从模版添加</button>
-        </div>
-      </header>
+  <section class="scheduled-page">
+    <header class="scheduled-header">
+      <div>
+        <h1>让 AI 按照你的要求定时干活</h1>
+        <p>按项目、客户或知识库定期执行检索、审查、摘要和交付，结果会沉淀在这里。</p>
+      </div>
+      <button type="button" class="primary-action" @click="createTask">
+        <Plus :size="15" />
+        <span>新建任务</span>
+      </button>
+    </header>
 
-      <section class="automation-section" aria-labelledby="scheduled-title">
-        <h2 id="scheduled-title">已安排</h2>
+    <div class="scheduled-toolbar">
+      <nav class="scheduled-tabs" aria-label="定时任务视图">
         <button
-          v-for="task in scheduledTasks"
-          :key="task.id"
+          v-for="tab in tabs"
+          :key="tab.id"
           type="button"
-          class="automation-row"
-          @click="openTask(task)"
+          :class="{ active: activeTab === tab.id }"
+          @click="activeTab = tab.id"
         >
-          <span class="automation-dot" :data-status="task.status"></span>
-          <strong>{{ task.title }}</strong>
-          <span class="automation-id">{{ task.id }}</span>
-          <span class="automation-chip">{{ task.schedule }}</span>
-          <span class="automation-time">{{ task.nextRun }}</span>
+          <span>{{ tab.label }}</span>
+          <strong>{{ tab.count }}</strong>
         </button>
-      </section>
-
-      <section class="automation-section" aria-labelledby="completed-title">
-        <h2 id="completed-title">已完成</h2>
-        <button
-          v-for="task in completedTasks"
-          :key="task.id"
-          type="button"
-          class="automation-row"
-          @click="openTask(task)"
-        >
-          <span class="automation-dot success"></span>
-          <strong>{{ task.title }}</strong>
-          <span class="automation-id">{{ task.id }}</span>
-          <span class="automation-success">成功</span>
-          <span class="automation-time">{{ task.lastRun }}</span>
-        </button>
-      </section>
+      </nav>
+      <label class="scheduled-search">
+        <Search :size="15" />
+        <input v-model="keyword" type="search" placeholder="搜索任务结果" />
+      </label>
     </div>
 
-    <div v-else class="automation-detail-shell">
-      <header class="automation-detail-top">
-        <button type="button" class="automation-breadcrumb" @click="closeDetail">
-          <span>自动化功能</span>
-          <ChevronRight :size="15" />
-          <strong>{{ selectedTask.title }}</strong>
-        </button>
-        <div class="automation-detail-actions">
-          <button type="button" aria-label="暂停任务" @click="togglePause(selectedTask)">
-            <PauseCircle :size="17" />
-          </button>
-          <button type="button" aria-label="删除任务" @click="deleteTask(selectedTask)">
-            <Trash2 :size="17" />
-          </button>
-          <button type="button" class="run-now-button" @click="runNow(selectedTask)">
-            <Play :size="15" />
-            <span>立即运行</span>
-          </button>
-        </div>
-      </header>
+    <main v-if="activeTab === 'results'" class="result-layout">
+      <section class="result-list">
+        <article
+          v-for="item in filteredResults"
+          :key="item.id"
+          class="result-card"
+        >
+          <header>
+            <span class="result-project">{{ item.project }}</span>
+            <time>{{ item.deliveredAt }}</time>
+          </header>
+          <h2>{{ item.title }}</h2>
+          <p>{{ item.summary }}</p>
+          <div class="source-row">
+            <span v-for="source in item.sources" :key="source">{{ source }}</span>
+          </div>
+          <footer>
+            <span v-for="file in item.files" :key="file" class="file-chip">
+              <FileText :size="13" />
+              {{ file }}
+            </span>
+            <button type="button" aria-label="下载结果">
+              <Download :size="15" />
+            </button>
+          </footer>
+        </article>
+      </section>
 
-      <main class="automation-detail-main">
-        <section class="automation-detail-content">
-          <h1>{{ selectedTask.title }}</h1>
-          <p>{{ selectedTask.description }}</p>
+      <aside class="result-aside">
+        <section>
+          <h2>今日交付</h2>
+          <strong>{{ filteredResults.length }}</strong>
+          <p>已生成并可下载的任务结果</p>
         </section>
+        <section>
+          <h2>当前项目</h2>
+          <strong>{{ activeProject?.client || '未关联' }}</strong>
+          <p>{{ activeProject?.name || '新建任务时可选择项目上下文' }}</p>
+        </section>
+      </aside>
+    </main>
 
-        <aside class="automation-detail-aside">
-          <section class="automation-side-section">
-            <h2>状态</h2>
-            <dl>
-              <div>
-                <dt>状态</dt>
-                <dd>
-                  <span class="status-pill" :data-status="selectedTask.status">
-                    {{ selectedTask.status === 'paused' ? '暂停' : '活跃' }}
-                  </span>
-                </dd>
-              </div>
-              <div>
-                <dt>下次运行</dt>
-                <dd>{{ selectedTask.nextRun }}</dd>
-              </div>
-              <div>
-                <dt>上次运行时间</dt>
-                <dd>{{ selectedTask.lastRun }}</dd>
-              </div>
-            </dl>
-          </section>
+    <main v-else-if="activeTab === 'mine'" class="task-list">
+      <article v-for="task in tasks" :key="task.id" class="task-row">
+        <CalendarClock :size="17" />
+        <span>
+          <strong>{{ task.title }}</strong>
+          <small>{{ task.project }} · {{ task.schedule }}</small>
+        </span>
+        <time>{{ task.nextRun }}</time>
+        <CheckCircle2 :size="17" />
+      </article>
+    </main>
 
-          <section class="automation-side-section">
-            <h2>详情</h2>
-            <dl>
-              <div>
-                <dt>主机</dt>
-                <dd>本地主机</dd>
-              </div>
-              <div>
-                <dt>项目</dt>
-                <dd>{{ selectedTask.project }}</dd>
-              </div>
-              <div>
-                <dt>重复次数</dt>
-                <dd>{{ selectedTask.schedule }}</dd>
-              </div>
-              <div>
-                <dt>模型</dt>
-                <dd>{{ selectedTask.model }}</dd>
-              </div>
-              <div>
-                <dt>推理</dt>
-                <dd>{{ selectedTask.reasoning }}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section class="automation-side-section">
-            <h2>运行历史记录</h2>
-            <div class="automation-run-list">
-              <article v-for="run in selectedTask.runs" :key="run.id" class="automation-run-row">
-                <CheckCircle2 v-if="run.success" :size="15" />
-                <Archive v-else :size="15" />
-                <strong>{{ run.title }}</strong>
-                <span>对话</span>
-                <time>{{ run.time }}</time>
-              </article>
-              <div v-if="selectedTask.runs.length === 0" class="automation-run-empty">
-                <Circle :size="14" />
-                <span>暂无运行记录</span>
-              </div>
-            </div>
-          </section>
-        </aside>
-      </main>
-    </div>
+    <main v-else class="recommended-grid">
+      <button v-for="task in recommendedTasks" :key="task" type="button" @click="createTask">
+        <Sparkles :size="17" />
+        <span>{{ task }}</span>
+        <Bell :size="15" />
+      </button>
+    </main>
   </section>
 </template>
 
 <style scoped>
-.automation-page {
+.scheduled-page {
   min-height: 100%;
+  padding: 42px 56px 56px;
   background: var(--bg-color);
   color: var(--text-main);
 }
 
-.automation-list-shell {
-  width: min(960px, 100%);
-  padding: 38px 56px;
-}
-
-.automation-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 36px;
-}
-
-.automation-header h1,
-.automation-detail-content h1 {
-  margin: 0;
-  color: var(--text-strong);
-  font-size: 30px;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.automation-header p,
-.automation-detail-content p {
-  margin: 12px 0 0;
-  color: var(--text-main);
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.automation-header-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.automation-header-actions button,
-.automation-detail-actions button {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0 13px;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--card-bg);
-  color: var(--text-main);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.automation-header-actions button:hover,
-.automation-detail-actions button:hover {
-  background: var(--surface-soft);
-}
-
-.automation-section {
-  margin-top: 34px;
-}
-
-.automation-section h2,
-.automation-side-section h2 {
-  margin: 0 0 18px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.automation-row {
-  width: 100%;
-  min-height: 42px;
-  display: grid;
-  grid-template-columns: 18px auto auto auto minmax(96px, 1fr);
-  align-items: center;
-  gap: 8px;
-  padding: 0;
-  color: var(--text-main);
-  text-align: left;
-}
-
-.automation-row:hover strong {
-  color: var(--primary-color);
-}
-
-.automation-dot {
-  width: 8px;
-  height: 8px;
-  margin-left: 1px;
-  border-radius: 999px;
-  background: var(--text-secondary);
-}
-
-.automation-dot.success {
-  background: var(--diff-added);
-}
-
-.automation-dot[data-status='paused'] {
-  background: var(--text-muted);
-}
-
-.automation-row strong {
-  color: var(--text-strong);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.automation-id,
-.automation-chip,
-.automation-success {
-  min-width: 0;
-  max-width: 184px;
-  overflow: hidden;
-  padding: 4px 9px;
-  border-radius: 6px;
-  background: var(--surface-soft);
-  color: var(--text-secondary);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.automation-success {
-  background: transparent;
-  color: var(--diff-added);
-}
-
-.automation-time {
-  justify-self: end;
-  color: var(--text-muted);
-  font-size: 13px;
-}
-
-.automation-detail-shell {
-  min-height: 100vh;
-}
-
-.automation-detail-top {
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  padding: 0 18px 0 26px;
-}
-
-.automation-breadcrumb {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-muted);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.automation-breadcrumb strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-strong);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.automation-detail-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.automation-detail-actions .run-now-button {
-  border-color: var(--text-strong);
-  background: var(--text-strong);
-  color: var(--card-bg);
-}
-
-.automation-detail-main {
-  min-height: calc(100vh - 52px);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-}
-
-.automation-detail-content {
-  padding: 56px 56px 56px 110px;
-}
-
-.automation-detail-content p {
-  margin-top: 36px;
-  color: var(--text-strong);
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.automation-detail-aside {
-  padding: 34px 28px 34px 30px;
-  border-left: 1px solid var(--border-color);
-}
-
-.automation-side-section + .automation-side-section {
-  margin-top: 34px;
-}
-
-.automation-side-section dl {
-  display: grid;
-  gap: 14px;
-  margin: 0;
-}
-
-.automation-side-section dl div {
+.scheduled-header,
+.scheduled-toolbar,
+.result-card header,
+.result-card footer,
+.task-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
 
-.automation-side-section dt {
-  color: var(--text-main);
-  font-size: 14px;
-  font-weight: 650;
+.scheduled-header h1 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 30px;
+  font-weight: 760;
 }
 
-.automation-side-section dd {
+.scheduled-header p {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.primary-action {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 13px;
+  border-radius: 8px;
+  background: var(--text-strong);
+  color: var(--card-bg);
+  font-size: 13px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.scheduled-toolbar {
+  margin-top: 34px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.scheduled-tabs {
+  display: flex;
+  gap: 20px;
+}
+
+.scheduled-tabs button {
+  position: relative;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 720;
+}
+
+.scheduled-tabs button.active {
+  color: var(--text-strong);
+}
+
+.scheduled-tabs button.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -17px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--text-strong);
+}
+
+.scheduled-tabs strong {
+  min-width: 21px;
+  height: 21px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  font-size: 11px;
+}
+
+.scheduled-search {
+  width: min(320px, 36vw);
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: var(--card-bg);
+}
+
+.scheduled-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-main);
+}
+
+.result-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 28px;
+  margin-top: 24px;
+}
+
+.result-list,
+.task-list,
+.recommended-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.result-layout .result-list {
+  margin-top: 0;
+}
+
+.result-card,
+.result-aside section,
+.task-row,
+.recommended-grid button {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.result-card {
+  padding: 18px;
+}
+
+.result-project {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.result-card time,
+.task-row time {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.result-card h2 {
+  margin: 12px 0 8px;
+  color: var(--text-strong);
+  font-size: 18px;
+}
+
+.result-card p {
   margin: 0;
   color: var(--text-secondary);
   font-size: 14px;
-  font-weight: 650;
+  line-height: 1.7;
 }
 
-.status-pill {
+.source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 16px 0;
+}
+
+.source-row span,
+.file-chip {
+  min-height: 26px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 26px;
-  padding: 0 10px;
+  gap: 5px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.result-card footer button {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 8px;
+  color: var(--text-main);
   background: var(--surface-soft);
 }
 
-.status-pill::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--diff-added);
-}
-
-.status-pill[data-status='paused']::before {
-  background: var(--text-muted);
-}
-
-.automation-run-list {
-  max-height: 360px;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.automation-run-row,
-.automation-run-empty {
-  min-height: 34px;
+.result-aside {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 6px;
+  gap: 12px;
+  align-content: start;
+}
+
+.result-aside section {
+  padding: 18px;
+}
+
+.result-aside h2 {
+  margin: 0 0 12px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.result-aside strong {
+  color: var(--text-strong);
+  font-size: 24px;
+}
+
+.result-aside p {
+  margin: 8px 0 0;
   color: var(--text-muted);
   font-size: 13px;
+  line-height: 1.6;
 }
 
-.automation-run-row strong {
+.task-row {
+  min-height: 62px;
+  padding: 0 16px;
+}
+
+.task-row span {
   min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+
+.task-row strong,
+.task-row small {
   overflow: hidden;
-  color: var(--text-main);
-  font-size: 13px;
-  font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.automation-run-row time {
+.task-row strong {
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.task-row small {
   color: var(--text-muted);
+  font-size: 12px;
 }
 
-.automation-run-empty {
-  grid-template-columns: 18px minmax(0, 1fr);
+.recommended-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
-@media (max-width: 980px) {
-  .automation-list-shell {
-    padding: 32px 24px;
-  }
-
-  .automation-detail-main {
-    grid-template-columns: 1fr;
-  }
-
-  .automation-detail-content {
-    padding: 38px 24px;
-  }
-
-  .automation-detail-aside {
-    border-top: 1px solid var(--border-color);
-    border-left: 0;
-  }
+.recommended-grid button {
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  color: var(--text-main);
+  text-align: left;
 }
 
-@media (max-width: 720px) {
-  .automation-header,
-  .automation-detail-top {
+.recommended-grid span {
+  overflow: hidden;
+  color: var(--text-strong);
+  font-size: 14px;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 920px) {
+  .scheduled-page {
+    padding: 28px 18px 40px;
+  }
+
+  .scheduled-header,
+  .scheduled-toolbar {
     align-items: stretch;
     flex-direction: column;
-    height: auto;
   }
 
-  .automation-detail-top {
-    padding: 18px;
+  .scheduled-search {
+    width: 100%;
   }
 
-  .automation-row {
-    grid-template-columns: 18px minmax(0, 1fr);
-    gap: 6px 8px;
-    padding: 10px 0;
-  }
-
-  .automation-id,
-  .automation-chip,
-  .automation-success,
-  .automation-time {
-    grid-column: 2;
-    justify-self: start;
+  .result-layout {
+    grid-template-columns: 1fr;
   }
 }
 </style>

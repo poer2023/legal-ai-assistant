@@ -92,7 +92,6 @@ const selectedExtractionMessage = computed(() =>
 );
 const sourceTabsKeys: SourceFilter[] = [
   'personal',
-  'group-shared',
   'team-shared',
   'public-hub',
 ];
@@ -177,8 +176,7 @@ const sourceTabs = computed(() => {
 
   return [
     { key: 'personal' as const, name: templateModeCopy.personal.name, count: counts.personal },
-    { key: 'group-shared' as const, name: templateModeCopy['group-shared'].name, count: counts['group-shared'] },
-    { key: 'team-shared' as const, name: templateModeCopy['team-shared'].name, count: counts['team-shared'] },
+    { key: 'team-shared' as const, name: templateModeCopy['team-shared'].name, count: counts['team-shared'] + counts['group-shared'] },
     { key: 'public-hub' as const, name: templateModeCopy['public-hub'].name, count: counts['public-hub'] },
   ];
 });

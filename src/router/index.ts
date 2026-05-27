@@ -34,6 +34,7 @@ import AiQnaView from '../components/AiQnaView.vue';
 import HistoryView from '../components/HistoryView.vue';
 import KnowledgeBaseView from '../components/KnowledgeBaseView.vue';
 import ClawView from '../components/ClawView.vue';
+import ProjectsView from '../components/ProjectsView.vue';
 import ScheduledTasksView from '../components/ScheduledTasksView.vue';
 import TeamPortalView from '../components/TeamPortalView.vue';
 import TeamOverviewDashboardView from '../components/TeamOverviewDashboardView.vue';
@@ -103,6 +104,12 @@ const routes = [
     name: 'templates',
     component: TemplatesView,
     meta: { title: '模板库' }
+  },
+  {
+    path: '/projects',
+    name: 'projects',
+    component: ProjectsView,
+    meta: { title: '项目' }
   },
   {
     path: '/create/policy_advisory_report',

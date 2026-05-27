@@ -129,20 +129,20 @@ watch(
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
-  padding: clamp(96px, calc(38.2vh - 132px), 240px) 40px 40px;
+  padding: clamp(72px, calc(34vh - 112px), 188px) 40px 40px;
   background: var(--bg-color);
   transition: padding-top 0.24s ease;
 }
 
 .content-wrapper {
   width: 100%;
-  max-width: 850px;
+  max-width: 820px;
   margin: 0 auto;
 }
 
 .center-title-area {
   text-align: center;
-  margin-bottom: 70px;
+  margin-bottom: 52px;
   transition: margin-bottom 0.24s ease, transform 0.24s ease;
 }
 
@@ -150,8 +150,8 @@ watch(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
-  font-size: 30px;
+  gap: 14px;
+  font-size: 28px;
   font-weight: 700;
   color: var(--text-main);
   letter-spacing: 0;
@@ -166,7 +166,7 @@ watch(
 }
 
 .assistant-title {
-  color: var(--primary-color);
+  color: var(--text-strong);
 }
 
 .chat-area {

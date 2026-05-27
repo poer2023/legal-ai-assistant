@@ -1,9 +1,9 @@
 import { computed, ref } from 'vue';
 
-const SESSION_STORAGE_KEY = 'legal-demo-org-session-v1';
+const SESSION_STORAGE_KEY = 'legal-demo-org-session-v2';
 const MOCK_VERIFY_CODE = '112233';
-const PUBLIC_DEMO_PHONE = '11111111111';
-export const NO_ORGANIZATION_DEMO_PHONE = '19900000000';
+const PUBLIC_DEMO_EMAIL = 'sinder@yongjian.com';
+export const NO_ORGANIZATION_DEMO_EMAIL = 'no-org@yongjian.ai';
 export const AUTH_FLOW_ENABLED = false;
 
 export type MockOrganization = {
@@ -22,6 +22,7 @@ export type MockOrganization = {
 
 export type MockUser = {
   id: string;
+  email: string;
   phone: string;
   displayName: string;
   avatarText: string;
@@ -50,37 +51,40 @@ const getSafeStorage = () => {
   return window.localStorage;
 };
 
-const normalizePhone = (value: string) => value.replace(/\D/g, '').slice(0, 11);
+const normalizeEmail = (value: string) => value.trim().toLowerCase().slice(0, 128);
 
-const maskPhone = (phone: string) => {
-  if (phone.length !== 11) return phone;
-  return `${phone.slice(0, 3)} ${phone.slice(3, 7)} ${phone.slice(7)}`;
+const legacyPhoneForEmail = (email: string) => {
+  let seed = 0;
+  for (const char of email) seed = (seed * 31 + char.charCodeAt(0)) % 100000000;
+  return `188${String(seed).padStart(8, '0').slice(0, 8)}`;
 };
 
-const avatarTextForPhone = (phone: string) => phone.slice(-2) || '用';
+const emailLocalPart = (email: string) => email.split('@')[0] || email;
+const avatarTextForEmail = (email: string) => emailLocalPart(email).slice(0, 1).toUpperCase() || '用';
 
-const avatarTextForName = (displayName: string, phone: string) =>
-  displayName.trim().slice(0, 1).toUpperCase() || avatarTextForPhone(phone);
+const avatarTextForName = (displayName: string, email: string) =>
+  displayName.trim().slice(0, 1).toUpperCase() || avatarTextForEmail(email);
 
-const createUser = (phone: string): MockUser => ({
-  id: `user-${phone}`,
-  phone,
-  displayName: maskPhone(phone),
-  avatarText: avatarTextForPhone(phone),
+const createUser = (email: string): MockUser => ({
+  id: `user-${email.replace(/[^a-z0-9]+/gi, '-')}`,
+  email,
+  phone: legacyPhoneForEmail(email),
+  displayName: `律师 · ${emailLocalPart(email)}`,
+  avatarText: avatarTextForEmail(email),
 });
 
-const createOrganizationsForPhone = (phone: string): MockOrganization[] => {
-  if (phone === NO_ORGANIZATION_DEMO_PHONE) return [];
+const createOrganizationsForEmail = (email: string): MockOrganization[] => {
+  if (email === NO_ORGANIZATION_DEMO_EMAIL) return [];
 
-  const suffix = phone.slice(-4);
-  const lastDigit = Number(phone.slice(-1)) || 0;
+  const suffix = emailLocalPart(email).replace(/[^a-z0-9]/gi, '').slice(-4) || 'firm';
+  const lastDigit = email.length % 10;
 
   return [
     {
       id: 'org-yongjian-law',
-      name: '涌见律所演示组织',
-      shortName: '涌见律所',
-      avatarText: '涌',
+      name: 'XX律师事务所',
+      shortName: 'XX团队',
+      avatarText: 'X',
       role: '管理员',
       memberCount: 18 + lastDigit,
       planName: '专业版',
@@ -102,15 +106,15 @@ const createOrganizationsForPhone = (phone: string): MockOrganization[] => {
 };
 
 const createPublicDemoState = (): OrgSessionState => {
-  const organizations = createOrganizationsForPhone(PUBLIC_DEMO_PHONE);
+  const organizations = createOrganizationsForEmail(PUBLIC_DEMO_EMAIL);
 
   return {
     user: {
-      ...createUser(PUBLIC_DEMO_PHONE),
+      ...createUser(PUBLIC_DEMO_EMAIL),
       id: 'public-demo-user',
-      displayName: '律师 · 1111',
-      avatarText: '律',
-      firmShortName: '金杜律师事务所',
+      displayName: 'sinder',
+      avatarText: 's',
+      firmShortName: 'XX律师事务所',
       yearsInPractice: '12',
       qualification: '合伙人',
       expertise: ['跨境投融资', '并购重组', '私募基金'],
@@ -153,18 +157,25 @@ const readStoredSession = (): OrgSessionState => {
     if (
       !user
       || typeof user.id !== 'string'
-      || typeof user.phone !== 'string'
       || typeof user.displayName !== 'string'
     ) {
       return emptyState();
     }
 
+    const email = typeof user.email === 'string' && user.email
+      ? normalizeEmail(user.email)
+      : `${String(user.phone || 'user')}@firm.local`;
+    const phone = typeof user.phone === 'string' && user.phone
+      ? user.phone
+      : legacyPhoneForEmail(email);
+
     return {
       user: {
         id: user.id,
-        phone: user.phone,
+        email,
+        phone,
         displayName: user.displayName,
-        avatarText: typeof user.avatarText === 'string' ? user.avatarText : avatarTextForPhone(user.phone),
+        avatarText: typeof user.avatarText === 'string' ? user.avatarText : avatarTextForEmail(email),
         avatarDataUrl: typeof user.avatarDataUrl === 'string' ? user.avatarDataUrl : undefined,
         firmShortName: typeof user.firmShortName === 'string' ? user.firmShortName : undefined,
         bio: typeof user.bio === 'string' ? user.bio : undefined,
@@ -210,11 +221,8 @@ const persistSession = () => {
   storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(state.value));
 };
 
-const isValidMockPhone = (phone: string) => /^\d{11}$/.test(phone);
-const isValidMockPassword = (phone: string, password: string) => {
-  const trimmedPassword = password.trim();
-  return trimmedPassword === phone.slice(-6) || trimmedPassword === MOCK_VERIFY_CODE;
-};
+const isValidMockEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const isValidMockCode = (code: string) => code.trim() === MOCK_VERIFY_CODE;
 
 export const getCurrentOrganizationId = () => state.value.currentOrganizationId;
 
@@ -232,22 +240,22 @@ export const useOrgSession = () => {
   const isAuthenticated = computed(() => Boolean(state.value.user));
   const hasActiveOrganization = computed(() => Boolean(currentOrganization.value));
 
-  const login = (rawPhone: string, password: string) => {
-    const phone = normalizePhone(rawPhone);
-    if (!isValidMockPhone(phone) || !isValidMockPassword(phone, password)) {
+  const login = (rawEmail: string, code: string) => {
+    const email = normalizeEmail(rawEmail);
+    if (!isValidMockEmail(email) || !isValidMockCode(code)) {
       return {
         ok: false,
-        message: '手机号或密码不正确',
+        message: '邮箱或验证码不正确',
       };
     }
 
-    const previousOrganizationId = state.value.user?.phone === phone
+    const previousOrganizationId = state.value.user?.email === email
       ? state.value.currentOrganizationId
       : '';
-    const organizationsForUser = createOrganizationsForPhone(phone);
+    const organizationsForUser = createOrganizationsForEmail(email);
 
     state.value = {
-      user: createUser(phone),
+      user: createUser(email),
       organizations: organizationsForUser,
       currentOrganizationId: organizationsForUser.some((org) => org.id === previousOrganizationId)
         ? previousOrganizationId
@@ -352,7 +360,7 @@ export const useOrgSession = () => {
       user: {
         ...state.value.user,
         displayName,
-        avatarText: avatarTextForName(displayName, state.value.user.phone),
+        avatarText: avatarTextForName(displayName, state.value.user.email),
         avatarDataUrl: avatarDataUrl || undefined,
         firmShortName: firmShortName || undefined,
         bio: bio || undefined,
@@ -379,7 +387,7 @@ export const useOrgSession = () => {
     isAuthenticated,
     login,
     logout,
-    normalizePhone,
+    normalizeEmail,
     removeOrganization,
     selectOrganization,
     updateUserProfile,

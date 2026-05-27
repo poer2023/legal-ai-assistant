@@ -2,6 +2,9 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
+  Activity,
+  Building2,
+  CreditCard,
   Coins,
   LayoutDashboard,
   Users,
@@ -17,9 +20,11 @@ type MenuItem = {
 };
 
 const menuItems: MenuItem[] = [
-  { key: 'overview', label: '团队概览', icon: LayoutDashboard, routeName: 'team-overview', group: 'overview' },
-  { key: 'credits', label: '积分明细', icon: Coins, routeName: 'team-credits', group: 'overview' },
+  { key: 'overview', label: '团队信息', icon: Building2, routeName: 'team-overview', group: 'overview' },
   { key: 'members', label: '成员管理', icon: Users, routeName: 'team-members', group: 'manage' },
+  { key: 'credits', label: '积分管理', icon: Coins, routeName: 'team-credits', group: 'manage' },
+  { key: 'logs', label: '操作日志', icon: Activity, routeName: 'team-overview', group: 'manage' },
+  { key: 'billing', label: '账单', icon: CreditCard, routeName: 'team-credits', group: 'manage' },
 ];
 
 const groupLabels: Record<MenuItem['group'], string> = {
@@ -42,6 +47,7 @@ const { currentOrganization } = useOrgSession();
 
 const teamName = computed(() => currentOrganization.value?.name ?? '演示团队');
 const teamAvatarText = computed(() => currentOrganization.value?.avatarText ?? '团');
+const teamShortName = computed(() => currentOrganization.value?.shortName ?? 'XX律所');
 
 const activeMenuKey = computed(() => {
   const name = String(route.name ?? '');
@@ -97,7 +103,29 @@ const handleMenuClick = (item: MenuItem) => {
     </aside>
 
     <main class="team-admin-main">
-      <router-view />
+      <div class="team-admin-workspace">
+        <section class="team-admin-content">
+          <router-view />
+        </section>
+        <aside class="team-client-preview" aria-label="客户端首页预览">
+          <div class="preview-window">
+            <div class="preview-sidebar">
+              <span class="preview-logo">{{ teamAvatarText }}</span>
+              <small>{{ teamShortName }}</small>
+            </div>
+            <div class="preview-main">
+              <p>客户端首页预览</p>
+              <h2>{{ teamName }} · XX团队 | AI 法律工作台</h2>
+              <div class="preview-composer">
+                <span>项目</span>
+                <strong>未关联</strong>
+                <em>技能</em>
+                <em>模板</em>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
     </main>
 
     <nav class="team-admin-mobile-bar" aria-label="团队后台移动导航">
@@ -258,6 +286,112 @@ const handleMenuClick = (item: MenuItem) => {
   min-width: 0;
   height: 100%;
   overflow-y: auto;
+}
+
+.team-admin-workspace {
+  min-height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 0;
+}
+
+.team-admin-content {
+  min-width: 0;
+}
+
+.team-client-preview {
+  padding: 28px 24px;
+  border-left: 1px solid var(--border-color);
+  background: var(--surface-muted);
+}
+
+.preview-window {
+  min-height: 320px;
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+}
+
+.preview-sidebar {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px 8px;
+  border-right: 1px solid var(--border-soft);
+  background: var(--sidebar-bg);
+}
+
+.preview-logo {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--text-strong);
+  color: var(--card-bg);
+  font-weight: 760;
+}
+
+.preview-sidebar small {
+  max-width: 56px;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-main {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  padding: 28px 22px;
+  text-align: center;
+}
+
+.preview-main p {
+  margin: 0 0 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.preview-main h2 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.preview-composer {
+  width: 100%;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.preview-composer strong,
+.preview-composer em {
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-main);
+  font-style: normal;
 }
 
 .team-admin-mobile-bar {

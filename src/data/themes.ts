@@ -127,11 +127,11 @@ export const themeOptions: ThemeDefinition[] = [
   {
     id: 'lawagents-standalone-v1',
     name: 'LawAgents Standalone',
-    description: '基准暖白主题：暖纸底、墨色文字、陶土强调色与紧凑工作台节奏。',
+    description: '基准 LawAgents 主题：白色纸面、墨色强调与紧凑工作台节奏。',
     codeThemeId: 'lawagents-standalone',
     variant: 'light',
     theme: {
-      accent: '#c8552e',
+      accent: '#2b2522',
       contrast: 45,
       fonts: {
         code: "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace",
@@ -142,9 +142,9 @@ export const themeOptions: ThemeDefinition[] = [
       semanticColors: {
         diffAdded: '#4a423d',
         diffRemoved: '#b23a3a',
-        skill: '#c8552e',
+        skill: '#2b2522',
       },
-      surface: '#faf7f1',
+      surface: '#ffffff',
     },
   },
 ];

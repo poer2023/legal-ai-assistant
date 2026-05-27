@@ -169,16 +169,16 @@ const themeSwatches = themeOptions.map((theme) => ({
   ink: theme.theme.ink,
 }));
 
-const profilePhone = computed(() => currentUser.value?.phone?.trim() || '11111111111');
+const profileEmail = computed(() => currentUser.value?.email?.trim() || 'sinder@kingwood.com');
 const profileUserId = computed(() => {
   const rawUserId = currentUser.value?.id?.trim();
-  if (!rawUserId || rawUserId === 'public-demo-user') return `user-${profilePhone.value}`;
+  if (!rawUserId || rawUserId === 'public-demo-user') return `user-${profileEmail.value.replace(/[^a-z0-9]+/gi, '-')}`;
   return rawUserId;
 });
 const savedProfileName = computed(() => {
   const rawName = currentUser.value?.displayName?.trim();
   if (rawName && rawName !== '演示用户') return rawName;
-  return `律师 · ${profilePhone.value.slice(-4) || '1111'}`;
+  return `律师 · ${profileEmail.value.split('@')[0] || 'sinder'}`;
 });
 const savedFirmName = computed(() =>
   currentUser.value?.firmShortName?.trim()
@@ -455,7 +455,7 @@ onBeforeUnmount(() => {
 
                     <div class="account-meta-row">
                       <span><Building2 :size="13" />{{ firmName }}</span>
-                      <span><UserRound :size="13" />{{ profilePhone }}</span>
+                      <span><UserRound :size="13" />{{ profileEmail }}</span>
                       <span><ShieldCheck :size="13" />{{ profileUserId }}</span>
                     </div>
 
@@ -507,7 +507,7 @@ onBeforeUnmount(() => {
                 <div class="settings-row">
                   <span>
                     <strong><KeyRound :size="15" />登录方式</strong>
-                    <small>手机号密码登录 · 首次密码为手机号后六位</small>
+                    <small>邮箱验证码登录 · 无需密码</small>
                   </span>
                   <span class="settings-badge">已启用</span>
                 </div>

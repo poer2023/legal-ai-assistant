@@ -195,17 +195,15 @@ const isHistoryActive = (item: ChatHistoryItem) => {
 const isKnowledgeActive = computed(() => {
   return ['knowledge'].includes(String(route.name ?? ''));
 });
-const isClawActive = computed(() =>
-  isActive('claw') || (route.name === 'chat' && route.query.source === 'claw')
-);
 const isHistoryPageActive = computed(() => route.name === 'history');
 const isProfileActive = computed(() => route.path.startsWith('/profile'));
 const profileDisplayName = computed(() => {
   const user = currentUser.value;
   if (!user) return '个人中心';
 
-  const name = user.displayName?.trim() || user.phone || '个人中心';
-  const suffix = user.phone?.slice(-4);
+  const email = user.email?.trim() || '';
+  const name = user.displayName?.trim() || email || '个人中心';
+  const suffix = email.split('@')[0];
   return suffix && !name.includes(suffix) ? `${name} · ${suffix}` : name;
 });
 const profileMeta = computed(() =>
@@ -214,6 +212,13 @@ const profileMeta = computed(() =>
   || currentOrganization.value?.name
   || '个人中心'
 );
+const sidebarBrandName = computed(() => {
+  const organizationName = currentOrganization.value?.name?.trim();
+  if (organizationName?.endsWith('律师事务所')) {
+    return organizationName.replace(/律师事务所$/, '律所');
+  }
+  return currentOrganization.value?.shortName?.trim() || organizationName || '涌见 AI';
+});
 const profileAvatarText = computed(() =>
   currentUser.value?.avatarText
   || currentOrganization.value?.avatarText
@@ -716,9 +721,7 @@ onBeforeUnmount(() => {
           />
         </div>
         <div class="logo-text">
-          <span class="logo-brand">
-            涌见 <span class="logo-brand-ai">AI</span>
-          </span>
+          <span class="logo-brand">{{ sidebarBrandName }}</span>
         </div>
       </div>
 
@@ -747,6 +750,17 @@ onBeforeUnmount(() => {
         >
           <LawAgentsNavIcon kind="assistant" :size="18" class="nav-icon" />
           <span class="nav-label">助手</span>
+        </button>
+
+        <button
+          class="nav-item"
+          :class="{ active: isActive('projects') }"
+          aria-label="项目"
+          :title="isCollapsed ? '项目' : undefined"
+          @click="handleItemClick('projects')"
+        >
+          <LawAgentsNavIcon kind="projects" :size="18" class="nav-icon" />
+          <span class="nav-label">项目</span>
         </button>
 
         <button
@@ -781,17 +795,6 @@ onBeforeUnmount(() => {
         >
           <LawAgentsNavIcon kind="knowledge" :size="18" class="nav-icon" />
           <span class="nav-label">知识库</span>
-        </button>
-
-        <button
-          class="nav-item"
-          :class="{ active: isClawActive }"
-          aria-label="claw"
-          :title="isCollapsed ? 'claw' : undefined"
-          @click="handleItemClick('claw')"
-        >
-          <LawAgentsNavIcon kind="claw" :size="18" class="nav-icon" />
-          <span class="nav-label">claw</span>
         </button>
 
         <button
@@ -998,6 +1001,19 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="sidebar-nav-bottom">
+        <button
+          v-if="!isCollapsed"
+          type="button"
+          class="sidebar-update-card"
+          @click="showSettingsModal = true"
+        >
+          <span class="sidebar-update-dot" aria-hidden="true"></span>
+          <span>
+            <strong>新版本 v2.4.0 可更新</strong>
+            <small>查看更新与设置</small>
+          </span>
+          <Settings :size="14" />
+        </button>
         <button
           ref="profileMenuTriggerRef"
           class="nav-item profile-nav-item lawagents-profile-item"
@@ -1747,6 +1763,57 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   padding-top: 8px;
   margin-top: auto;
+}
+
+.sidebar-update-card {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--border-color) 78%, transparent);
+  border-radius: 8px;
+  color: var(--text-main);
+  background: var(--card-bg);
+  text-align: left;
+}
+
+.sidebar-update-card:hover {
+  border-color: var(--sidebar-active-text);
+}
+
+.sidebar-update-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--sidebar-active-text);
+}
+
+.sidebar-update-card span:not(.sidebar-update-dot) {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.sidebar-update-card strong,
+.sidebar-update-card small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-update-card strong {
+  color: var(--text-strong);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.sidebar-update-card small {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .profile-nav-item {
